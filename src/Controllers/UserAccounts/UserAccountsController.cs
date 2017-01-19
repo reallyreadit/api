@@ -2,12 +2,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using System.Security.Cryptography;
 using api.DataAccess;
-using api.Controllers.ModelBinders;
 using System;
 using Microsoft.AspNetCore.Http;
 using System.Linq;
 
-namespace api.Controllers {
+namespace api.Controllers.UserAccounts {
     public class UserAccountsController : Controller {
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];

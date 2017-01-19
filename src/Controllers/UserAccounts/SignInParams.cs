@@ -1,4 +1,4 @@
-namespace api.Controllers.ModelBinders {
+namespace api.Controllers.UserAccounts {
 	public class SignInParams {
 		public string Name { get; set; }
 		public string Password { get; set; }
