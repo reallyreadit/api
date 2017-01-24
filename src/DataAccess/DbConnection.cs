@@ -47,6 +47,74 @@ namespace api.DataAccess {
 		public void EndSession(byte[] sessionKey) {
 			conn.Execute("end_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
 		}
+		public Source FindSource(string sourceHostname) {
+			return conn.QuerySingleOrDefault<Source>("find_source", new { source_hostname = sourceHostname }, commandType: CommandType.StoredProcedure);
+		}
+		public UserPage FindUserPage(string articleSlug, int pageNumber, Guid userAccountId) {
+			return conn.QuerySingleOrDefault<UserPage>(
+				sql: "find_user_page",
+				param: new {
+					article_slug = articleSlug,
+					page_number = pageNumber,
+					user_account_id = userAccountId
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public UserPage CreateUserPage(Guid pageId, Guid userAccountId, int[] readState, int percentComplete) {
+			return conn.QuerySingleOrDefault(
+				sql: "create_user_page",
+				param: new {
+					page_id = pageId,
+					user_account_id = userAccountId,
+					read_state = readState,
+					percent_complete = percentComplete
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public UserPage UpdateUserPage(Guid userPageId, int[] readState, int percentComplete) {
+			return conn.QuerySingleOrDefault(
+				sql: "update_user_page",
+				param: new {
+					user_page_id = userPageId,
+					read_state = readState,
+					percent_complete = percentComplete
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public Article FindArticle(string slug) {
+			return conn.QuerySingleOrDefault("find_article", new { slug }, commandType: CommandType.StoredProcedure);
+		}
+		public Article CreateArticle(string title, string slug, string author, DateTime? datePublished, Guid sourceId) {
+			return conn.QuerySingleOrDefault(
+				sql: "create_article",
+				param: new {
+					title,
+					slug,
+					author,
+					date_published = datePublished,
+					source_id = sourceId
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public Page CreatePage(Guid articleId, int number, int wordCount, string url) {
+			return conn.QuerySingleOrDefault(
+				sql: "create_page",
+				param: new {
+					article_id = articleId,
+					number,
+					word_count = wordCount,
+					url
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public Page GetPage(Guid articleId, int number) {
+			return conn.QuerySingleOrDefault("get_page", new { article_id = articleId, number }, commandType: CommandType.StoredProcedure);
+		}
         public void Dispose() {
             conn.Dispose();
         }

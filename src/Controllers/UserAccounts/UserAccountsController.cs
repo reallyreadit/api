@@ -79,7 +79,7 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public IActionResult SignOut() {
 			using (var db = new DbConnection()) {
-				db.EndSession(Convert.FromBase64String(Request.Cookies["sessionKey"]));
+				db.EndSession(this.GetSessionKey());
 			}
 			Response.Cookies.Delete("sessionKey");
 			return Ok();
