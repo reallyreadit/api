@@ -6,7 +6,7 @@ namespace api.Controllers.Extension {
 		public string Title { get; set; }
 		public int WordCount { get; set; }
 		public int[] ReadState { get; set; }
-		public int PercentComplete { get; set; }
+		public double PercentComplete { get; set; }
 		public string Url { get; set; }
 		public DateTime? DatePublished { get; set; }
 		public string Author { get; set; }

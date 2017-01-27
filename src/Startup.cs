@@ -15,8 +15,11 @@ namespace api
         public void Configure(IApplicationBuilder app/*, ILoggerFactory loggerFactory*/) {
             app.UseDeveloperExceptionPage();
             app.UseCors(cors => cors
+                .WithOrigins(
+                    "http://dev.reallyread.it",
+                    "chrome-extension://ibdjhkiiiiifdgmdalkofacfnihpomkn"
+                )
                 .AllowCredentials()
-                .AllowAnyOrigin()
                 .AllowAnyHeader()
                 .AllowAnyMethod());
             app.UseMvc(routes =>

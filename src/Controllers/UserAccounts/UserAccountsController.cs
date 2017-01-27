@@ -29,10 +29,8 @@ namespace api.Controllers.UserAccounts {
 				key: "sessionKey",
 				value: Convert.ToBase64String(sessionKey),
 				options: new CookieOptions() {
-					HttpOnly = true,
-					Secure = false,
-					Domain = null,
-					Expires = null
+					Domain = "dev.reallyread.it",
+					HttpOnly = true
 				}
 			);
 		}
@@ -57,9 +55,9 @@ namespace api.Controllers.UserAccounts {
 			}
         }
 		[HttpGet]
-		public IActionResult GetUserAccount(string sessionKey) {
+		public IActionResult GetUserAccount() {
 			using (var db = new DbConnection()) {
-				return Json(db.GetUserAccount(db.GetSession(Convert.FromBase64String(sessionKey)).UserAccountId));
+				return Json(db.GetUserAccount(db.GetSession(this.GetSessionKey()).UserAccountId));
 			}
 		}
 		[HttpPost]
@@ -81,7 +79,9 @@ namespace api.Controllers.UserAccounts {
 			using (var db = new DbConnection()) {
 				db.EndSession(this.GetSessionKey());
 			}
-			Response.Cookies.Delete("sessionKey");
+			Response.Cookies.Delete("sessionKey", new CookieOptions() {
+				Domain = "dev.reallyread.it"
+			});
 			return Ok();
 		}
     }

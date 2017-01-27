@@ -11,8 +11,11 @@ namespace api.DataAccess {
 		public DbConnection() {
 			conn.Open();
 		}
-		public IEnumerable<Article> ListArticles() {
-			return conn.Query<Article>("list_articles", commandType: CommandType.StoredProcedure);
+		public IEnumerable<Article> ListArticlesWithComments(Guid? userAccountId) {
+			return conn.Query<Article>("list_articles_with_comments", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		}
+		public IEnumerable<Article> ListUserArticles(Guid userAccountId) {
+			return conn.Query<Article>("list_user_articles", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
 		}
 		public UserAccount CreateUserAccount(string name, string email, byte[] passwordHash, byte[] passwordSalt) {
 			try {
@@ -61,8 +64,8 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public UserPage CreateUserPage(Guid pageId, Guid userAccountId, int[] readState, int percentComplete) {
-			return conn.QuerySingleOrDefault(
+		public UserPage CreateUserPage(Guid pageId, Guid userAccountId, int[] readState, double percentComplete) {
+			return conn.QuerySingleOrDefault<UserPage>(
 				sql: "create_user_page",
 				param: new {
 					page_id = pageId,
@@ -73,8 +76,8 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public UserPage UpdateUserPage(Guid userPageId, int[] readState, int percentComplete) {
-			return conn.QuerySingleOrDefault(
+		public UserPage UpdateUserPage(Guid userPageId, int[] readState, double percentComplete) {
+			return conn.QuerySingleOrDefault<UserPage>(
 				sql: "update_user_page",
 				param: new {
 					user_page_id = userPageId,
@@ -85,10 +88,10 @@ namespace api.DataAccess {
 			);
 		}
 		public Article FindArticle(string slug) {
-			return conn.QuerySingleOrDefault("find_article", new { slug }, commandType: CommandType.StoredProcedure);
+			return conn.QuerySingleOrDefault<Article>("find_article", new { slug }, commandType: CommandType.StoredProcedure);
 		}
 		public Article CreateArticle(string title, string slug, string author, DateTime? datePublished, Guid sourceId) {
-			return conn.QuerySingleOrDefault(
+			return conn.QuerySingleOrDefault<Article>(
 				sql: "create_article",
 				param: new {
 					title,
@@ -101,7 +104,7 @@ namespace api.DataAccess {
 			);
 		}
 		public Page CreatePage(Guid articleId, int number, int wordCount, string url) {
-			return conn.QuerySingleOrDefault(
+			return conn.QuerySingleOrDefault<Page>(
 				sql: "create_page",
 				param: new {
 					article_id = articleId,
@@ -113,7 +116,7 @@ namespace api.DataAccess {
 			);
 		}
 		public Page GetPage(Guid articleId, int number) {
-			return conn.QuerySingleOrDefault("get_page", new { article_id = articleId, number }, commandType: CommandType.StoredProcedure);
+			return conn.QuerySingleOrDefault<Page>("get_page", new { article_id = articleId, number }, commandType: CommandType.StoredProcedure);
 		}
         public void Dispose() {
             conn.Dispose();

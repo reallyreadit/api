@@ -8,6 +8,6 @@ namespace api.DataAccess.Models {
 		public DateTime DateCreated { get; set; }
 		public DateTime? LastModified { get; set; }
 		public int[] ReadState { get; set; }
-		public int PercentComplete { get; set; }
+		public double PercentComplete { get; set; }
 	}
 }
