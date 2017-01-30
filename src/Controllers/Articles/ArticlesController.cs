@@ -27,13 +27,20 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult Details(string slug) {
 			using (var db = new DbConnection()) {
-				return Json(db.FindArticle(slug, db.GetSession(this.GetSessionKey()).UserAccountId));
+				var sessionKey = this.GetSessionKey();
+				UserAccount userAccount;
+				if (sessionKey != null) {
+					userAccount = db.GetUserAccount(db.GetSession(sessionKey).UserAccountId);
+				} else {
+					userAccount = null;
+				}
+				return Json(db.FindArticle(slug, userAccount?.Id));
 			}
 		}
 		[HttpGet]
 		public IActionResult ListComments(string slug) {
 			using (var db = new DbConnection()) {
-				return Json(db.ListComments(db.FindArticle(slug, db.GetSession(this.GetSessionKey()).UserAccountId).Id));
+				return Json(db.ListComments(db.FindArticle(slug).Id));
 			}
 		}
 		[HttpPost]
