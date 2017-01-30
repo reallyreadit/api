@@ -87,8 +87,8 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public Article FindArticle(string slug) {
-			return conn.QuerySingleOrDefault<Article>("find_article", new { slug }, commandType: CommandType.StoredProcedure);
+		public Article FindArticle(string slug, Guid? userAccountId = null) {
+			return conn.QuerySingleOrDefault<Article>("find_article", new { slug, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
 		}
 		public Article CreateArticle(string title, string slug, string author, DateTime? datePublished, Guid sourceId) {
 			return conn.QuerySingleOrDefault<Article>(
@@ -117,6 +117,12 @@ namespace api.DataAccess {
 		}
 		public Page GetPage(Guid articleId, int number) {
 			return conn.QuerySingleOrDefault<Page>("get_page", new { article_id = articleId, number }, commandType: CommandType.StoredProcedure);
+		}
+		public IEnumerable<Comment> ListComments(Guid articleId) {
+			return conn.Query<Comment>("list_comments", new { article_id = articleId }, commandType: CommandType.StoredProcedure);
+		}
+		public void CreateComment(string text, Guid articleId, Guid userAccountId) {
+			conn.Execute("create_comment", new { text, article_id = articleId, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
 		}
         public void Dispose() {
             conn.Dispose();

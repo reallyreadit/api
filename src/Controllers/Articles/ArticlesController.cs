@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using api.DataAccess;
 using api.DataAccess.Models;
+using System;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -21,6 +22,25 @@ namespace api.Controllers.Articles {
 		public IActionResult UserList() {
 			using (var db = new DbConnection()) {
 				return Json(db.ListUserArticles(db.GetSession(this.GetSessionKey()).UserAccountId));
+			}
+		}
+		[HttpGet]
+		public IActionResult Details(string slug) {
+			using (var db = new DbConnection()) {
+				return Json(db.FindArticle(slug, db.GetSession(this.GetSessionKey()).UserAccountId));
+			}
+		}
+		[HttpGet]
+		public IActionResult ListComments(string slug) {
+			using (var db = new DbConnection()) {
+				return Json(db.ListComments(db.FindArticle(slug, db.GetSession(this.GetSessionKey()).UserAccountId).Id));
+			}
+		}
+		[HttpPost]
+		public IActionResult PostComment([FromBody] PostCommentParams param) {
+			using (var db = new DbConnection()) {
+				db.CreateComment(param.Text, param.ArticleId, db.GetSession(this.GetSessionKey()).UserAccountId);
+				return Ok();
 			}
 		}
 	}
