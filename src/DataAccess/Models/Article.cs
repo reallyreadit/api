@@ -6,11 +6,6 @@ namespace api.DataAccess.Models {
 		public string Title { get; set; }
 		public string Slug { get; set; }
 		public string Author { get; set; }
-		public DateTime DatePublished { get; set; }
-		public string Source { get; set; }
-		public string Url { get; set; }
-		public int CommentCount { get; set; }
-		public int PageCount { get; set; }
-		public double PercentComplete { get; set; }
+		public DateTime? DatePublished { get; set; }
 	}
 }

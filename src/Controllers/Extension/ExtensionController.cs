@@ -2,6 +2,8 @@ using Microsoft.AspNetCore.Mvc;
 using api.DataAccess;
 using System.Linq;
 using api.DataAccess.Models;
+using System;
+using System.Text.RegularExpressions;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -26,46 +28,47 @@ namespace api.Controllers.Extension {
 			});
 		}
 		[HttpPost]
-		public IActionResult Commit([FromBody] CommitArticleParams param) {
+		public IActionResult GetUserArticle([FromBody] PageInfoBinder binder) {
 			using (var db = new DbConnection()) {
-				var userAccount = db.GetUserAccount(db.GetSession(this.GetSessionKey()).UserAccountId);
-				var userPage = db.FindUserPage(param.Slug, param.PageNumber, userAccount.Id);
-				if (userPage != null) {
-					// compare
-					if (param.PercentComplete >= userPage.PercentComplete) {
-						// update
-						db.UpdateUserPage(userPage.Id, param.ReadState, param.PercentComplete);
-					} else {
-						// return newer copy
-						return Json(new {
-							ReadState = userPage.ReadState,
-							PercentComplete = userPage.PercentComplete
-						});
+				var userAccountId = db.GetSession(this.GetSessionKey()).UserAccountId;
+				var page = db.FindPage(binder.Url);
+				UserPage userPage;
+				if (page != null) {
+					userPage = db.GetUserPage(page.Id, userAccountId);
+					if (userPage == null) {
+						userPage = db.CreateUserPage(page.Id, userAccountId);
 					}
 				} else {
-					var article = db.FindArticle(param.Slug);
-					Page page;
-					if (article == null) {
-						// create article
-						article = db.CreateArticle(
-							title: param.Title,
-							slug: param.Slug,
-							author: param.Author,
-							datePublished: param.DatePublished,
-							sourceId: param.SourceId
-						);
-						// create pages
-						page = db.CreatePage(article.Id, param.PageNumber, param.WordCount, param.Url);
-						foreach (var pageLink in param.PageLinks.Where(p => p.PageNumber != param.PageNumber)) {
-							db.CreatePage(article.Id, pageLink.PageNumber, 0, pageLink.Url);
+					// create article
+					var source = db.FindSource(new Uri(binder.Url).Host);
+					var slug = source.Slug + "_" + Regex.Replace(Regex.Replace(binder.Article.Title, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
+					var article = db.CreateArticle(
+						title: binder.Article.Title,
+						slug: slug.Length > 80 ? slug.Substring(0, 80) : slug,
+						author: binder.Article.Author,
+						datePublished: binder.Article.DatePublished,
+						sourceId: source.Id
+					);
+					page = db.CreatePage(article.Id, binder.Number, binder.WordCount, binder.Url);
+					if (binder.Article.PageLinks != null) {
+						foreach (var pageLink in binder.Article.PageLinks.Where(p => p.Number != binder.Number)) {
+							db.CreatePage(article.Id, pageLink.Number, 0, pageLink.Url);
 						}
-					} else {
-						page = db.GetPage(article.Id, param.PageNumber);
 					}
 					// create user page
-					db.CreateUserPage(page.Id, userAccount.Id, param.ReadState, param.PercentComplete);
+					userPage = db.CreateUserPage(page.Id, userAccountId);
 				}
-				return Ok();
+				return Json(new {
+					UserArticle = db.GetUserArticle(page.ArticleId, userAccountId),
+					UserPage = userPage
+				});
+			}
+		}
+		[HttpPost]
+		public IActionResult CommitReadState([FromBody] CommitReadStateBinder binder) {
+			using (var db = new DbConnection()) {
+				var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
+				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, db.GetSession(this.GetSessionKey()).UserAccountId));
 			}
 		}
 	}

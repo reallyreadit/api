@@ -11,11 +11,36 @@ namespace api.DataAccess {
 		public DbConnection() {
 			conn.Open();
 		}
-		public IEnumerable<Article> ListArticlesWithComments(Guid? userAccountId) {
-			return conn.Query<Article>("list_articles_with_comments", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		public Article CreateArticle(string title, string slug, string author, DateTime? datePublished, Guid sourceId) {
+			return conn.QuerySingleOrDefault<Article>(
+				sql: "create_article",
+				param: new {
+					title,
+					slug,
+					author,
+					date_published = datePublished,
+					source_id = sourceId
+				},
+				commandType: CommandType.StoredProcedure
+			);
 		}
-		public IEnumerable<Article> ListUserArticles(Guid userAccountId) {
-			return conn.Query<Article>("list_user_articles", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		public void CreateComment(string text, Guid articleId, Guid userAccountId) {
+			conn.Execute("create_comment", new { text, article_id = articleId, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		}
+		public Page CreatePage(Guid articleId, int number, int wordCount, string url) {
+			return conn.QuerySingleOrDefault<Page>(
+				sql: "create_page",
+				param: new {
+					article_id = articleId,
+					number,
+					word_count = wordCount,
+					url
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public Session CreateSession(Guid userAccountId) {
+			return conn.QuerySingleOrDefault<Session>("create_session", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
 		}
 		public UserAccount CreateUserAccount(string name, string email, byte[] passwordHash, byte[] passwordSalt) {
 			try {
@@ -35,94 +60,83 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
-		public UserAccount GetUserAccount(Guid userAccountId) {
-			return conn.QuerySingleOrDefault<UserAccount>("get_user_account", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
-		}
-		public UserAccount FindUserAccount(string userAccountName) {
-			return conn.QuerySingleOrDefault<UserAccount>("find_user_account", new { user_account_name = userAccountName }, commandType: CommandType.StoredProcedure);
-		}
-		public Session CreateSession(Guid userAccountId) {
-			return conn.QuerySingleOrDefault<Session>("create_session", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
-		}
-		public Session GetSession(byte[] sessionKey) {
-			return conn.QuerySingleOrDefault<Session>("get_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
-		}
-		public void EndSession(byte[] sessionKey) {
-			conn.Execute("end_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
-		}
-		public Source FindSource(string sourceHostname) {
-			return conn.QuerySingleOrDefault<Source>("find_source", new { source_hostname = sourceHostname }, commandType: CommandType.StoredProcedure);
-		}
-		public UserPage FindUserPage(string articleSlug, int pageNumber, Guid userAccountId) {
+		public UserPage CreateUserPage(Guid pageId, Guid userAccountId) {
 			return conn.QuerySingleOrDefault<UserPage>(
-				sql: "find_user_page",
+				sql: "create_user_page",
 				param: new {
-					article_slug = articleSlug,
-					page_number = pageNumber,
+					page_id = pageId,
 					user_account_id = userAccountId
 				},
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public UserPage CreateUserPage(Guid pageId, Guid userAccountId, int[] readState, double percentComplete) {
-			return conn.QuerySingleOrDefault<UserPage>(
-				sql: "create_user_page",
-				param: new {
-					page_id = pageId,
-					user_account_id = userAccountId,
-					read_state = readState,
-					percent_complete = percentComplete
-				},
-				commandType: CommandType.StoredProcedure
-			);
+		public void EndSession(byte[] sessionKey) {
+			conn.Execute("end_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
 		}
-		public UserPage UpdateUserPage(Guid userPageId, int[] readState, double percentComplete) {
-			return conn.QuerySingleOrDefault<UserPage>(
-				sql: "update_user_page",
-				param: new {
-					user_page_id = userPageId,
-					read_state = readState,
-					percent_complete = percentComplete
-				},
-				commandType: CommandType.StoredProcedure
-			);
+		public Page FindPage(string url) {
+			return conn.QuerySingleOrDefault<Page>("find_page", new { url }, commandType: CommandType.StoredProcedure);
 		}
-		public Article FindArticle(string slug, Guid? userAccountId = null) {
-			return conn.QuerySingleOrDefault<Article>("find_article", new { slug, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		public Source FindSource(string sourceHostname) {
+			return conn.QuerySingleOrDefault<Source>("find_source", new { source_hostname = sourceHostname }, commandType: CommandType.StoredProcedure);
 		}
-		public Article CreateArticle(string title, string slug, string author, DateTime? datePublished, Guid sourceId) {
-			return conn.QuerySingleOrDefault<Article>(
-				sql: "create_article",
-				param: new {
-					title,
-					slug,
-					author,
-					date_published = datePublished,
-					source_id = sourceId
-				},
-				commandType: CommandType.StoredProcedure
-			);
+		public UserAccount FindUserAccount(string userAccountName) {
+			return conn.QuerySingleOrDefault<UserAccount>("find_user_account", new { user_account_name = userAccountName }, commandType: CommandType.StoredProcedure);
 		}
-		public Page CreatePage(Guid articleId, int number, int wordCount, string url) {
-			return conn.QuerySingleOrDefault<Page>(
-				sql: "create_page",
+		public UserArticle FindUserArticle(string slug, Guid? userAccountId = null) {
+			return conn.QuerySingleOrDefault<UserArticle>("find_user_article", new { slug, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		}
+		public Page GetPage(Guid pageId) {
+			return conn.QuerySingleOrDefault<Page>("get_page", new { page_id = pageId }, commandType: CommandType.StoredProcedure);
+		}
+		public Session GetSession(byte[] sessionKey) {
+			return conn.QuerySingleOrDefault<Session>("get_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
+		}
+		public UserAccount GetUserAccount(Guid userAccountId) {
+			return conn.QuerySingleOrDefault<UserAccount>("get_user_account", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		}
+		public UserArticle GetUserArticle(Guid articleId, Guid userAccountId) {
+			return conn.QuerySingleOrDefault<UserArticle>(
+				sql: "get_user_article",
 				param: new {
 					article_id = articleId,
-					number,
-					word_count = wordCount,
-					url
+					user_account_id = userAccountId
 				},
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public Page GetPage(Guid articleId, int number) {
-			return conn.QuerySingleOrDefault<Page>("get_page", new { article_id = articleId, number }, commandType: CommandType.StoredProcedure);
+		public UserPage GetUserPage(Guid pageId, Guid userAccountId) {
+			return conn.QuerySingleOrDefault<UserPage>(
+				sql: "get_user_page",
+				param: new {
+					page_id = pageId,
+					user_account_id = userAccountId
+				},
+				commandType: CommandType.StoredProcedure
+			);
 		}
 		public IEnumerable<Comment> ListComments(Guid articleId) {
 			return conn.Query<Comment>("list_comments", new { article_id = articleId }, commandType: CommandType.StoredProcedure);
 		}
-		public void CreateComment(string text, Guid articleId, Guid userAccountId) {
-			conn.Execute("create_comment", new { text, article_id = articleId, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		public IEnumerable<UserArticle> ListUserArticles(Guid? userAccountId = null, int minCommentCount = 0, int minPercentComplete = 0) {
+			return conn.Query<UserArticle>(
+				sql: "list_user_articles",
+				param: new {
+					user_account_id = userAccountId,
+					min_comment_count = minCommentCount,
+					min_percent_complete = minPercentComplete
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
+		public UserPage UpdateUserPage(Guid userPageId, int[] readState) {
+			return conn.QuerySingleOrDefault<UserPage>(
+				sql: "update_user_page",
+				param: new {
+					user_page_id = userPageId,
+					read_state = readState
+				},
+				commandType: CommandType.StoredProcedure
+			);
 		}
         public void Dispose() {
             conn.Dispose();

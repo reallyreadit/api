@@ -35,18 +35,18 @@ namespace api.Controllers.UserAccounts {
 			);
 		}
 		[HttpPost]
-        public IActionResult CreateAccount([FromBody] CreateAccountParams param) {
+        public IActionResult CreateAccount([FromBody] CreateAccountBinder binder) {
 			if (
-				String.IsNullOrWhiteSpace(param.Password) ||
-				param.Password.Length < 8 ||
-				param.Password.Length > 256
+				String.IsNullOrWhiteSpace(binder.Password) ||
+				binder.Password.Length < 8 ||
+				binder.Password.Length > 256
 			) {
 				return BadRequest();
 			}
 			try {
 				var salt = GenerateSalt();
 				using (var db = new DbConnection()) {
-					var userAccount = db.CreateUserAccount(param.Name, param.Email, HashPassword(param.Password, salt), salt);
+					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
 					SetSessionKeyCookie(db.CreateSession(userAccount.Id).Id);
 					return Json(userAccount);
 				}
@@ -61,13 +61,13 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpPost]
-		public IActionResult SignIn([FromBody] SignInParams param) {
+		public IActionResult SignIn([FromBody] SignInBinder binder) {
 			using (var db = new DbConnection()) {
-				var userAccount = db.FindUserAccount(param.Name);
+				var userAccount = db.FindUserAccount(binder.Name);
 				if (userAccount == null) {
 					return BadRequest(new[] { "UserAccountNotFound" });
 				}
-				if (!userAccount.PasswordHash.SequenceEqual(HashPassword(param.Password, userAccount.PasswordSalt))) {
+				if (!userAccount.PasswordHash.SequenceEqual(HashPassword(binder.Password, userAccount.PasswordSalt))) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
 				SetSessionKeyCookie(db.CreateSession(userAccount.Id).Id);
