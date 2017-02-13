@@ -29,7 +29,7 @@ namespace api.Controllers.UserAccounts {
 				key: "sessionKey",
 				value: Convert.ToBase64String(sessionKey),
 				options: new CookieOptions() {
-					Domain = "dev.reallyread.it",
+					Domain = Startup.CookieDomain,
 					HttpOnly = true
 				}
 			);
@@ -80,7 +80,7 @@ namespace api.Controllers.UserAccounts {
 				db.EndSession(this.GetSessionKey());
 			}
 			Response.Cookies.Delete("sessionKey", new CookieOptions() {
-				Domain = "dev.reallyread.it"
+				Domain = Startup.CookieDomain
 			});
 			return Ok();
 		}

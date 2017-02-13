@@ -7,7 +7,7 @@ using System.Collections.Generic;
 
 namespace api.DataAccess {
     public class DbConnection : IDisposable {
-		private NpgsqlConnection conn = new NpgsqlConnection("Host=localhost;Username=postgres;Password=postgres;Database=rrit");
+		private NpgsqlConnection conn = new NpgsqlConnection(Startup.DbConnectionString);
 		public DbConnection() {
 			conn.Open();
 		}
