@@ -4,9 +4,14 @@ using System.Linq;
 using api.DataAccess.Models;
 using System;
 using System.Text.RegularExpressions;
+using api.Authentication;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
+		private static string CreateSlug(string value) {
+			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
+			return slug.Length > 80 ? slug.Substring(0, 80) : slug;
+		}
 		[HttpGet]
 		public IActionResult FindSource(string hostname) {
 			using (var db = new DbConnection()) {
@@ -30,7 +35,7 @@ namespace api.Controllers.Extension {
 		[HttpPost]
 		public IActionResult GetUserArticle([FromBody] PageInfoBinder binder) {
 			using (var db = new DbConnection()) {
-				var userAccountId = db.GetSession(this.GetSessionKey()).UserAccountId;
+				var userAccountId = this.User.GetUserAccountId();
 				var page = db.FindPage(binder.Url);
 				UserPage userPage;
 				if (page != null) {
@@ -40,20 +45,36 @@ namespace api.Controllers.Extension {
 					}
 				} else {
 					// create article
-					var source = db.FindSource(new Uri(binder.Url).Host);
-					var slug = source.Slug + "_" + Regex.Replace(Regex.Replace(binder.Article.Title, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
+					var pageUri = new Uri(binder.Url);
+					var source = db.FindSource(pageUri.Host);
+					if (source == null) {
+						// create source
+						Uri sourceUri;
+						if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
+							sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
+						}
+						var sourceName = binder.Article.Source.Name ?? sourceUri.Host;
+						source = db.CreateSource(
+							name: sourceName,
+							url: sourceUri.ToString(),
+							hostname: sourceUri.Host,
+							slug: CreateSlug(sourceName)
+						);
+					}
 					var article = db.CreateArticle(
 						title: binder.Article.Title,
-						slug: slug.Length > 80 ? slug.Substring(0, 80) : slug,
-						author: binder.Article.Author,
+						slug: source.Slug + "_" + CreateSlug(binder.Article.Title),
+						sourceId: source.Id,
 						datePublished: binder.Article.DatePublished,
-						sourceId: source.Id
+						dateModified: binder.Article.DateModified,
+						section: binder.Article.Section,
+						description: binder.Article.Description,
+						authors: binder.Article.Authors,
+						tags: binder.Article.Tags
 					);
-					page = db.CreatePage(article.Id, binder.Number, binder.WordCount, binder.Url);
-					if (binder.Article.PageLinks != null) {
-						foreach (var pageLink in binder.Article.PageLinks.Where(p => p.Number != binder.Number)) {
-							db.CreatePage(article.Id, pageLink.Number, 0, pageLink.Url);
-						}
+					page = db.CreatePage(article.Id, binder.Number ?? 1, binder.WordCount, binder.Url);
+					foreach (var pageLink in binder.Article.PageLinks.Where(p => p.Number != page.Number)) {
+						db.CreatePage(article.Id, pageLink.Number, 0, pageLink.Url);
 					}
 					// create user page
 					userPage = db.CreateUserPage(page.Id, userAccountId);
@@ -68,7 +89,7 @@ namespace api.Controllers.Extension {
 		public IActionResult CommitReadState([FromBody] CommitReadStateBinder binder) {
 			using (var db = new DbConnection()) {
 				var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
-				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, db.GetSession(this.GetSessionKey()).UserAccountId));
+				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, this.User.GetUserAccountId()));
 			}
 		}
 	}

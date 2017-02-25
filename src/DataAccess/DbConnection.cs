@@ -11,15 +11,29 @@ namespace api.DataAccess {
 		public DbConnection() {
 			conn.Open();
 		}
-		public Article CreateArticle(string title, string slug, string author, DateTime? datePublished, Guid sourceId) {
+		public Article CreateArticle(
+			string title,
+			string slug,
+			Guid sourceId,
+			DateTime? datePublished,
+			DateTime? dateModified,
+			string section,
+			string description,
+			CreateArticleAuthor[] authors,
+			string[] tags
+		) {
 			return conn.QuerySingleOrDefault<Article>(
 				sql: "create_article",
 				param: new {
 					title,
 					slug,
-					author,
+					source_id = sourceId,
 					date_published = datePublished,
-					source_id = sourceId
+					date_modified = dateModified,
+					section,
+					description,
+					authors,
+					tags
 				},
 				commandType: CommandType.StoredProcedure
 			);
@@ -39,8 +53,8 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public Session CreateSession(Guid userAccountId) {
-			return conn.QuerySingleOrDefault<Session>("create_session", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		public Source CreateSource(string name, string url, string hostname, string slug) {
+			return conn.QuerySingleOrDefault<Source>("create_source", new { name, url, hostname, slug }, commandType: CommandType.StoredProcedure);
 		}
 		public UserAccount CreateUserAccount(string name, string email, byte[] passwordHash, byte[] passwordSalt) {
 			try {
@@ -70,9 +84,6 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public void EndSession(byte[] sessionKey) {
-			conn.Execute("end_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
-		}
 		public Page FindPage(string url) {
 			return conn.QuerySingleOrDefault<Page>("find_page", new { url }, commandType: CommandType.StoredProcedure);
 		}
@@ -87,9 +98,6 @@ namespace api.DataAccess {
 		}
 		public Page GetPage(Guid pageId) {
 			return conn.QuerySingleOrDefault<Page>("get_page", new { page_id = pageId }, commandType: CommandType.StoredProcedure);
-		}
-		public Session GetSession(byte[] sessionKey) {
-			return conn.QuerySingleOrDefault<Session>("get_session", new { session_key = sessionKey }, commandType: CommandType.StoredProcedure);
 		}
 		public UserAccount GetUserAccount(Guid userAccountId) {
 			return conn.QuerySingleOrDefault<UserAccount>("get_user_account", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);

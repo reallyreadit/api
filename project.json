@@ -1,32 +1,33 @@
 {
-  "version": "1.0.0-*",
+  "dependencies": {
+    "Microsoft.NETCore.App": {
+      "version": "1.1.0",
+      "type": "platform"
+    },
+    "Dapper": "1.50.2",
+    "Microsoft.AspNetCore.Authentication.Cookies": "1.1.0",
+    "Microsoft.AspNetCore.Cors": "1.1.0",
+    "Microsoft.AspNetCore.Cryptography.KeyDerivation": "1.1.0",
+    "Microsoft.AspNetCore.Diagnostics": "1.1.0",
+    "Microsoft.AspNetCore.Mvc": "1.1.1",
+    "Microsoft.AspNetCore.Server.Kestrel": "1.1.0",
+    "Microsoft.Extensions.Configuration.Json": "1.1.0",
+    "Npgsql": "3.2.1"
+  },
+
+  "tools": {
+    "Microsoft.DotNet.Watcher.Tools": "1.1.0-preview4-final" 
+  },
+
+  "frameworks": {
+    "netcoreapp1.1": {}
+  },
+  
   "buildOptions": {
     "debugType": "portable",
     "emitEntryPoint": true
   },
-  "dependencies": {
-    "Dapper": "1.*",
-    "Microsoft.AspNetCore.Cors": "1.*",
-    "Microsoft.AspNetCore.Cryptography.KeyDerivation": "1.*",
-    "Microsoft.AspNetCore.Diagnostics": "1.*",
-    "Microsoft.AspNetCore.Mvc": "1.*",
-    "Microsoft.AspNetCore.Server.Kestrel": "1.*",
-    "Microsoft.Extensions.Configuration.Json": "1.*",
-    "Npgsql": "3.*"
-  },
-  "frameworks": {
-    "netcoreapp1.0": {
-      "dependencies": {
-        "Microsoft.NETCore.App": {
-          "type": "platform",
-          "version": "1.*"
-        }
-      }
-    }
-  },
-  "tools": {
-    "Microsoft.DotNet.Watcher.Tools": "1.1.0-preview4-final" 
-  },
+
   "publishOptions": {
     "include": "hosting.json"
   }

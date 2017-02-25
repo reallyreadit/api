@@ -1,41 +1,32 @@
 using Microsoft.AspNetCore.Mvc;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Authentication;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
+		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult List() {
 			using (var db = new DbConnection()) {
-				var sessionKey = this.GetSessionKey();
-				UserAccount userAccount;
-				if (sessionKey != null) {
-					userAccount = db.GetUserAccount(db.GetSession(sessionKey).UserAccountId);
-				} else {
-					userAccount = null;
-				}
-				return Json(db.ListUserArticles(userAccount?.Id, minCommentCount: 1));
+				return Json(db.ListUserArticles(this.User.GetUserAccountIdOrDefault(), minCommentCount: 1));
 			}
 		}
 		[HttpGet]
 		public IActionResult UserList() {
 			using (var db = new DbConnection()) {
-				return Json(db.ListUserArticles(db.GetSession(this.GetSessionKey()).UserAccountId, minPercentComplete: 1));
+				return Json(db.ListUserArticles(this.User.GetUserAccountId(), minPercentComplete: 1));
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(string slug) {
 			using (var db = new DbConnection()) {
-				var sessionKey = this.GetSessionKey();
-				UserAccount userAccount;
-				if (sessionKey != null) {
-					userAccount = db.GetUserAccount(db.GetSession(sessionKey).UserAccountId);
-				} else {
-					userAccount = null;
-				}
-				return Json(db.FindUserArticle(slug, userAccount?.Id));
+				return Json(db.FindUserArticle(slug, this.User.GetUserAccountIdOrDefault()));
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ListComments(string slug) {
 			using (var db = new DbConnection()) {
@@ -45,7 +36,7 @@ namespace api.Controllers.Articles {
 		[HttpPost]
 		public IActionResult PostComment([FromBody] PostCommentBinder binder) {
 			using (var db = new DbConnection()) {
-				db.CreateComment(binder.Text, binder.ArticleId, db.GetSession(this.GetSessionKey()).UserAccountId);
+				db.CreateComment(binder.Text, binder.ArticleId, this.User.GetUserAccountId());
 				return Ok();
 			}
 		}

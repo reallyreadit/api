@@ -3,11 +3,14 @@ using Microsoft.AspNetCore.Cryptography.KeyDerivation;
 using System.Security.Cryptography;
 using api.DataAccess;
 using System;
-using Microsoft.AspNetCore.Http;
 using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using api.Authentication;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api.Controllers.UserAccounts {
-    public class UserAccountsController : Controller {
+	public class UserAccountsController : Controller {
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
 			using (var rng = RandomNumberGenerator.Create()) {
@@ -24,18 +27,20 @@ namespace api.Controllers.UserAccounts {
 				numBytesRequested: 256 / 8
 			);
 		}
-		private void SetSessionKeyCookie(byte[] sessionKey) {
-			Response.Cookies.Append(
-				key: "sessionKey",
-				value: Convert.ToBase64String(sessionKey),
-				options: new CookieOptions() {
-					Domain = Startup.CookieDomain,
-					HttpOnly = true
-				}
+		private async Task SignIn(Guid userId) {
+			await this.HttpContext.Authentication.SignInAsync(
+				authenticationScheme: Startup.AuthenticationScheme,
+				principal: new ClaimsPrincipal(new[] {
+					new ClaimsIdentity(
+						claims: new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) },
+						authenticationType: "ApplicationCookie"
+					)
+				})
 			);
 		}
+		[AllowAnonymous]
 		[HttpPost]
-        public IActionResult CreateAccount([FromBody] CreateAccountBinder binder) {
+      public async Task<IActionResult> CreateAccount([FromBody] CreateAccountBinder binder) {
 			if (
 				String.IsNullOrWhiteSpace(binder.Password) ||
 				binder.Password.Length < 8 ||
@@ -47,21 +52,22 @@ namespace api.Controllers.UserAccounts {
 				var salt = GenerateSalt();
 				using (var db = new DbConnection()) {
 					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
-					SetSessionKeyCookie(db.CreateSession(userAccount.Id).Id);
+					await SignIn(userAccount.Id);
 					return Json(userAccount);
 				}
 			} catch (Exception ex) {
 				return BadRequest((ex as ValidationException)?.Errors);
 			}
-        }
+      }
 		[HttpGet]
 		public IActionResult GetUserAccount() {
 			using (var db = new DbConnection()) {
-				return Json(db.GetUserAccount(db.GetSession(this.GetSessionKey()).UserAccountId));
+				return Json(db.GetUserAccount(this.User.GetUserAccountId()));
 			}
 		}
+		[AllowAnonymous]
 		[HttpPost]
-		public IActionResult SignIn([FromBody] SignInBinder binder) {
+		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder) {
 			using (var db = new DbConnection()) {
 				var userAccount = db.FindUserAccount(binder.Name);
 				if (userAccount == null) {
@@ -70,19 +76,15 @@ namespace api.Controllers.UserAccounts {
 				if (!userAccount.PasswordHash.SequenceEqual(HashPassword(binder.Password, userAccount.PasswordSalt))) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
-				SetSessionKeyCookie(db.CreateSession(userAccount.Id).Id);
+				await SignIn(userAccount.Id);
 				return Json(userAccount);
 			}
 		}
+		[AllowAnonymous]
 		[HttpPost]
-		public IActionResult SignOut() {
-			using (var db = new DbConnection()) {
-				db.EndSession(this.GetSessionKey());
-			}
-			Response.Cookies.Delete("sessionKey", new CookieOptions() {
-				Domain = Startup.CookieDomain
-			});
+		public async Task<IActionResult> SignOut() {
+			await this.HttpContext.Authentication.SignOutAsync(Startup.AuthenticationScheme);
 			return Ok();
 		}
-    }
+   }
 }
