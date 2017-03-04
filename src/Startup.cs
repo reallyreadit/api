@@ -60,7 +60,11 @@ namespace api
 					// jeff stage
 					"chrome-extension://llgoboocmmlfigcihicbkhkgbadjaeeh",
 					// bill stage
-					"chrome-extension://dffjnmdjeoihleodhcjlndjpfkhoiknh"
+					"chrome-extension://dffjnmdjeoihleodhcjlndjpfkhoiknh",
+					// chrome store dev
+					"chrome-extension://lmkbmgmeghekjbjobpgpidcjnkkoajee",
+					// asus dev
+					"chrome-extension://jgdmbgabdmlamnmfdedjeflbhlfmbmkp"
 				)
 				.AllowCredentials()
 				.AllowAnyHeader()
