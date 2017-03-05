@@ -63,6 +63,8 @@ namespace api
 					"chrome-extension://dffjnmdjeoihleodhcjlndjpfkhoiknh",
 					// chrome store dev
 					"chrome-extension://lmkbmgmeghekjbjobpgpidcjnkkoajee",
+					// chrome store stage
+					"chrome-extension://mkeiglkfdfamdjehidenkklibndmljfi",
 					// asus dev
 					"chrome-extension://jgdmbgabdmlamnmfdedjeflbhlfmbmkp"
 				)
