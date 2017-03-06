@@ -1,8 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using api.DataAccess;
-using api.DataAccess.Models;
 using api.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using System.Linq;
+using System;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -30,14 +31,25 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult ListComments(string slug) {
 			using (var db = new DbConnection()) {
-				return Json(db.ListComments(db.FindUserArticle(slug).Id));
+				var comments = db
+					.ListComments(db.FindUserArticle(slug).Id)
+					.Select(c => new CommentThread(c))
+					.ToArray();
+				foreach (var comment in comments) {
+					if (comment.ParentCommentId.HasValue) {
+						var siblings = comments.Single(c => c.Id == comment.ParentCommentId).Children;
+						siblings.Insert(Math.Max(siblings.IndexOf(siblings.FirstOrDefault(c => c.DateCreated < comment.DateCreated)), 0), comment);
+					}
+				}
+				return Json(comments
+					.Where(c => !c.ParentCommentId.HasValue)
+					.OrderByDescending(c => c.DateCreated));
 			}
 		}
 		[HttpPost]
 		public IActionResult PostComment([FromBody] PostCommentBinder binder) {
 			using (var db = new DbConnection()) {
-				db.CreateComment(binder.Text, binder.ArticleId, this.User.GetUserAccountId());
-				return Ok();
+				return Json(new CommentThread(db.CreateComment(binder.Text, binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId())));
 			}
 		}
 	}

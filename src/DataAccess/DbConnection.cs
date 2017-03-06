@@ -38,8 +38,17 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public void CreateComment(string text, Guid articleId, Guid userAccountId) {
-			conn.Execute("create_comment", new { text, article_id = articleId, user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		public Comment CreateComment(string text, Guid articleId, Guid? parentCommentId, Guid userAccountId) {
+			return conn.QuerySingleOrDefault<Comment>(
+				sql: "create_comment",
+				param: new {
+					text,
+					article_id = articleId,
+					parent_comment_id = parentCommentId,
+					user_account_id = userAccountId
+				},
+				commandType: CommandType.StoredProcedure
+			);
 		}
 		public Page CreatePage(Guid articleId, int number, int wordCount, string url) {
 			return conn.QuerySingleOrDefault<Page>(
