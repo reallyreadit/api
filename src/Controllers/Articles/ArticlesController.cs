@@ -52,5 +52,12 @@ namespace api.Controllers.Articles {
 				return Json(new CommentThread(db.CreateComment(binder.Text, binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId())));
 			}
 		}
+		[HttpPost]
+		public IActionResult UserDelete([FromBody] UserDeleteBinder binder) {
+			using (var db = new DbConnection()) {
+				db.DeleteUserArticle(binder.ArticleId, this.User.GetUserAccountId());
+				return Ok();
+			}
+		}
 	}
 }

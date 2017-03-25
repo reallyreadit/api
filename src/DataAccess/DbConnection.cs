@@ -93,6 +93,16 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
+		public void DeleteUserArticle(Guid articleId, Guid userAccountId) {
+			conn.Execute(
+				sql: "delete_user_article",
+				param: new {
+					article_id = articleId,
+					user_account_id = userAccountId
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
 		public Page FindPage(string url) {
 			return conn.QuerySingleOrDefault<Page>("find_page", new { url }, commandType: CommandType.StoredProcedure);
 		}
@@ -155,8 +165,8 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-        public void Dispose() {
-            conn.Dispose();
-        }
+		public void Dispose() {
+			conn.Dispose();
+		}
     }
 }
