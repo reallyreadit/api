@@ -144,6 +144,9 @@ namespace api.DataAccess {
 		public IEnumerable<Comment> ListComments(Guid articleId) {
 			return conn.Query<Comment>("list_comments", new { article_id = articleId }, commandType: CommandType.StoredProcedure);
 		}
+		public IEnumerable<Comment> ListReplies(Guid userAccountId) {
+			return conn.Query<Comment>("list_replies", new { user_account_id = userAccountId }, commandType: CommandType.StoredProcedure);
+		}
 		public IEnumerable<UserArticle> ListUserArticles(Guid? userAccountId = null, int minCommentCount = 0, int minPercentComplete = 0) {
 			return conn.Query<UserArticle>(
 				sql: "list_user_articles",

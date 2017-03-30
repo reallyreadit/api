@@ -59,5 +59,11 @@ namespace api.Controllers.Articles {
 				return Ok();
 			}
 		}
+		[HttpGet]
+		public IActionResult ListReplies() {
+			using (var db = new DbConnection()) {
+				return Json(db.ListReplies(this.User.GetUserAccountId()).Select(c => new CommentThread(c)));
+			}
+		}
 	}
 }
