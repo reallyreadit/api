@@ -6,6 +6,7 @@ using System;
 using System.Text.RegularExpressions;
 using api.Authentication;
 using System.Globalization;
+using System.Net;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -22,6 +23,11 @@ namespace api.Controllers.Extension {
 				return date;
 			}
 			return null;
+		}
+		private static string Decode(string text) {
+			text = WebUtility.HtmlDecode(text);
+			text = WebUtility.UrlDecode(text);
+			return text;
 		}
 		[HttpGet]
 		public IActionResult FindSource(string hostname) {
@@ -64,7 +70,7 @@ namespace api.Controllers.Extension {
 						if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
 							sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
 						}
-						var sourceName = binder.Article.Source.Name ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty);
+						var sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty);
 						source = db.CreateSource(
 							name: sourceName,
 							url: sourceUri.ToString(),
@@ -72,14 +78,15 @@ namespace api.Controllers.Extension {
 							slug: CreateSlug(sourceName)
 						);
 					}
+					var title = Decode(binder.Article.Title);
 					var article = db.CreateArticle(
-						title: binder.Article.Title,
-						slug: source.Slug + "_" + CreateSlug(binder.Article.Title),
+						title,
+						slug: source.Slug + "_" + CreateSlug(title),
 						sourceId: source.Id,
 						datePublished: ParseArticleDate(binder.Article.DatePublished),
 						dateModified: ParseArticleDate(binder.Article.DateModified),
-						section: binder.Article.Section,
-						description: binder.Article.Description,
+						section: Decode(binder.Article.Section),
+						description: Decode(binder.Article.Description),
 						authors: binder.Article.Authors.Distinct().ToArray(),
 						tags: binder.Article.Tags.Distinct().ToArray()
 					);
