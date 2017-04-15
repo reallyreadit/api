@@ -1,4 +1,3 @@
-using System;
 using api.DataAccess.Models;
 
 namespace api.Controllers.Extension {
@@ -14,8 +13,8 @@ namespace api.Controllers.Extension {
 				public string Name { get; set; }
 				public string Url { get; set; }
 			}
-			public DateTime? DatePublished { get; set; }
-			public DateTime? DateModified { get; set; }
+			public string DatePublished { get; set; }
+			public string DateModified { get; set; }
 			public CreateArticleAuthor[] Authors { get; set; } = new CreateArticleAuthor[0];
 			public string Section { get; set; }
 			public string Description { get; set; }

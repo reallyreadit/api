@@ -5,12 +5,23 @@ using api.DataAccess.Models;
 using System;
 using System.Text.RegularExpressions;
 using api.Authentication;
+using System.Globalization;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
 		private static string CreateSlug(string value) {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
 			return slug.Length > 80 ? slug.Substring(0, 80) : slug;
+		}
+		private static DateTime? ParseArticleDate(string dateString) {
+			DateTime date;
+			if (DateTime.TryParse(dateString, out date)) {
+				return date;
+			}
+			if (DateTime.TryParseExact(dateString, new[] { "MMMM d \"at\" h:mm tt" }, CultureInfo.InvariantCulture, DateTimeStyles.None, out date)) {
+				return date;
+			}
+			return null;
 		}
 		[HttpGet]
 		public IActionResult FindSource(string hostname) {
@@ -65,8 +76,8 @@ namespace api.Controllers.Extension {
 						title: binder.Article.Title,
 						slug: source.Slug + "_" + CreateSlug(binder.Article.Title),
 						sourceId: source.Id,
-						datePublished: binder.Article.DatePublished,
-						dateModified: binder.Article.DateModified,
+						datePublished: ParseArticleDate(binder.Article.DatePublished),
+						dateModified: ParseArticleDate(binder.Article.DateModified),
 						section: binder.Article.Section,
 						description: binder.Article.Description,
 						authors: binder.Article.Authors,
