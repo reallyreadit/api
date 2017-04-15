@@ -64,7 +64,7 @@ namespace api.Controllers.Extension {
 						if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
 							sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
 						}
-						var sourceName = binder.Article.Source.Name ?? sourceUri.Host;
+						var sourceName = binder.Article.Source.Name ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty);
 						source = db.CreateSource(
 							name: sourceName,
 							url: sourceUri.ToString(),
@@ -80,8 +80,8 @@ namespace api.Controllers.Extension {
 						dateModified: ParseArticleDate(binder.Article.DateModified),
 						section: binder.Article.Section,
 						description: binder.Article.Description,
-						authors: binder.Article.Authors,
-						tags: binder.Article.Tags
+						authors: binder.Article.Authors.Distinct().ToArray(),
+						tags: binder.Article.Tags.Distinct().ToArray()
 					);
 					page = db.CreatePage(article.Id, binder.Number ?? 1, binder.WordCount, binder.Url);
 					foreach (var pageLink in binder.Article.PageLinks.Where(p => p.Number != page.Number)) {
