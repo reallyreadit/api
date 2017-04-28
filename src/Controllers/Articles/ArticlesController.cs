@@ -4,6 +4,7 @@ using api.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq;
 using System;
+using System.Net;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -49,7 +50,7 @@ namespace api.Controllers.Articles {
 		[HttpPost]
 		public IActionResult PostComment([FromBody] PostCommentBinder binder) {
 			using (var db = new DbConnection()) {
-				return Json(new CommentThread(db.CreateComment(binder.Text, binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId())));
+				return Json(new CommentThread(db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId())));
 			}
 		}
 		[HttpPost]
