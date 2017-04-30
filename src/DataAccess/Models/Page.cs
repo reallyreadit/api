@@ -6,6 +6,7 @@ namespace api.DataAccess.Models {
 		public Guid ArticleId { get; set; }
 		public int Number { get; set; }
 		public int WordCount { get; set; }
+		public int ReadableWordCount { get; set; }
 		public string Url { get; set; }
 	}
 }

@@ -90,9 +90,9 @@ namespace api.Controllers.Extension {
 						authors: binder.Article.Authors.Distinct().ToArray(),
 						tags: binder.Article.Tags.Distinct().ToArray()
 					);
-					page = db.CreatePage(article.Id, binder.Number ?? 1, binder.WordCount, binder.Url);
+					page = db.CreatePage(article.Id, binder.Number ?? 1, binder.WordCount, binder.ReadableWordCount, binder.Url);
 					foreach (var pageLink in binder.Article.PageLinks.Where(p => p.Number != page.Number)) {
-						db.CreatePage(article.Id, pageLink.Number, 0, pageLink.Url);
+						db.CreatePage(article.Id, pageLink.Number, 0, 0, pageLink.Url);
 					}
 					// create user page
 					userPage = db.CreateUserPage(page.Id, userAccountId);

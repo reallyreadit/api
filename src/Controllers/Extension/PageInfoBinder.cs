@@ -5,6 +5,7 @@ namespace api.Controllers.Extension {
 		public string Url { get; set; }
 		public int? Number { get; set; }
 		public int WordCount { get; set; }
+		public int ReadableWordCount { get; set; }
 		public ArticleBinder Article { get; set; } = new ArticleBinder();
 		public class ArticleBinder {
 			public string Title { get; set; }

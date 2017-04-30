@@ -5,6 +5,7 @@ namespace api.DataAccess.Models {
 		public string[] Authors { get; set; }
 		public string[] Tags { get; set; }
 		public int WordCount { get; set; }
+		public int ReadableWordCount { get; set; }
 		public int PageCount { get; set; }
 		public double PercentComplete { get; set; }
 		public int CommentCount { get; set; }

@@ -50,13 +50,14 @@ namespace api.DataAccess {
 				commandType: CommandType.StoredProcedure
 			);
 		}
-		public Page CreatePage(Guid articleId, int number, int wordCount, string url) {
+		public Page CreatePage(Guid articleId, int number, int wordCount, int readableWordCount, string url) {
 			return conn.QuerySingleOrDefault<Page>(
 				sql: "create_page",
 				param: new {
 					article_id = articleId,
 					number,
 					word_count = wordCount,
+					readable_word_count = readableWordCount,
 					url
 				},
 				commandType: CommandType.StoredProcedure
