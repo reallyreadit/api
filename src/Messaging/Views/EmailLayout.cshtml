@@ -1,0 +1,18 @@
+@model api.Messaging.EmailViewModel
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>@Model.Subject</title>
+	</head>
+	<body style="font-family:monospace;text-align:center;">
+		@RenderBody()
+		<p style="color:lightgray;">
+			<small>
+				<a href="https://reallyread.it" style="color:lightgray;">reallyread.it</a> |
+				PO Box 1337 Seaside Heights, NJ 08751 |
+				<a href="mailto:jeff@reallyread.it" style="color:lightgray;">info@@reallyread.it</a>
+			</small>
+		</p>
+	</body>
+</html>

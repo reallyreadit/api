@@ -8,13 +8,27 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Authorization;
 using Microsoft.AspNetCore.Authorization;
+using api.Configuration;
+using Microsoft.Extensions.Configuration;
+using System.IO;
+using Microsoft.AspNetCore.Hosting;
+using MyAuthenticationOptions = api.Configuration.AuthenticationOptions;
+using Microsoft.Extensions.Options;
+using api.Messaging;
+using api.DataAccess;
+using Mvc.RenderViewToString;
+using Microsoft.AspNetCore.Mvc.Razor;
 
-namespace api
-{
-	public class Startup
-	{
-		public static string AuthenticationScheme => "rrit-auth-scheme";
-		public static string DbConnectionString { get; private set;}
+namespace api {
+	public class Startup {
+		private IConfigurationRoot config;
+		public Startup(IHostingEnvironment env) {
+			config = new ConfigurationBuilder()
+				.SetBasePath(Directory.GetCurrentDirectory())
+				.AddJsonFile("appsettings.json")
+				.AddJsonFile($"appsettings.{env.EnvironmentName}.json")
+				.Build();
+		}
 		public void ConfigureDevelopmentServices(IServiceCollection services) {
 			ConfigureServices(services, new DelayActionFilter(500));
 		}
@@ -22,6 +36,16 @@ namespace api
 			ConfigureServices(services);
 		}
 		private void ConfigureServices(IServiceCollection services, params IFilterMetadata[] filters) {
+			services
+				.Configure<MyAuthenticationOptions>(config.GetSection("Authentication"))
+				.Configure<CorsOptions>(config.GetSection("Cors"))
+				.Configure<DatabaseOptions>(config.GetSection("Database"))
+				.Configure<EmailOptions>(config.GetSection("Email"))
+				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"));
+			services
+				.AddScoped<DbConnection>()
+				.AddScoped<EmailService>()
+				.AddTransient<RazorViewToStringRenderer>();
 			services.AddMvc(options => {
 				options.Filters.Add(new LogActionFilter());
 				options.Filters.Add(new AuthorizeFilter(
@@ -34,50 +58,20 @@ namespace api
 				}
 			});
 		}
-		public void ConfigureDevelopment(IApplicationBuilder app) {
-			Configure(
-				app: app,
-				origin: "http://dev.reallyread.it",
-				dbConnectionString: "Host=localhost;Username=postgres;Password=postgres;Database=rrit",
-				cookieDomain: "dev.reallyread.it"
-			);
-		}
-		public void ConfigureStaging(IApplicationBuilder app) {
-			Configure(
-				app: app,
-				origin: "https://beta.reallyread.it",
-				dbConnectionString: "Host=reallyreadit.ch8jfpdyappi.us-east-2.rds.amazonaws.com;Username=rrit;Password=6uLrDpCQoPgu8U8e;Database=rrit",
-				cookieDomain: "beta.reallyread.it"
-			);
-		}
-		private void Configure(IApplicationBuilder app, string origin, string dbConnectionString, string cookieDomain) {
+		public void Configure(IApplicationBuilder app, IOptions<MyAuthenticationOptions> authOpts, IOptions<CorsOptions> corsOpts) {
 			app.UseDeveloperExceptionPage();
 			app.UseCors(cors => cors
-				.WithOrigins(
-					origin,
-					// jeff dev
-					"chrome-extension://ibdjhkiiiiifdgmdalkofacfnihpomkn",
-					// jeff stage
-					"chrome-extension://llgoboocmmlfigcihicbkhkgbadjaeeh",
-					// bill stage
-					"chrome-extension://dffjnmdjeoihleodhcjlndjpfkhoiknh",
-					// chrome store dev
-					"chrome-extension://lmkbmgmeghekjbjobpgpidcjnkkoajee",
-					// chrome store stage
-					"chrome-extension://mkeiglkfdfamdjehidenkklibndmljfi",
-					// asus dev
-					"chrome-extension://jgdmbgabdmlamnmfdedjeflbhlfmbmkp"
-				)
+				.WithOrigins(corsOpts.Value.Origins)
 				.AllowCredentials()
 				.AllowAnyHeader()
 				.AllowAnyMethod()
-				.WithExposedHeaders("Content-Length"));
+				.WithExposedHeaders(corsOpts.Value.ExposedHeaders));
 			app.UseCookieAuthentication(new CookieAuthenticationOptions() {
-				AuthenticationScheme = AuthenticationScheme,
+				AuthenticationScheme = authOpts.Value.Scheme,
 				AutomaticAuthenticate = true,
 				AutomaticChallenge = true,
-				CookieDomain = cookieDomain,
-				CookieName = "sessionKey",
+				CookieDomain = authOpts.Value.CookieDomain,
+				CookieName = authOpts.Value.CookieName,
 				Events = new CookieAuthenticationEvents() {
 					OnRedirectToLogin = context => {
 						context.Response.StatusCode = 401;
@@ -97,7 +91,6 @@ namespace api
 			});
 
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
-			DbConnectionString = dbConnectionString;
 			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
 		}
 	}

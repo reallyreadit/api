@@ -8,9 +8,21 @@ using System.Security.Claims;
 using System.Threading.Tasks;
 using api.Authentication;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.Extensions.Options;
+using api.Configuration;
+using Amazon.SimpleEmail;
+using Amazon.SimpleEmail.Model;
+using System.Collections.Generic;
+using Amazon;
+using Mvc.RenderViewToString;
+using api.Messaging;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
+		private AuthenticationOptions authOpts;
+		public UserAccountsController(IOptions<AuthenticationOptions> authOpts) {
+			this.authOpts = authOpts.Value;
+		}
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
 			using (var rng = RandomNumberGenerator.Create()) {
@@ -29,7 +41,7 @@ namespace api.Controllers.UserAccounts {
 		}
 		private async Task SignIn(Guid userId) {
 			await this.HttpContext.Authentication.SignInAsync(
-				authenticationScheme: Startup.AuthenticationScheme,
+				authenticationScheme: authOpts.Scheme,
 				principal: new ClaimsPrincipal(new[] {
 					new ClaimsIdentity(
 						claims: new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) },
@@ -40,7 +52,11 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-      public async Task<IActionResult> CreateAccount([FromBody] CreateAccountBinder binder) {
+      public async Task<IActionResult> CreateAccount(
+			[FromBody] CreateAccountBinder binder,
+			[FromServices] IOptions<DatabaseOptions> dbOpts,
+			[FromServices] EmailService emailService
+		) {
 			if (
 				String.IsNullOrWhiteSpace(binder.Password) ||
 				binder.Password.Length < 8 ||
@@ -50,8 +66,9 @@ namespace api.Controllers.UserAccounts {
 			}
 			try {
 				var salt = GenerateSalt();
-				using (var db = new DbConnection()) {
+				using (var db = new DbConnection(dbOpts)) {
 					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
+					await emailService.SendConfirmationEmail(new EmailAddress(userAccount.Name, userAccount.Email));
 					await SignIn(userAccount.Id);
 					return Json(userAccount);
 				}
@@ -60,30 +77,26 @@ namespace api.Controllers.UserAccounts {
 			}
       }
 		[HttpGet]
-		public IActionResult GetUserAccount() {
-			using (var db = new DbConnection()) {
-				return Json(db.GetUserAccount(this.User.GetUserAccountId()));
-			}
+		public IActionResult GetUserAccount([FromServices] DbConnection db) {
+			return Json(db.GetUserAccount(this.User.GetUserAccountId()));
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder) {
-			using (var db = new DbConnection()) {
-				var userAccount = db.FindUserAccount(binder.Name);
-				if (userAccount == null) {
-					return BadRequest(new[] { "UserAccountNotFound" });
-				}
-				if (!userAccount.PasswordHash.SequenceEqual(HashPassword(binder.Password, userAccount.PasswordSalt))) {
-					return BadRequest(new[] { "IncorrectPassword" });
-				}
-				await SignIn(userAccount.Id);
-				return Json(userAccount);
+		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder, [FromServices] DbConnection db) {
+			var userAccount = db.FindUserAccount(binder.Name);
+			if (userAccount == null) {
+				return BadRequest(new[] { "UserAccountNotFound" });
 			}
+			if (!userAccount.PasswordHash.SequenceEqual(HashPassword(binder.Password, userAccount.PasswordSalt))) {
+				return BadRequest(new[] { "IncorrectPassword" });
+			}
+			await SignIn(userAccount.Id);
+			return Json(userAccount);
 		}
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignOut() {
-			await this.HttpContext.Authentication.SignOutAsync(Startup.AuthenticationScheme);
+			await this.HttpContext.Authentication.SignOutAsync(authOpts.Scheme);
 			return Ok();
 		}
    }

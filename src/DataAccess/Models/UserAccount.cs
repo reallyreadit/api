@@ -10,5 +10,6 @@ namespace api.DataAccess.Models {
 		public byte[] PasswordHash { get; set; }
 		[IgnoreDataMember]
 		public byte[] PasswordSalt { get; set; }
+		public bool IsEmailConfired { get; set; }
 	}
 }
