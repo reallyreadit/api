@@ -6,7 +6,7 @@ using Amazon.SimpleEmail.Model;
 
 namespace api.Messaging {
 	public static class AmazonSesEmailService {
-		public static async Task SendEmail(EmailAddress from, EmailAddress to, string subject, string body, string regionEndpoint) {
+		public static async Task SendEmail(EmailMailbox from, EmailMailbox to, string subject, string body, string regionEndpoint) {
 			var bodyContent = new Body();
 			bodyContent.Html = new Content(body);
 			using (var client = new AmazonSimpleEmailServiceClient(RegionEndpoint.GetBySystemName(regionEndpoint))) {

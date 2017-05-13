@@ -1,7 +1,7 @@
-@model api.Messaging.ConfirmationEmailViewModel
+@model api.Messaging.Views.ConfirmationEmailViewModel
 
 @{ Layout = "EmailLayout"; }
 
 <p>Hey, @Model.Name!</p>
 <p><strong>Welcome to reallyread.it!</strong></p>
-<p>Please click <a href="https://api.reallyread.it/UserAccounts/ConfirmEmail/Key">here</a> to confirm your email address.</p>
+<p>Please click <a href="@Model.ApiServerEndpoint.CreateUrl("/UserAccounts/ConfirmEmail/" + Model.EmailConfirmationId)">here</a> to confirm your email address.</p>

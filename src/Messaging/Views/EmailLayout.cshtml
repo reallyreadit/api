@@ -1,17 +1,19 @@
-@model api.Messaging.EmailViewModel
+@model api.Messaging.Views.EmailLayoutViewModel
+
+@{ var footerColorStyle = "color: lightgray;"; }
 
 <!DOCTYPE html>
 <html>
 	<head>
-		<title>@Model.Subject</title>
+		<title>@Model.Title</title>
 	</head>
 	<body style="font-family:monospace;text-align:center;">
 		@RenderBody()
-		<p style="color:lightgray;">
+		<p style="@footerColorStyle">
 			<small>
-				<a href="https://reallyread.it" style="color:lightgray;">reallyread.it</a> |
+				<a href="@Model.WebServerEndpoint.CreateUrl()" style="@footerColorStyle">reallyread.it</a> |
 				PO Box 1337 Seaside Heights, NJ 08751 |
-				<a href="mailto:jeff@reallyread.it" style="color:lightgray;">info@@reallyread.it</a>
+				<a href="mailto:jeff@reallyread.it" style="@footerColorStyle">info@@reallyread.it</a>
 			</small>
 		</p>
 	</body>

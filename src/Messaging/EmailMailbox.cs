@@ -1,6 +1,6 @@
 namespace api.Messaging {
-	public class EmailAddress {
-		public EmailAddress(string name, string address) {
+	public class EmailMailbox {
+		public EmailMailbox(string name, string address) {
 			Name = name;
 			Address = address;
 		}

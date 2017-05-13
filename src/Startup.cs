@@ -41,7 +41,8 @@ namespace api {
 				.Configure<CorsOptions>(config.GetSection("Cors"))
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(config.GetSection("Email"))
-				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"));
+				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
+				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
 			services
 				.AddScoped<DbConnection>()
 				.AddScoped<EmailService>()
@@ -83,12 +84,7 @@ namespace api {
 					}
 				}
 			});
-			app.UseMvc(routes => {
-				routes.MapRoute(
-					name: "default",
-					template: "{controller=Home}/{action=Index}/{slug?}"
-				);
-			});
+			app.UseMvcWithDefaultRoute();
 
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();

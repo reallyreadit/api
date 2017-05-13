@@ -68,7 +68,10 @@ namespace api.Controllers.UserAccounts {
 				var salt = GenerateSalt();
 				using (var db = new DbConnection(dbOpts)) {
 					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
-					await emailService.SendConfirmationEmail(new EmailAddress(userAccount.Name, userAccount.Email));
+					await emailService.SendConfirmationEmail(
+						recipient: new EmailMailbox(userAccount.Name, userAccount.Email),
+						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+					);
 					await SignIn(userAccount.Id);
 					return Json(userAccount);
 				}
@@ -76,6 +79,24 @@ namespace api.Controllers.UserAccounts {
 				return BadRequest((ex as ValidationException)?.Errors);
 			}
       }
+		[AllowAnonymous]
+		[HttpGet]
+		public IActionResult ConfirmEmail(Guid id, [FromServices] DbConnection db, [FromServices] IOptions<ServiceEndpointsOptions> serviceOpts) {
+			var confirmation = db.GetEmailConfirmation(id);
+			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/emailConfirmation");
+			if (confirmation == null) {
+				return Redirect(resultBaseUrl + "/notFound");
+			}
+			var latestConfirmation = db.GetLatestEmailConfirmation(confirmation.UserAccountId);
+			if (confirmation.Id != latestConfirmation.Id) {
+				return Redirect(resultBaseUrl + "/expired");
+			}
+			if (confirmation.DateConfirmed.HasValue) {
+				return Redirect(resultBaseUrl + "/alreadyConfirmed");
+			}
+			db.ConfirmEmailAddress(id);
+			return Redirect(resultBaseUrl + "/success");
+		}
 		[HttpGet]
 		public IActionResult GetUserAccount([FromServices] DbConnection db) {
 			return Json(db.GetUserAccount(this.User.GetUserAccountId()));
