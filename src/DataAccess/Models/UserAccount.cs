@@ -12,6 +12,6 @@ namespace api.DataAccess.Models {
 		public byte[] PasswordSalt { get; set; }
 		public bool ReceiveReplyEmailNotifications { get; set; }
 		public bool ReceiveReplyDesktopNotifications { get; set; }
-		public bool IsEmailConfired { get; set; }
+		public bool IsEmailConfirmed { get; set; }
 	}
 }
