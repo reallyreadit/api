@@ -1,0 +1,18 @@
+@model api.Messaging.Views.ReplyNotificationEmailViewModel
+
+@{
+	Layout = "EmailLayout";
+	var footerColorStyle = "color: lightgray;";
+}
+
+<p>@Model.Respondent just replied to your comment re: @Model.ArticleTitle</p>
+<p>Click <a href="@Model.ApiServerEndpoint.CreateUrl("/UserAccounts/ViewReply?token=" + Model.ReplyToken)">here</a> to view the reply in the comment thread.</p>
+
+@section UnsubscribeNotice {
+	<p style="@footerColorStyle">
+		You are receiving this email because you are subscribed to comment reply notifications on reallyread.it.<br />
+		<a href="@Model.WebServerEndpoint.CreateUrl("/settings")" style="@footerColorStyle">Manage your notification preferences</a>
+		- or -
+		<a href="@Model.ApiServerEndpoint.CreateUrl("/UserAccounts/Unsubscribe?token=" + Model.UnsubscribeToken)" style="@footerColorStyle">Unsubscribe with one click</a>
+	</p>
+}

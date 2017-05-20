@@ -7,6 +7,8 @@ using System;
 using System.Net;
 using Microsoft.Extensions.Options;
 using api.Configuration;
+using api.Messaging;
+using System.Threading.Tasks;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -46,8 +48,18 @@ namespace api.Controllers.Articles {
 				.OrderByDescending(c => c.DateCreated));
 		}
 		[HttpPost]
-		public IActionResult PostComment([FromBody] PostCommentBinder binder) {
-			return Json(new CommentThread(db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId())));
+		public async Task<IActionResult> PostComment([FromBody] PostCommentBinder binder, [FromServices] EmailService emailService) {
+			var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
+			if (binder.ParentCommentId.HasValue) {
+				var parentUserAccount = db.GetUserAccount(db.GetComment(binder.ParentCommentId.Value).UserAccountId);
+				if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
+					await emailService.SendCommentReplyNotificationEmail(
+						recipient: parentUserAccount,
+						reply: comment
+					);
+				}
+			}
+			return Json(new CommentThread(comment));
 		}
 		[HttpPost]
 		public IActionResult UserDelete([FromBody] UserDeleteBinder binder) {
@@ -57,6 +69,15 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult ListReplies() {
 			return Json(db.ListReplies(this.User.GetUserAccountId()).Select(c => new CommentThread(c)));
+		}
+		[HttpPost]
+		public IActionResult ReadReply([FromBody] ReadReplyBinder binder) {
+			var comment = db.GetComment(binder.CommentId);
+			if (db.GetComment(comment.ParentCommentId.Value).UserAccountId == User.GetUserAccountId()) {
+				db.ReadComment(comment.Id);
+				return Ok();
+			}
+			return BadRequest();
 		}
 	}
 }

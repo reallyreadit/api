@@ -7,14 +7,15 @@
 	<head>
 		<title>@Model.Title</title>
 	</head>
-	<body style="font-family:monospace;text-align:center;">
+	<body style="max-width:400px;margin:0 auto;padding:10px 0 0 0;text-align:center;font-size:13px;font-family:monospace;">
 		@RenderBody()
-		<p style="@footerColorStyle">
-			<small>
+		<small>
+			<p style="@footerColorStyle">
 				<a href="@Model.WebServerEndpoint.CreateUrl()" style="@footerColorStyle">reallyread.it</a> |
 				PO Box 1337 Seaside Heights, NJ 08751 |
 				<a href="mailto:jeff@reallyread.it" style="@footerColorStyle">info@@reallyread.it</a>
-			</small>
-		</p>
+			</p>
+			@RenderSection("UnsubscribeNotice", required: false)
+		</small>
 	</body>
 </html>

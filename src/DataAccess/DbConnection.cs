@@ -101,6 +101,11 @@ namespace api.DataAccess {
 			param: new { slug, user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
+		public Comment GetComment(Guid commentId) => conn.QuerySingleOrDefault<Comment>(
+			sql: "article_api.get_comment",
+			param: new { comment_id = commentId },
+			commandType: CommandType.StoredProcedure
+		);
 		public Page GetPage(Guid pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
 			param: new { page_id = pageId },
@@ -139,6 +144,11 @@ namespace api.DataAccess {
 				min_comment_count = minCommentCount,
 				min_percent_complete = minPercentComplete
 			},
+			commandType: CommandType.StoredProcedure
+		);
+		public void ReadComment(Guid commentId) => conn.Execute(
+			sql: "article_api.read_comment",
+			param: new { comment_id = commentId },
 			commandType: CommandType.StoredProcedure
 		);
 		public UserPage UpdateUserPage(Guid userPageId, int[] readState) => conn.QuerySingleOrDefault<UserPage>(
@@ -197,6 +207,19 @@ namespace api.DataAccess {
 		public UserAccount GetUserAccount(Guid userAccountId) => conn.QuerySingleOrDefault<UserAccount>(
 			sql: "user_account_api.get_user_account",
 			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public UserAccount UpdateNotificationPreferences(
+			Guid userAccountId,
+			bool receiveReplyEmailNotifications,
+			bool receiveReplyDesktopNotifications
+		) => conn.QuerySingleOrDefault<UserAccount>(
+			sql: "user_account_api.update_notification_preferences",
+			param: new {
+				user_account_id = userAccountId,
+				receive_reply_email_notifications = receiveReplyEmailNotifications,
+				receive_reply_desktop_notifications = receiveReplyDesktopNotifications
+			},
 			commandType: CommandType.StoredProcedure
 		);
    }

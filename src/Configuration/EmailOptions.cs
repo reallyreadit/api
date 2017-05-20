@@ -7,5 +7,6 @@ namespace api.Configuration {
 		public EmailDeliveryMethod DeliveryMethod { get; set; }
 		public string AmazonSesRegionEndpoint { get; set; }
 		public SmtpServerOptions SmtpServer { get; set; }
+		public string EncryptionKey { get; set; }
 	}
 }

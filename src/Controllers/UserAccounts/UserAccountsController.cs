@@ -16,6 +16,7 @@ using System.Collections.Generic;
 using Amazon;
 using Mvc.RenderViewToString;
 using api.Messaging;
+using api.Encryption;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -69,7 +70,7 @@ namespace api.Controllers.UserAccounts {
 				using (var db = new DbConnection(dbOpts)) {
 					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
 					await emailService.SendConfirmationEmail(
-						recipient: new EmailMailbox(userAccount.Name, userAccount.Email),
+						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
 					await SignIn(userAccount.Id);
@@ -81,9 +82,15 @@ namespace api.Controllers.UserAccounts {
       }
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult ConfirmEmail(Guid id, [FromServices] DbConnection db, [FromServices] IOptions<ServiceEndpointsOptions> serviceOpts) {
-			var confirmation = db.GetEmailConfirmation(id);
-			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/emailConfirmation");
+		public IActionResult ConfirmEmail(
+			string token,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			var emailConfirmationId = new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey));
+			var confirmation = db.GetEmailConfirmation(emailConfirmationId);
+			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/confirm");
 			if (confirmation == null) {
 				return Redirect(resultBaseUrl + "/notFound");
 			}
@@ -94,8 +101,23 @@ namespace api.Controllers.UserAccounts {
 			if (confirmation.DateConfirmed.HasValue) {
 				return Redirect(resultBaseUrl + "/alreadyConfirmed");
 			}
-			db.ConfirmEmailAddress(id);
+			db.ConfirmEmailAddress(emailConfirmationId);
 			return Redirect(resultBaseUrl + "/success");
+		}
+		[HttpPost]
+		public async Task<IActionResult> ResendConfirmationEmail([FromServices] DbConnection db, [FromServices] EmailService emailService) {
+			var latestConfirmation = db.GetLatestEmailConfirmation(this.User.GetUserAccountId());
+			if (DateTime.UtcNow.Subtract(latestConfirmation.DateCreated).TotalHours < 24) {
+				return BadRequest(new[] { "ResendLimitExceeded" });
+			}
+			if (!latestConfirmation.DateConfirmed.HasValue) {
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				await emailService.SendConfirmationEmail(
+					recipient: userAccount,
+					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+				);
+			}
+			return Ok();
 		}
 		[HttpGet]
 		public IActionResult GetUserAccount([FromServices] DbConnection db) {
@@ -119,6 +141,48 @@ namespace api.Controllers.UserAccounts {
 		public async Task<IActionResult> SignOut() {
 			await this.HttpContext.Authentication.SignOutAsync(authOpts.Scheme);
 			return Ok();
+		}
+		[HttpPost]
+		public IActionResult UpdateNotificationPreferences(
+			[FromBody] UpdateNotificationPreferencesBinder binder,
+			[FromServices] DbConnection db
+		) => Json(db.UpdateNotificationPreferences(
+			this.User.GetUserAccountId(),
+			binder.ReceiveEmailNotifications,
+			binder.ReceiveDesktopNotifications
+		));
+		[AllowAnonymous]
+		[HttpGet]
+		public IActionResult Unsubscribe(
+			string token,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/unsubscribe");
+			if (userAccount.ReceiveReplyEmailNotifications) {
+					db.UpdateNotificationPreferences(
+					userAccountId: userAccount.Id,
+					receiveReplyEmailNotifications: false,
+					receiveReplyDesktopNotifications: userAccount.ReceiveReplyDesktopNotifications
+				);
+				return Redirect(resultBaseUrl + "/success");
+			}
+			return Redirect(resultBaseUrl + "/alreadyUnsubscribed");
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public IActionResult ViewReply(
+			string token,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			var comment = db.GetComment(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			var slugParts = comment.ArticleSlug.Split('_');
+			db.ReadComment(comment.Id);
+			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{comment.Id}"));
 		}
    }
 }

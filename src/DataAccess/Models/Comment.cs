@@ -11,5 +11,6 @@ namespace api.DataAccess.Models {
 		public Guid UserAccountId { get; set; }
 		public string UserAccount { get; set; }
 		public Guid? ParentCommentId { get; set; }
+		public DateTime? DateRead { get; set; }
 	}
 }

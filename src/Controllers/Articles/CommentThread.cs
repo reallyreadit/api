@@ -13,6 +13,7 @@ namespace api.Controllers.Articles {
             this.UserAccountId = comment.UserAccountId;
             this.UserAccount = comment.UserAccount;
             this.ParentCommentId = comment.ParentCommentId;
+            this.DateRead = comment.DateRead;
             this.Children = new List<CommentThread>();
         }
         public List<CommentThread> Children { get; }
