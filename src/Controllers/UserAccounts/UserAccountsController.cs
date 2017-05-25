@@ -51,6 +51,7 @@ namespace api.Controllers.UserAccounts {
 				})
 			);
 		}
+		private Int64 CreateUnixTimestamp(DateTime date) => new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -151,6 +152,26 @@ namespace api.Controllers.UserAccounts {
 			binder.ReceiveEmailNotifications,
 			binder.ReceiveDesktopNotifications
 		));
+		[HttpGet]
+		public IActionResult CheckNewReplyNotification([FromServices] DbConnection db) {
+			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+			var lastReplyDate = db.GetLatestReplyDate(userAccount.Id);
+			return Json(new {
+				LastReply = lastReplyDate.HasValue ? CreateUnixTimestamp(lastReplyDate.Value) : 0,
+				LastNewReplyAck = CreateUnixTimestamp(userAccount.LastNewReplyAck),
+				LastNewReplyDesktopNotification = CreateUnixTimestamp(userAccount.LastNewReplyDesktopNotification)
+			});
+		}
+		[HttpPost]
+		public IActionResult AckNewReply([FromServices] DbConnection db) {
+			db.AckNewReply(this.User.GetUserAccountId());
+			return Ok();
+		}
+		[HttpPost]
+		public IActionResult RecordNewReplyDesktopNotification([FromServices] DbConnection db) {
+			db.RecordNewReplyDesktopNotification(this.User.GetUserAccountId());
+			return Ok();
+		}
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Unsubscribe(

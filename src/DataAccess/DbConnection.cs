@@ -161,6 +161,11 @@ namespace api.DataAccess {
 		);
 
 		// user_account_api
+		public void AckNewReply(Guid userAccountId) => conn.Execute(
+			sql: "user_account_api.ack_new_reply",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
 		public bool ConfirmEmailAddress(Guid emailConfirmationId) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.confirm_email_address",
 			param: new { email_confirmation_id = emailConfirmationId },
@@ -204,8 +209,18 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
+		public DateTime? GetLatestReplyDate(Guid userAccountId) => conn.QuerySingleOrDefault<DateTime?>(
+			sql: "user_account_api.get_latest_reply_date",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
 		public UserAccount GetUserAccount(Guid userAccountId) => conn.QuerySingleOrDefault<UserAccount>(
 			sql: "user_account_api.get_user_account",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public void RecordNewReplyDesktopNotification(Guid userAccountId) => conn.Execute(
+			sql: "user_account_api.record_new_reply_desktop_notification",
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
