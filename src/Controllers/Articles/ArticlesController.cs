@@ -9,6 +9,7 @@ using Microsoft.Extensions.Options;
 using api.Configuration;
 using api.Messaging;
 using System.Threading.Tasks;
+using api.DataAccess.Models;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -18,13 +19,17 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult List() {
-			return Json(db.ListUserArticles(this.User.GetUserAccountIdOrDefault(), minCommentCount: 1));
-		}
+		public IActionResult List() => Json(db.ListUserArticles(
+			userAccountId: this.User.GetUserAccountIdOrDefault(),
+			minCommentCount: 1,
+			sort: ListUserArticlesSort.LastComment
+		));
 		[HttpGet]
-		public IActionResult UserList() {
-			return Json(db.ListUserArticles(this.User.GetUserAccountId(), minPercentComplete: 1));
-		}
+		public IActionResult UserList() => Json(db.ListUserArticles(
+			userAccountId: this.User.GetUserAccountId(),
+			minPercentComplete: 1,
+			sort: ListUserArticlesSort.DateCreated
+		));
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(string slug) {

@@ -137,12 +137,18 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
-		public IEnumerable<UserArticle> ListUserArticles(Guid? userAccountId = null, int minCommentCount = 0, int minPercentComplete = 0) => conn.Query<UserArticle>(
+		public IEnumerable<UserArticle> ListUserArticles(
+			Guid? userAccountId = null,
+			int minCommentCount = 0,
+			int minPercentComplete = 0,
+			ListUserArticlesSort sort = ListUserArticlesSort.DateCreated
+		) => conn.Query<UserArticle>(
 			sql: "article_api.list_user_articles",
 			param: new {
 				user_account_id = userAccountId,
 				min_comment_count = minCommentCount,
-				min_percent_complete = minPercentComplete
+				min_percent_complete = minPercentComplete,
+				sort = sort.ToString()
 			},
 			commandType: CommandType.StoredProcedure
 		);
