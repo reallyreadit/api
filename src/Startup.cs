@@ -29,12 +29,9 @@ namespace api {
 				.AddJsonFile($"appsettings.{env.EnvironmentName}.json")
 				.Build();
 		}
-		public void ConfigureDevelopmentServices(IServiceCollection services) {
-			ConfigureServices(services, new DelayActionFilter(500));
-		}
-		public void ConfigureStagingServices(IServiceCollection services) {
-			ConfigureServices(services);
-		}
+		public void ConfigureDevelopmentServices(IServiceCollection services) => ConfigureServices(services, new DelayActionFilter(500));
+		public void ConfigureStagingServices(IServiceCollection services) => ConfigureServices(services);
+		public void ConfigureProductionServices(IServiceCollection services) => ConfigureServices(services);
 		private void ConfigureServices(IServiceCollection services, params IFilterMetadata[] filters) {
 			services
 				.Configure<MyAuthenticationOptions>(config.GetSection("Authentication"))
