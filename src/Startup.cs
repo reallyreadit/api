@@ -18,6 +18,7 @@ using api.Messaging;
 using api.DataAccess;
 using Mvc.RenderViewToString;
 using Microsoft.AspNetCore.Mvc.Razor;
+using System;
 
 namespace api {
 	public class Startup {
@@ -70,6 +71,7 @@ namespace api {
 				AutomaticChallenge = true,
 				CookieDomain = authOpts.Value.CookieDomain,
 				CookieName = authOpts.Value.CookieName,
+				CookieSecure = authOpts.Value.CookieSecure,
 				Events = new CookieAuthenticationEvents() {
 					OnRedirectToLogin = context => {
 						context.Response.StatusCode = 401;
@@ -79,7 +81,9 @@ namespace api {
 						context.Response.StatusCode = 403;
 						return Task.CompletedTask;
 					}
-				}
+				},
+				ExpireTimeSpan = TimeSpan.FromDays(7),
+				SlidingExpiration = true
 			});
 			app.UseMvcWithDefaultRoute();
 

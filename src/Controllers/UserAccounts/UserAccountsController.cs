@@ -121,9 +121,7 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpGet]
-		public IActionResult GetUserAccount([FromServices] DbConnection db) {
-			return Json(db.GetUserAccount(this.User.GetUserAccountId()));
-		}
+		public IActionResult GetUserAccount([FromServices] DbConnection db) => Json(db.GetUserAccount(this.User.GetUserAccountId()));
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder, [FromServices] DbConnection db) {
