@@ -17,6 +17,7 @@ using Amazon;
 using Mvc.RenderViewToString;
 using api.Messaging;
 using api.Encryption;
+using Microsoft.AspNetCore.Http.Authentication;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -40,17 +41,18 @@ namespace api.Controllers.UserAccounts {
 				numBytesRequested: 256 / 8
 			);
 		}
-		private async Task SignIn(Guid userId) {
-			await this.HttpContext.Authentication.SignInAsync(
-				authenticationScheme: authOpts.Scheme,
-				principal: new ClaimsPrincipal(new[] {
-					new ClaimsIdentity(
-						claims: new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) },
-						authenticationType: "ApplicationCookie"
-					)
-				})
-			);
-		}
+		private async Task SignIn(Guid userId) => await this.HttpContext.Authentication.SignInAsync(
+			authenticationScheme: authOpts.Scheme,
+			principal: new ClaimsPrincipal(new[] {
+				new ClaimsIdentity(
+					claims: new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) },
+					authenticationType: "ApplicationCookie"
+				)
+			}),
+			properties: new AuthenticationProperties() {
+				IsPersistent = true
+			}
+		);
 		private Int64 CreateUnixTimestamp(DateTime date) => new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
 		[AllowAnonymous]
 		[HttpPost]
