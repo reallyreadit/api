@@ -37,9 +37,9 @@ namespace api.Controllers.Extension {
 			return text;
 		}
 		[HttpGet]
-		public IActionResult FindSource(string hostname) {
-			return Json(db.FindSource(hostname));
-		}
+		public IActionResult FindSource(string hostname) => Json(db.FindSource(hostname));
+		[HttpGet]
+		public IActionResult UserArticle(Guid id) => Json(db.GetUserArticle(id, this.User.GetUserAccountId()));
 		[HttpPost]
 		public IActionResult GetUserArticle([FromBody] PageInfoBinder binder) {
 			var userAccountId = this.User.GetUserAccountId();
