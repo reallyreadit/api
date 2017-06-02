@@ -127,7 +127,7 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder, [FromServices] DbConnection db) {
-			var userAccount = db.FindUserAccount(binder.Name);
+			var userAccount = db.FindUserAccount(binder.Email);
 			if (userAccount == null) {
 				return BadRequest(new[] { "UserAccountNotFound" });
 			}

@@ -200,9 +200,9 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
-		public UserAccount FindUserAccount(string userAccountName) => conn.QuerySingleOrDefault<UserAccount>(
+		public UserAccount FindUserAccount(string email) => conn.QuerySingleOrDefault<UserAccount>(
 			sql: "user_account_api.find_user_account",
-			param: new { user_account_name = userAccountName },
+			param: new { email },
 			commandType: CommandType.StoredProcedure
 		);
 		public EmailConfirmation GetEmailConfirmation(Guid emailConfirmationId) => conn.QuerySingleOrDefault<EmailConfirmation>(
