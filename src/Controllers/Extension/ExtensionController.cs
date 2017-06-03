@@ -52,14 +52,13 @@ namespace api.Controllers.Extension {
 				}
 			} else {
 				// create article
-				var pageUri = new Uri(binder.Url);
-				var source = db.FindSource(pageUri.Host);
+				Uri pageUri = new Uri(binder.Url), sourceUri;
+				if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
+					sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
+				}
+				var source = db.FindSource(sourceUri.Host);
 				if (source == null) {
 					// create source
-					Uri sourceUri;
-					if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
-						sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
-					}
 					var sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty);
 					source = db.CreateSource(
 						name: sourceName,
