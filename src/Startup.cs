@@ -22,18 +22,17 @@ using System;
 
 namespace api {
 	public class Startup {
+		private IHostingEnvironment env;
 		private IConfigurationRoot config;
 		public Startup(IHostingEnvironment env) {
+			this.env = env;
 			config = new ConfigurationBuilder()
 				.SetBasePath(Directory.GetCurrentDirectory())
 				.AddJsonFile("appsettings.json")
 				.AddJsonFile($"appsettings.{env.EnvironmentName}.json")
 				.Build();
 		}
-		public void ConfigureDevelopmentServices(IServiceCollection services) => ConfigureServices(services, new DelayActionFilter(500));
-		public void ConfigureStagingServices(IServiceCollection services) => ConfigureServices(services);
-		public void ConfigureProductionServices(IServiceCollection services) => ConfigureServices(services);
-		private void ConfigureServices(IServiceCollection services, params IFilterMetadata[] filters) {
+		public void ConfigureServices(IServiceCollection services) {
 			services
 				.Configure<MyAuthenticationOptions>(config.GetSection("Authentication"))
 				.Configure<CorsOptions>(config.GetSection("Cors"))
@@ -52,13 +51,15 @@ namespace api {
 						.RequireAuthenticatedUser()
 						.Build()
 				));
-				foreach (var filter in filters) {
-					options.Filters.Add(filter);
+				if (env.IsDevelopment()) {
+					options.Filters.Add(new DelayActionFilter(500));
 				}
 			});
 		}
 		public void Configure(IApplicationBuilder app, IOptions<MyAuthenticationOptions> authOpts, IOptions<CorsOptions> corsOpts) {
-			app.UseDeveloperExceptionPage();
+			if (env.IsDevelopment()) {
+				app.UseDeveloperExceptionPage();
+			}
 			app.UseCors(cors => cors
 				.WithOrigins(corsOpts.Value.Origins)
 				.AllowCredentials()
