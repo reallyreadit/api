@@ -18,6 +18,7 @@ using Mvc.RenderViewToString;
 using api.Messaging;
 using api.Encryption;
 using Microsoft.AspNetCore.Http.Authentication;
+using api.DataAccess.Models;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -53,7 +54,6 @@ namespace api.Controllers.UserAccounts {
 				IsPersistent = true
 			}
 		);
-		private Int64 CreateUnixTimestamp(DateTime date) => new DateTimeOffset(date, TimeSpan.Zero).ToUnixTimeMilliseconds();
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -124,6 +124,14 @@ namespace api.Controllers.UserAccounts {
 		}
 		[HttpGet]
 		public IActionResult GetUserAccount([FromServices] DbConnection db) => Json(db.GetUserAccount(this.User.GetUserAccountId()));
+		[HttpGet]
+		public IActionResult GetSessionState([FromServices] DbConnection db) {
+			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+			return Json(new {
+				UserAccount = userAccount,
+				NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestReplyDate(userAccount.Id))
+			});
+		}
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder, [FromServices] DbConnection db) {
@@ -153,15 +161,10 @@ namespace api.Controllers.UserAccounts {
 			binder.ReceiveDesktopNotifications
 		));
 		[HttpGet]
-		public IActionResult CheckNewReplyNotification([FromServices] DbConnection db) {
-			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-			var lastReplyDate = db.GetLatestReplyDate(userAccount.Id);
-			return Json(new {
-				LastReply = lastReplyDate.HasValue ? CreateUnixTimestamp(lastReplyDate.Value) : 0,
-				LastNewReplyAck = CreateUnixTimestamp(userAccount.LastNewReplyAck),
-				LastNewReplyDesktopNotification = CreateUnixTimestamp(userAccount.LastNewReplyDesktopNotification)
-			});
-		}
+		public IActionResult CheckNewReplyNotification([FromServices] DbConnection db) => Json(new NewReplyNotification(
+			userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
+			lastReplyDate: db.GetLatestReplyDate(this.User.GetUserAccountId())
+		));
 		[HttpPost]
 		public IActionResult AckNewReply([FromServices] DbConnection db) {
 			db.AckNewReply(this.User.GetUserAccountId());
