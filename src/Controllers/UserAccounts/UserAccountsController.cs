@@ -54,6 +54,11 @@ namespace api.Controllers.UserAccounts {
 				IsPersistent = true
 			}
 		);
+		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, DbConnection db, IOptions<ServiceEndpointsOptions> serviceOpts) {
+			var slugParts = reply.ArticleSlug.Split('_');
+			db.ReadComment(reply.Id);
+			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{reply.Id}"));
+		}
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -129,7 +134,7 @@ namespace api.Controllers.UserAccounts {
 			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 			return Json(new {
 				UserAccount = userAccount,
-				NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestReplyDate(userAccount.Id))
+				NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestUnreadReply(userAccount.Id))
 			});
 		}
 		[AllowAnonymous]
@@ -163,7 +168,7 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult CheckNewReplyNotification([FromServices] DbConnection db) => Json(new NewReplyNotification(
 			userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
-			lastReplyDate: db.GetLatestReplyDate(this.User.GetUserAccountId())
+			latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
 		));
 		[HttpPost]
 		public IActionResult AckNewReply([FromServices] DbConnection db) {
@@ -171,9 +176,19 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpPost]
-		public IActionResult RecordNewReplyDesktopNotification([FromServices] DbConnection db) {
-			db.RecordNewReplyDesktopNotification(this.User.GetUserAccountId());
-			return Ok();
+		public IActionResult CreateDesktopNotification([FromServices] DbConnection db) {
+			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+			db.RecordNewReplyDesktopNotification(userAccount.Id);
+			if (userAccount.ReceiveReplyDesktopNotifications) {
+				var latestUnreadReply = db.GetLatestUnreadReply(userAccount.Id);
+				if (
+					latestUnreadReply.DateCreated > userAccount.LastNewReplyAck &&
+					latestUnreadReply.DateCreated > userAccount.LastNewReplyDesktopNotification
+				) {
+					return Json(latestUnreadReply);
+				}
+			}
+			return BadRequest();
 		}
 		[AllowAnonymous]
 		[HttpGet]
@@ -202,11 +217,20 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
-		) {
-			var comment = db.GetComment(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
-			var slugParts = comment.ArticleSlug.Split('_');
-			db.ReadComment(comment.Id);
-			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{comment.Id}"));
-		}
+		) => ReadReplyAndRedirectToArticle(
+			reply: db.GetComment(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey))),
+			db: db,
+			serviceOpts: serviceOpts
+		);
+		[HttpGet]
+		public IActionResult ViewReplyFromDesktopNotification(
+			Guid id,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) => ReadReplyAndRedirectToArticle(
+			reply: db.GetComment(id),
+			db: db,
+			serviceOpts: serviceOpts
+		);
    }
 }

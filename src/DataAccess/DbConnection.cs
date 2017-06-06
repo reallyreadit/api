@@ -215,8 +215,8 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
-		public DateTime? GetLatestReplyDate(Guid userAccountId) => conn.QuerySingleOrDefault<DateTime?>(
-			sql: "user_account_api.get_latest_reply_date",
+		public Comment GetLatestUnreadReply(Guid userAccountId) => conn.QuerySingleOrDefault<Comment>(
+			sql: "user_account_api.get_latest_unread_reply",
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
