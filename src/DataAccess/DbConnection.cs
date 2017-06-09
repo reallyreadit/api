@@ -111,6 +111,10 @@ namespace api.DataAccess {
 			param: new { page_id = pageId },
 			commandType: CommandType.StoredProcedure
 		);
+		public IEnumerable<SourceRule> GetSourceRules() => conn.Query<SourceRule>(
+			sql: "article_api.get_source_rules",
+			commandType: CommandType.StoredProcedure
+		);
 		public UserArticle GetUserArticle(Guid articleId, Guid userAccountId) => conn.QuerySingleOrDefault<UserArticle>(
 			sql: "article_api.get_user_article",
 			param: new {

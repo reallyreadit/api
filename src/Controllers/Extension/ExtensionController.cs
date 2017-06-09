@@ -96,5 +96,7 @@ namespace api.Controllers.Extension {
 			var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
 			return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, this.User.GetUserAccountId()));
 		}
+		[HttpGet]
+		public IActionResult GetSourceRules() => Json(db.GetSourceRules());
 	}
 }

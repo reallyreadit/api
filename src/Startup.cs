@@ -90,6 +90,7 @@ namespace api {
 
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
+			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
 		}
 	}
 }
