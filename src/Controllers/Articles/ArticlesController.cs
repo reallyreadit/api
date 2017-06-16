@@ -56,12 +56,15 @@ namespace api.Controllers.Articles {
 		public async Task<IActionResult> PostComment([FromBody] PostCommentBinder binder, [FromServices] EmailService emailService) {
 			var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
 			if (binder.ParentCommentId.HasValue) {
-				var parentUserAccount = db.GetUserAccount(db.GetComment(binder.ParentCommentId.Value).UserAccountId);
-				if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
-					await emailService.SendCommentReplyNotificationEmail(
-						recipient: parentUserAccount,
-						reply: comment
-					);
+				var parent = db.GetComment(binder.ParentCommentId.Value);
+				if (parent.UserAccountId != this.User.GetUserAccountId()) {
+					var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
+					if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
+						await emailService.SendCommentReplyNotificationEmail(
+							recipient: parentUserAccount,
+							reply: comment
+						);
+					}
 				}
 			}
 			return Json(new CommentThread(comment));
