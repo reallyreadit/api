@@ -53,21 +53,29 @@ namespace api.Controllers.Articles {
 				.OrderByDescending(c => c.DateCreated));
 		}
 		[HttpPost]
-		public async Task<IActionResult> PostComment([FromBody] PostCommentBinder binder, [FromServices] EmailService emailService) {
-			var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
-			if (binder.ParentCommentId.HasValue) {
-				var parent = db.GetComment(binder.ParentCommentId.Value);
-				if (parent.UserAccountId != this.User.GetUserAccountId()) {
-					var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
-					if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
-						await emailService.SendCommentReplyNotificationEmail(
-							recipient: parentUserAccount,
-							reply: comment
-						);
+		public async Task<IActionResult> PostComment(
+			[FromBody] PostCommentBinder binder,
+			[FromServices] EmailService emailService,
+			[FromServices] IOptions<ReadingParametersOptions> readingParametersOpts
+		) {
+			var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
+			if (userArticle.PercentComplete >= readingParametersOpts.Value.ArticleUnlockThreshold) {
+				var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
+				if (binder.ParentCommentId.HasValue) {
+					var parent = db.GetComment(binder.ParentCommentId.Value);
+					if (parent.UserAccountId != this.User.GetUserAccountId()) {
+						var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
+						if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
+							await emailService.SendCommentReplyNotificationEmail(
+								recipient: parentUserAccount,
+								reply: comment
+							);
+						}
 					}
 				}
+				return Json(new CommentThread(comment));
 			}
-			return Json(new CommentThread(comment));
+			return BadRequest();
 		}
 		[HttpPost]
 		public IActionResult UserDelete([FromBody] UserDeleteBinder binder) {

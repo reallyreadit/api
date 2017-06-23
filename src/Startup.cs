@@ -39,7 +39,8 @@ namespace api {
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(config.GetSection("Email"))
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
-				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
+				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
+				.Configure<ReadingParametersOptions>(config.GetSection("ReadingParameters"));
 			services
 				.AddScoped<DbConnection>()
 				.AddScoped<EmailService>()
