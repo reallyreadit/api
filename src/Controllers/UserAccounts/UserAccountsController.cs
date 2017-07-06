@@ -33,15 +33,13 @@ namespace api.Controllers.UserAccounts {
 			}
 			return salt;
 		}
-		private static byte[] HashPassword(string password, byte[] salt) {
-			return KeyDerivation.Pbkdf2(
-				password: password,
-				salt: salt,
-				prf: KeyDerivationPrf.HMACSHA1,
-				iterationCount: 10000,
-				numBytesRequested: 256 / 8
-			);
-		}
+		private static byte[] HashPassword(string password, byte[] salt) => KeyDerivation.Pbkdf2(
+			password: password,
+			salt: salt,
+			prf: KeyDerivationPrf.HMACSHA1,
+			iterationCount: 10000,
+			numBytesRequested: 256 / 8
+		);
 		private async Task SignIn(Guid userId) => await this.HttpContext.Authentication.SignInAsync(
 			authenticationScheme: authOpts.Scheme,
 			principal: new ClaimsPrincipal(new[] {
@@ -59,6 +57,12 @@ namespace api.Controllers.UserAccounts {
 			db.ReadComment(reply.Id);
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{reply.Id}"));
 		}
+		private bool IsPasswordValid(string password) =>
+			!String.IsNullOrWhiteSpace(password) &&
+			password.Length >= 8 &&
+			password.Length <= 256;
+		private bool IsCorrectPassword(UserAccount userAccount, string password) =>
+			userAccount.PasswordHash.SequenceEqual(HashPassword(password, userAccount.PasswordSalt));
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -66,11 +70,7 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] IOptions<DatabaseOptions> dbOpts,
 			[FromServices] EmailService emailService
 		) {
-			if (
-				String.IsNullOrWhiteSpace(binder.Password) ||
-				binder.Password.Length < 8 ||
-				binder.Password.Length > 256
-			) {
+			if (!IsPasswordValid(binder.Password)) {
 				return BadRequest();
 			}
 			try {
@@ -127,6 +127,19 @@ namespace api.Controllers.UserAccounts {
 			}
 			return Ok();
 		}
+		[HttpPost]
+		public IActionResult ChangePassword([FromBody] ChangePasswordBinder binder, [FromServices] DbConnection db) {
+			if (!IsPasswordValid(binder.NewPassword)) {
+				return BadRequest();
+			}
+			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+			if (!IsCorrectPassword(userAccount, binder.CurrentPassword)) {
+				return BadRequest(new[] { "IncorrectPassword" });
+			}
+			var salt = GenerateSalt();
+			db.ChangePassword(userAccount.Id, HashPassword(binder.NewPassword, salt), salt);
+			return Ok();
+		}
 		[HttpGet]
 		public IActionResult GetUserAccount([FromServices] DbConnection db) => Json(db.GetUserAccount(this.User.GetUserAccountId()));
 		[HttpGet]
@@ -144,7 +157,7 @@ namespace api.Controllers.UserAccounts {
 			if (userAccount == null) {
 				return BadRequest(new[] { "UserAccountNotFound" });
 			}
-			if (!userAccount.PasswordHash.SequenceEqual(HashPassword(binder.Password, userAccount.PasswordSalt))) {
+			if (!IsCorrectPassword(userAccount, binder.Password)) {
 				return BadRequest(new[] { "IncorrectPassword" });
 			}
 			await SignIn(userAccount.Id);

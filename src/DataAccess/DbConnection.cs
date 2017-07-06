@@ -176,6 +176,15 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
+		public void ChangePassword(Guid userAccountId, byte[] passwordHash, byte[] passwordSalt) => conn.Execute(
+			sql: "user_account_api.change_password",
+			param: new {
+				user_account_id = userAccountId,
+				password_hash = passwordHash,
+				password_salt = passwordSalt
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public bool ConfirmEmailAddress(Guid emailConfirmationId) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.confirm_email_address",
 			param: new { email_confirmation_id = emailConfirmationId },
