@@ -19,6 +19,7 @@ using api.Messaging;
 using api.Encryption;
 using Microsoft.AspNetCore.Http.Authentication;
 using api.DataAccess.Models;
+using System.Net;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -67,6 +68,10 @@ namespace api.Controllers.UserAccounts {
 			latestUnconfirmedConfirmation != null ?
 				DateTime.UtcNow.Subtract(latestUnconfirmedConfirmation.DateCreated).TotalHours < 24 :
 				false;
+		private bool IsPasswordResetRequestValid(PasswordResetRequest request) =>
+				request != null &&
+				!request.DateCompleted.HasValue &&
+				DateTime.UtcNow.Subtract(request.DateCreated).TotalHours < 24;
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -104,10 +109,10 @@ namespace api.Controllers.UserAccounts {
 			var confirmation = db.GetEmailConfirmation(emailConfirmationId);
 			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/confirm");
 			if (confirmation == null) {
-				return Redirect(resultBaseUrl + "/notFound");
+				return Redirect(resultBaseUrl + "/not-found");
 			}
 			if (confirmation.DateConfirmed.HasValue) {
-				return Redirect(resultBaseUrl + "/alreadyConfirmed");
+				return Redirect(resultBaseUrl + "/already-confirmed");
 			}
 			if (confirmation.Id != db.GetLatestUnconfirmedEmailConfirmation(confirmation.UserAccountId).Id) {
 				return Redirect(resultBaseUrl + "/expired");
@@ -140,9 +145,31 @@ namespace api.Controllers.UserAccounts {
 			db.ChangePassword(userAccount.Id, HashPassword(binder.NewPassword, salt), salt);
 			return Ok();
 		}
+		[AllowAnonymous]
+		[HttpPost]
+		public IActionResult ResetPassword(
+			[FromBody] ResetPasswordBinder binder,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<EmailOptions> emailOpts
+		) {
+			var request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
+			if (request == null) {
+				return BadRequest(new[] { "RequestNotFound" });
+			}
+			if (IsPasswordResetRequestValid(request)) {
+				if (!IsPasswordValid(binder.Password)) {
+					return BadRequest();
+				}
+				var salt = GenerateSalt();
+				db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
+				db.CompletePasswordResetRequest(request.Id);
+				return Ok();
+			}
+			return BadRequest(new[] { "RequestExpired" });
+		}
 		[HttpPost]
 		public async Task<IActionResult> ChangeEmailAddress(
-			[FromBody] ChangeEmailAddressBinder binder,
+			[FromBody] EmailAddressBinder binder,
 			[FromServices] DbConnection db,
 			[FromServices] EmailService emailService
 		) {
@@ -174,6 +201,24 @@ namespace api.Controllers.UserAccounts {
 				return Json(updatedUserAccount);
 			}
 			return BadRequest(new[] { "ResendLimitExceeded" });
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> RequestPasswordReset(
+			[FromBody] EmailAddressBinder binder,
+			[FromServices] DbConnection db,
+			[FromServices] EmailService emailService
+		) {
+			var userAccount = db.FindUserAccount(binder.Email);
+			if (userAccount == null) {
+				return BadRequest(new[] { "UserAccountNotFound" });
+			}
+			var latestRequest = db.GetLatestPasswordResetRequest(userAccount.Id);
+			if (IsPasswordResetRequestValid(latestRequest)) {
+				return BadRequest(new[] { "RequestLimitExceeded" });
+			}
+			await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
+			return Ok();
 		}
 		[HttpGet]
 		public IActionResult GetUserAccount([FromServices] DbConnection db) => Json(db.GetUserAccount(this.User.GetUserAccountId()));
@@ -256,7 +301,24 @@ namespace api.Controllers.UserAccounts {
 				);
 				return Redirect(resultBaseUrl + "/success");
 			}
-			return Redirect(resultBaseUrl + "/alreadyUnsubscribed");
+			return Redirect(resultBaseUrl + "/already-unsubscribed");
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public IActionResult PasswordResetRequest(
+			string token,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			var request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			if (request == null) {
+				return Redirect(serviceOpts.Value.WebServer.CreateUrl("/password/reset/not-found"));
+			}
+			if (IsPasswordResetRequestValid(request)) {
+				return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/?reset-password&email={WebUtility.UrlEncode(request.EmailAddress)}&token={WebUtility.UrlEncode(token)}"));
+			}
+			return Redirect(serviceOpts.Value.WebServer.CreateUrl("/password/reset/expired"));
 		}
 		[AllowAnonymous]
 		[HttpGet]

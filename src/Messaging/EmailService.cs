@@ -42,7 +42,7 @@ namespace api.Messaging {
 				title: "Welcome to reallyread.it!",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
-				emailConfirmationToken: CreateToken(emailConfirmationId),
+				token: CreateToken(emailConfirmationId),
 				apiServerEndpoint: this.serviceOpts.ApiServer
 			)
 		);
@@ -53,7 +53,18 @@ namespace api.Messaging {
 				title: "Please confirm your email address",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
-				emailConfirmationToken: CreateToken(emailConfirmationId),
+				token: CreateToken(emailConfirmationId),
+				apiServerEndpoint: this.serviceOpts.ApiServer
+			)
+		);
+		public async Task SendPasswordResetEmail(UserAccount recipient, Guid passwordResetRequestId) => await SendEmail(
+			recipient,
+			viewName: "PasswordResetEmail",
+			model: new ConfirmationEmailViewModel(
+				title: "Password reset request",
+				webServerEndpoint: this.serviceOpts.WebServer,
+				name: recipient.Name,
+				token: CreateToken(passwordResetRequestId),
 				apiServerEndpoint: this.serviceOpts.ApiServer
 			)
 		);

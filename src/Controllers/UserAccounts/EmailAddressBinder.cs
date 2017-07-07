@@ -1,5 +1,5 @@
 namespace api.Controllers.UserAccounts {
-	public class ChangeEmailAddressBinder {
+	public class EmailAddressBinder {
 		public string Email { get; set; }
 	}
 }

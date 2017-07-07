@@ -199,6 +199,11 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public bool CompletePasswordResetRequest(Guid passwordResetRequestId) => conn.QuerySingleOrDefault<bool>(
+			sql: "user_account_api.complete_password_reset_request",
+			param: new { password_reset_request_id = passwordResetRequestId },
+			commandType: CommandType.StoredProcedure
+		);
 		public bool ConfirmEmailAddress(Guid emailConfirmationId) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.confirm_email_address",
 			param: new { email_confirmation_id = emailConfirmationId },
@@ -206,6 +211,11 @@ namespace api.DataAccess {
 		);
 		public EmailConfirmation CreateEmailConfirmation(Guid userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.create_email_confirmation",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public PasswordResetRequest CreatePasswordResetRequest(Guid userAccountId) => conn.QuerySingleOrDefault<PasswordResetRequest>(
+			sql: "user_account_api.create_password_reset_request",
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
@@ -237,6 +247,11 @@ namespace api.DataAccess {
 			param: new { email_confirmation_id = emailConfirmationId },
 			commandType: CommandType.StoredProcedure
 		);
+		public PasswordResetRequest GetLatestPasswordResetRequest(Guid userAccountId) => conn.QuerySingleOrDefault<PasswordResetRequest>(
+			sql: "user_account_api.get_latest_password_reset_request",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
 		public EmailConfirmation GetLatestUnconfirmedEmailConfirmation(Guid userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.get_latest_unconfirmed_email_confirmation",
 			param: new { user_account_id = userAccountId },
@@ -245,6 +260,11 @@ namespace api.DataAccess {
 		public Comment GetLatestUnreadReply(Guid userAccountId) => conn.QuerySingleOrDefault<Comment>(
 			sql: "user_account_api.get_latest_unread_reply",
 			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public PasswordResetRequest GetPasswordResetRequest(Guid passwordResetRequestId) => conn.QuerySingleOrDefault<PasswordResetRequest>(
+			sql: "user_account_api.get_password_reset_request",
+			param: new { password_reset_request_id = passwordResetRequestId },
 			commandType: CommandType.StoredProcedure
 		);
 		public UserAccount GetUserAccount(Guid userAccountId) => conn.QuerySingleOrDefault<UserAccount>(
