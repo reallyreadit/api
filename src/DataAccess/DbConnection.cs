@@ -176,6 +176,20 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
+		public void ChangeEmailAddress(Guid userAccountId, string email) {
+			try {
+				conn.Execute(
+					sql: "user_account_api.change_email_address",
+					param: new { user_account_id = userAccountId, email },
+					commandType: CommandType.StoredProcedure
+				);
+			} catch (NpgsqlException ex) when (ex.Data.Contains("ConstraintName")) {
+				if (String.Equals(ex.Data["ConstraintName"], "user_account_email_key")) {
+					throw new ValidationException("DuplicateEmail");
+				}
+				throw ex;
+			}
+		}
 		public void ChangePassword(Guid userAccountId, byte[] passwordHash, byte[] passwordSalt) => conn.Execute(
 			sql: "user_account_api.change_password",
 			param: new {
@@ -223,8 +237,8 @@ namespace api.DataAccess {
 			param: new { email_confirmation_id = emailConfirmationId },
 			commandType: CommandType.StoredProcedure
 		);
-		public EmailConfirmation GetLatestEmailConfirmation(Guid userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(
-			sql: "user_account_api.get_latest_email_confirmation",
+		public EmailConfirmation GetLatestUnconfirmedEmailConfirmation(Guid userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(
+			sql: "user_account_api.get_latest_unconfirmed_email_confirmation",
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
@@ -241,6 +255,11 @@ namespace api.DataAccess {
 		public void RecordNewReplyDesktopNotification(Guid userAccountId) => conn.Execute(
 			sql: "user_account_api.record_new_reply_desktop_notification",
 			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public bool IsEmailAddressConfirmed(Guid userAccountId, string email) => conn.QuerySingleOrDefault<bool>(
+			sql: "user_account_api.is_email_address_confirmed",
+			param: new { user_account_id = userAccountId, email },
 			commandType: CommandType.StoredProcedure
 		);
 		public UserAccount UpdateNotificationPreferences(

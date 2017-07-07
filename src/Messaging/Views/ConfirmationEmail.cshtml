@@ -3,5 +3,4 @@
 @{ Layout = "EmailLayout"; }
 
 <p>Hey, @Model.Name!</p>
-<p><strong>Welcome to reallyread.it!</strong></p>
-<p>Please click <a href="@Model.ApiServerEndpoint.CreateUrl("/UserAccounts/ConfirmEmail?token=" + Model.EmailConfirmationToken)">here</a> to confirm your email address.</p>
+<p>Please click <a href="@Model.ApiServerEndpoint.CreateUrl("/UserAccounts/ConfirmEmail?token=" + Model.EmailConfirmationToken)">here</a> to confirm your new email address.</p>

@@ -63,6 +63,10 @@ namespace api.Controllers.UserAccounts {
 			password.Length <= 256;
 		private bool IsCorrectPassword(UserAccount userAccount, string password) =>
 			userAccount.PasswordHash.SequenceEqual(HashPassword(password, userAccount.PasswordSalt));
+		private bool IsEmailConfirmationRateExceeded(EmailConfirmation latestUnconfirmedConfirmation) =>
+			latestUnconfirmedConfirmation != null ?
+				DateTime.UtcNow.Subtract(latestUnconfirmedConfirmation.DateCreated).TotalHours < 24 :
+				false;
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -77,7 +81,7 @@ namespace api.Controllers.UserAccounts {
 				var salt = GenerateSalt();
 				using (var db = new DbConnection(dbOpts)) {
 					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
-					await emailService.SendConfirmationEmail(
+					await emailService.SendWelcomeEmail(
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
@@ -102,29 +106,25 @@ namespace api.Controllers.UserAccounts {
 			if (confirmation == null) {
 				return Redirect(resultBaseUrl + "/notFound");
 			}
-			var latestConfirmation = db.GetLatestEmailConfirmation(confirmation.UserAccountId);
-			if (confirmation.Id != latestConfirmation.Id) {
-				return Redirect(resultBaseUrl + "/expired");
-			}
 			if (confirmation.DateConfirmed.HasValue) {
 				return Redirect(resultBaseUrl + "/alreadyConfirmed");
+			}
+			if (confirmation.Id != db.GetLatestUnconfirmedEmailConfirmation(confirmation.UserAccountId).Id) {
+				return Redirect(resultBaseUrl + "/expired");
 			}
 			db.ConfirmEmailAddress(emailConfirmationId);
 			return Redirect(resultBaseUrl + "/success");
 		}
 		[HttpPost]
 		public async Task<IActionResult> ResendConfirmationEmail([FromServices] DbConnection db, [FromServices] EmailService emailService) {
-			var latestConfirmation = db.GetLatestEmailConfirmation(this.User.GetUserAccountId());
-			if (DateTime.UtcNow.Subtract(latestConfirmation.DateCreated).TotalHours < 24) {
+			if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
 				return BadRequest(new[] { "ResendLimitExceeded" });
 			}
-			if (!latestConfirmation.DateConfirmed.HasValue) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-				await emailService.SendConfirmationEmail(
-					recipient: userAccount,
-					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-				);
-			}
+			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+			await emailService.SendConfirmationEmail(
+				recipient: userAccount,
+				emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+			);
 			return Ok();
 		}
 		[HttpPost]
@@ -139,6 +139,41 @@ namespace api.Controllers.UserAccounts {
 			var salt = GenerateSalt();
 			db.ChangePassword(userAccount.Id, HashPassword(binder.NewPassword, salt), salt);
 			return Ok();
+		}
+		[HttpPost]
+		public async Task<IActionResult> ChangeEmailAddress(
+			[FromBody] ChangeEmailAddressBinder binder,
+			[FromServices] DbConnection db,
+			[FromServices] EmailService emailService
+		) {
+			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+			if (userAccount.Email == binder.Email) {
+				return BadRequest();
+			}
+			var isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
+			if (
+				isEmailAddressConfirmed ||
+				!IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(userAccount.Id))
+			) {
+				try {
+					db.ChangeEmailAddress(userAccount.Id, binder.Email);
+				} catch (Exception ex) {
+					return BadRequest((ex as ValidationException)?.Errors);
+				}
+				var confirmation = db.CreateEmailConfirmation(userAccount.Id);
+				if (isEmailAddressConfirmed) {
+					db.ConfirmEmailAddress(confirmation.Id);
+				}
+				var updatedUserAccount = db.GetUserAccount(userAccount.Id);
+				if (!isEmailAddressConfirmed) {
+					await emailService.SendConfirmationEmail(
+						recipient: updatedUserAccount,
+						emailConfirmationId: confirmation.Id
+					);
+				}
+				return Json(updatedUserAccount);
+			}
+			return BadRequest(new[] { "ResendLimitExceeded" });
 		}
 		[HttpGet]
 		public IActionResult GetUserAccount([FromServices] DbConnection db) => Json(db.GetUserAccount(this.User.GetUserAccountId()));

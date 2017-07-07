@@ -35,11 +35,22 @@ namespace api.Messaging {
 			this.emailOpts = emailOpts.Value;
 			this.serviceOpts = serviceOpts.Value;
 		}
+		public async Task SendWelcomeEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
+			recipient,
+			viewName: "WelcomeEmail",
+			model: new ConfirmationEmailViewModel(
+				title: "Welcome to reallyread.it!",
+				webServerEndpoint: this.serviceOpts.WebServer,
+				name: recipient.Name,
+				emailConfirmationToken: CreateToken(emailConfirmationId),
+				apiServerEndpoint: this.serviceOpts.ApiServer
+			)
+		);
 		public async Task SendConfirmationEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
 			recipient,
 			viewName: "ConfirmationEmail",
 			model: new ConfirmationEmailViewModel(
-				title: "Welcome to reallyread.it!",
+				title: "Please confirm your email address",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
 				emailConfirmationToken: CreateToken(emailConfirmationId),
