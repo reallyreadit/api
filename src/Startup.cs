@@ -65,8 +65,7 @@ namespace api {
 				.WithOrigins(corsOpts.Value.Origins)
 				.AllowCredentials()
 				.AllowAnyHeader()
-				.AllowAnyMethod()
-				.WithExposedHeaders(corsOpts.Value.ExposedHeaders));
+				.AllowAnyMethod());
 			app.UseCookieAuthentication(new CookieAuthenticationOptions() {
 				AuthenticationScheme = authOpts.Value.Scheme,
 				AutomaticAuthenticate = true,
