@@ -9,6 +9,12 @@ namespace api.DataAccess {
 			var totalCount = items.FirstOrDefault()?.TotalCount ?? 0;
 			return new PageResult<T>(items, totalCount, totalCount > 0 ? pageNumber : 1, pageSize);
 		}
+		public static PageResult<T> Create<TSource>(PageResult<TSource> source, Func<IEnumerable<TSource>, IEnumerable<T>> map) => new PageResult<T>(
+			items: map(source.Items),
+			totalCount: source.TotalCount,
+			pageNumber: source.PageNumber,
+			pageSize: source.PageSize
+		);
 		public PageResult(IEnumerable<T> items, int totalCount, int pageNumber, int pageSize) {
 			Items = items;
 			TotalCount = totalCount;
