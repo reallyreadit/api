@@ -98,5 +98,15 @@ namespace api.Controllers.Extension {
 		}
 		[HttpGet]
 		public IActionResult GetSourceRules() => Json(db.GetSourceRules());
+		[HttpPost]
+		public IActionResult SetStarred([FromBody] SetStarredBinder binder) {
+			var userAccountId = this.User.GetUserAccountId();
+			if (binder.IsStarred) {
+				db.StarArticle(userAccountId, binder.ArticleId);
+			} else {
+				db.UnstarArticle(userAccountId, binder.ArticleId);
+			}
+			return Json(db.GetUserArticle(binder.ArticleId, userAccountId));
+		}
 	}
 }

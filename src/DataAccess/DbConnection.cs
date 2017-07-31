@@ -6,6 +6,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 using api.Configuration;
+using System.Linq;
 
 namespace api.DataAccess {
     public class DbConnection : IDisposable {
@@ -19,7 +20,7 @@ namespace api.DataAccess {
 		}
 		
 		// article_api
-		public Article CreateArticle(
+		public Guid CreateArticle(
 			string title,
 			string slug,
 			Guid sourceId,
@@ -29,7 +30,7 @@ namespace api.DataAccess {
 			string description,
 			CreateArticleAuthor[] authors,
 			string[] tags
-		) => conn.QuerySingleOrDefault<Article>(
+		) => conn.QuerySingleOrDefault<Guid>(
 			sql: "article_api.create_article",
 			param: new {
 				title,
@@ -86,6 +87,11 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public UserArticle FindArticle(string slug) => conn.QuerySingleOrDefault<UserArticle>(
+			sql: "article_api.find_article",
+			param: new { slug },
+			commandType: CommandType.StoredProcedure
+		);
 		public Page FindPage(string url) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.find_page",
 			param: new { url },
@@ -96,7 +102,7 @@ namespace api.DataAccess {
 			param: new { source_hostname = sourceHostname },
 			commandType: CommandType.StoredProcedure
 		);
-		public UserArticle FindUserArticle(string slug, Guid? userAccountId = null) => conn.QuerySingleOrDefault<UserArticle>(
+		public UserArticle FindUserArticle(string slug, Guid userAccountId) => conn.QuerySingleOrDefault<UserArticle>(
 			sql: "article_api.find_user_article",
 			param: new { slug, user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
@@ -136,29 +142,77 @@ namespace api.DataAccess {
 			param: new { article_id = articleId },
 			commandType: CommandType.StoredProcedure
 		);
-		public IEnumerable<Comment> ListReplies(Guid userAccountId) => conn.Query<Comment>(
-			sql: "article_api.list_replies",
-			param: new { user_account_id = userAccountId },
-			commandType: CommandType.StoredProcedure
+		public PageResult<UserArticle> ListHotTopics(int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+			items: conn.Query<UserArticlePageResult>(
+				sql: "article_api.list_hot_topics",
+				param: new
+				{
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
-		public IEnumerable<UserArticle> ListUserArticles(
-			Guid? userAccountId = null,
-			int minCommentCount = 0,
-			int minPercentComplete = 0,
-			ListUserArticlesSort sort = ListUserArticlesSort.DateCreated
-		) => conn.Query<UserArticle>(
-			sql: "article_api.list_user_articles",
-			param: new {
-				user_account_id = userAccountId,
-				min_comment_count = minCommentCount,
-				min_percent_complete = minPercentComplete,
-				sort = sort.ToString()
-			},
-			commandType: CommandType.StoredProcedure
+		public PageResult<Comment> ListReplies(Guid userAccountId, int pageNumber, int pageSize) => PageResult<Comment>.Create(
+			items: conn.Query<CommentPageResult>(
+				sql: "article_api.list_replies",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public PageResult<UserArticle> ListStarredArticles(Guid userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+			items: conn.Query<UserArticlePageResult>(
+				sql: "article_api.list_starred_articles",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public PageResult<UserArticle> ListUserHotTopics(Guid userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+			items: conn.Query<UserArticlePageResult>(
+				sql: "article_api.list_user_hot_topics",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
 		public void ReadComment(Guid commentId) => conn.Execute(
 			sql: "article_api.read_comment",
 			param: new { comment_id = commentId },
+			commandType: CommandType.StoredProcedure
+		);
+		public void StarArticle(Guid userAccountId, Guid articleId) => conn.Execute(
+			sql: "article_api.star_article",
+			param: new {
+				user_account_id = userAccountId,
+				article_id = articleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public void UnstarArticle(Guid userAccountId, Guid articleId) => conn.Execute(
+			sql: "article_api.unstar_article",
+			param: new {
+				user_account_id = userAccountId,
+				article_id = articleId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public UserPage UpdateUserPage(Guid userPageId, int[] readState) => conn.QuerySingleOrDefault<UserPage>(

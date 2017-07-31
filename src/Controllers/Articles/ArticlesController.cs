@@ -19,27 +19,23 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult List() => Json(db.ListUserArticles(
-			userAccountId: this.User.GetUserAccountIdOrDefault(),
-			minCommentCount: 1,
-			sort: ListUserArticlesSort.LastComment
-		));
+		public IActionResult ListHotTopics(int pageNumber) => Json(this.User.Identity.IsAuthenticated ?
+			db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 50) :
+			db.ListHotTopics(pageNumber, 50)
+		);
 		[HttpGet]
-		public IActionResult UserList() => Json(db.ListUserArticles(
-			userAccountId: this.User.GetUserAccountId(),
-			minPercentComplete: 1,
-			sort: ListUserArticlesSort.DateCreated
-		));
+		public IActionResult ListStarred(int pageNumber) => Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 50));
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult Details(string slug) {
-			return Json(db.FindUserArticle(slug, this.User.GetUserAccountIdOrDefault()));
-		}
+		public IActionResult Details(string slug) => Json(this.User.Identity.IsAuthenticated ?
+			db.FindUserArticle(slug, this.User.GetUserAccountId()) :
+			db.FindArticle(slug)
+		);
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ListComments(string slug) {
 			var comments = db
-				.ListComments(db.FindUserArticle(slug).Id)
+				.ListComments(db.FindArticle(slug).Id)
 				.Select(c => new CommentThread(c))
 				.ToArray();
 			foreach (var comment in comments) {
@@ -78,14 +74,15 @@ namespace api.Controllers.Articles {
 			return BadRequest();
 		}
 		[HttpPost]
-		public IActionResult UserDelete([FromBody] UserDeleteBinder binder) {
+		public IActionResult UserDelete([FromBody] ArticleIdBinder binder) {
 			db.DeleteUserArticle(binder.ArticleId, this.User.GetUserAccountId());
 			return Ok();
 		}
 		[HttpGet]
-		public IActionResult ListReplies() {
-			return Json(db.ListReplies(this.User.GetUserAccountId()).Select(c => new CommentThread(c)));
-		}
+		public IActionResult ListReplies(int pageNumber) => Json(PageResult<CommentThread>.Create(
+			source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 10),
+			map: comments => comments.Select(c => new CommentThread(c))
+		));
 		[HttpPost]
 		public IActionResult ReadReply([FromBody] ReadReplyBinder binder) {
 			var comment = db.GetComment(binder.CommentId);
@@ -94,6 +91,16 @@ namespace api.Controllers.Articles {
 				return Ok();
 			}
 			return BadRequest();
+		}
+		[HttpPost]
+		public IActionResult Star([FromBody] ArticleIdBinder binder) {
+			db.StarArticle(this.User.GetUserAccountId(), binder.ArticleId);
+			return Ok();
+		}
+		[HttpPost]
+		public IActionResult Unstar([FromBody] ArticleIdBinder binder) {
+			db.UnstarArticle(this.User.GetUserAccountId(), binder.ArticleId);
+			return Ok();
 		}
 	}
 }

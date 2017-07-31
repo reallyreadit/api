@@ -1,7 +1,7 @@
 using System;
 
 namespace api.Controllers.Articles {
-	public class UserDeleteBinder {
+	public class ArticleIdBinder {
 		public Guid ArticleId { get; set; }
 	}
 }
