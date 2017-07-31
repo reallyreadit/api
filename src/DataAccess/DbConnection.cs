@@ -181,6 +181,19 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
+		public PageResult<UserArticle> ListUserArticleHistory(Guid userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+			items: conn.Query<UserArticlePageResult>(
+				sql: "article_api.list_user_article_history",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
 		public PageResult<UserArticle> ListUserHotTopics(Guid userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
 			items: conn.Query<UserArticlePageResult>(
 				sql: "article_api.list_user_hot_topics",

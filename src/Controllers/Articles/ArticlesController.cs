@@ -25,6 +25,8 @@ namespace api.Controllers.Articles {
 		);
 		[HttpGet]
 		public IActionResult ListStarred(int pageNumber) => Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 40));
+		[HttpGet]
+		public IActionResult ListHistory(int pageNumber) => Json(db.ListUserArticleHistory(this.User.GetUserAccountId(), pageNumber, 40));
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(string slug) => Json(this.User.Identity.IsAuthenticated ?
