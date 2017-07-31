@@ -75,7 +75,14 @@ namespace api.Controllers.Articles {
 		}
 		[HttpPost]
 		public IActionResult UserDelete([FromBody] ArticleIdBinder binder) {
-			db.DeleteUserArticle(binder.ArticleId, this.User.GetUserAccountId());
+			var userAccountId = this.User.GetUserAccountId();
+			var article = db.GetUserArticle(binder.ArticleId, userAccountId);
+			if (article.DateStarred.HasValue) {
+				db.UnstarArticle(userAccountId, article.Id);
+			}
+			if (article.DateCreated.HasValue) {
+				db.DeleteUserArticle(article.Id, userAccountId);
+			}
 			return Ok();
 		}
 		[HttpGet]
