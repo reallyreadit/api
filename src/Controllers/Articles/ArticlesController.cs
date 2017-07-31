@@ -20,11 +20,11 @@ namespace api.Controllers.Articles {
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ListHotTopics(int pageNumber) => Json(this.User.Identity.IsAuthenticated ?
-			db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 50) :
-			db.ListHotTopics(pageNumber, 50)
+			db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 40) :
+			db.ListHotTopics(pageNumber, 40)
 		);
 		[HttpGet]
-		public IActionResult ListStarred(int pageNumber) => Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 50));
+		public IActionResult ListStarred(int pageNumber) => Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 40));
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(string slug) => Json(this.User.Identity.IsAuthenticated ?
@@ -87,7 +87,7 @@ namespace api.Controllers.Articles {
 		}
 		[HttpGet]
 		public IActionResult ListReplies(int pageNumber) => Json(PageResult<CommentThread>.Create(
-			source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 10),
+			source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 40),
 			map: comments => comments.Select(c => new CommentThread(c))
 		));
 		[HttpPost]
