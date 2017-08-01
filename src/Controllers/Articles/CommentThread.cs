@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using api.DataAccess.Models;
+using System.Linq;
 
 namespace api.Controllers.Articles {
     public class CommentThread : Comment {
@@ -17,5 +19,6 @@ namespace api.Controllers.Articles {
             this.Children = new List<CommentThread>();
         }
         public List<CommentThread> Children { get; }
+        public DateTime MaxDate => new DateTime(Math.Max(DateCreated.Ticks, Children.Any() ? Children.Max(c => c.MaxDate).Ticks : 0));
     }
 }

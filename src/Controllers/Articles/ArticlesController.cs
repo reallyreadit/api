@@ -40,15 +40,15 @@ namespace api.Controllers.Articles {
 				.ListComments(db.FindArticle(slug).Id)
 				.Select(c => new CommentThread(c))
 				.ToArray();
+			foreach (var comment in comments.Where(c => c.ParentCommentId.HasValue)) {
+				comments.Single(c => c.Id == comment.ParentCommentId).Children.Add(comment);
+			}
 			foreach (var comment in comments) {
-				if (comment.ParentCommentId.HasValue) {
-					var siblings = comments.Single(c => c.Id == comment.ParentCommentId).Children;
-					siblings.Insert(Math.Max(siblings.IndexOf(siblings.FirstOrDefault(c => c.DateCreated < comment.DateCreated)), 0), comment);
-				}
+				comment.Children.Sort((a, b) => b.MaxDate.CompareTo(a.MaxDate));
 			}
 			return Json(comments
 				.Where(c => !c.ParentCommentId.HasValue)
-				.OrderByDescending(c => c.DateCreated));
+				.OrderByDescending(c => c.MaxDate));
 		}
 		[HttpPost]
 		public async Task<IActionResult> PostComment(
