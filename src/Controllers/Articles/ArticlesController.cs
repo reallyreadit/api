@@ -56,22 +56,24 @@ namespace api.Controllers.Articles {
 			[FromServices] EmailService emailService,
 			[FromServices] IOptions<ReadingParametersOptions> readingParametersOpts
 		) {
-			var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
-			if (userArticle.PercentComplete >= readingParametersOpts.Value.ArticleUnlockThreshold) {
-				var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
-				if (binder.ParentCommentId.HasValue) {
-					var parent = db.GetComment(binder.ParentCommentId.Value);
-					if (parent.UserAccountId != this.User.GetUserAccountId()) {
-						var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
-						if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
-							await emailService.SendCommentReplyNotificationEmail(
-								recipient: parentUserAccount,
-								reply: comment
-							);
+			if (!String.IsNullOrWhiteSpace(binder.Text)) {
+				var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
+				if (userArticle.PercentComplete >= readingParametersOpts.Value.ArticleUnlockThreshold) {
+					var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
+					if (binder.ParentCommentId.HasValue) {
+						var parent = db.GetComment(binder.ParentCommentId.Value);
+						if (parent.UserAccountId != this.User.GetUserAccountId()) {
+							var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
+							if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
+								await emailService.SendCommentReplyNotificationEmail(
+									recipient: parentUserAccount,
+									reply: comment
+								);
+							}
 						}
 					}
+					return Json(new CommentThread(comment));
 				}
-				return Json(new CommentThread(comment));
 			}
 			return BadRequest();
 		}
