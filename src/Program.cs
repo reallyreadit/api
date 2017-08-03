@@ -12,6 +12,7 @@ namespace api {
 					.SetBasePath(Directory.GetCurrentDirectory())
 					.AddJsonFile("hosting.json")
 					.Build())
+				.UseIISIntegration()
 				.UseStartup<Startup>()
 				.Build()
 				.Run();
