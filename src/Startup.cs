@@ -13,12 +13,14 @@ using Microsoft.Extensions.Configuration;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using MyAuthenticationOptions = api.Configuration.AuthenticationOptions;
+using MyDataProtectionOptions = api.Configuration.DataProtectionOptions;
 using Microsoft.Extensions.Options;
 using api.Messaging;
 using api.DataAccess;
 using Mvc.RenderViewToString;
 using Microsoft.AspNetCore.Mvc.Razor;
 using System;
+using Microsoft.AspNetCore.DataProtection;
 
 namespace api {
 	public class Startup {
@@ -45,6 +47,14 @@ namespace api {
 				.AddScoped<DbConnection>()
 				.AddScoped<EmailService>()
 				.AddTransient<RazorViewToStringRenderer>();
+			if (env.IsProduction()) {
+				var dataProtectionOptions = new MyDataProtectionOptions();
+				config.GetSection("DataProtection").Bind(dataProtectionOptions);
+				services
+					.AddDataProtection()
+					.SetApplicationName(dataProtectionOptions.ApplicationName)
+					.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath));
+			}
 			services.AddMvc(options => {
 				options.Filters.Add(new LogActionFilter());
 				options.Filters.Add(new AuthorizeFilter(
