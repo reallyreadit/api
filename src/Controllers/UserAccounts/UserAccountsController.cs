@@ -258,6 +258,15 @@ namespace api.Controllers.UserAccounts {
 			binder.ReceiveEmailNotifications,
 			binder.ReceiveDesktopNotifications
 		));
+		[HttpPost]
+		public IActionResult UpdateContactPreferences(
+			[FromBody] UpdateContactPreferencesBinder binder,
+			[FromServices] DbConnection db
+		) => Json(db.UpdateContactPreferences(
+			this.User.GetUserAccountId(),
+			binder.ReceiveWebsiteUpdates,
+			binder.ReceiveSuggestedReadings
+		));
 		[HttpGet]
 		public IActionResult CheckNewReplyNotification([FromServices] DbConnection db) => Json(new NewReplyNotification(
 			userAccount: db.GetUserAccount(this.User.GetUserAccountId()),

@@ -276,6 +276,21 @@ namespace api.DataAccess {
 			param: new { email_confirmation_id = emailConfirmationId },
 			commandType: CommandType.StoredProcedure
 		);
+		public int CreateBulkMailing(
+			string subject,
+			string body,
+			string list,
+			Guid userAccountId,
+			Guid[] recipientIds
+		) => conn.QuerySingleOrDefault<int>(
+			sql: "user_account_api.create_bulk_mailing",
+			param: new {
+				subject, body, list,
+				user_account_id = userAccountId,
+				recipient_ids = recipientIds
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public EmailConfirmation CreateEmailConfirmation(Guid userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.create_email_confirmation",
 			param: new { user_account_id = userAccountId },
@@ -347,6 +362,27 @@ namespace api.DataAccess {
 		public bool IsEmailAddressConfirmed(Guid userAccountId, string email) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.is_email_address_confirmed",
 			param: new { user_account_id = userAccountId, email },
+			commandType: CommandType.StoredProcedure
+		);
+		public IEnumerable<BulkMailing> ListBulkMailings() => conn.Query<BulkMailing>(
+			sql: "user_account_api.list_bulk_mailings",
+			commandType: CommandType.StoredProcedure
+		);
+		public IEnumerable<UserAccount> ListUserAccounts() => conn.Query<UserAccount>(
+			sql: "user_account_api.list_user_accounts",
+			commandType: CommandType.StoredProcedure
+		);
+		public UserAccount UpdateContactPreferences(
+			Guid userAccountId,
+			bool receiveWebsiteUpdates,
+			bool receiveSuggestedReadings
+		) => conn.QuerySingleOrDefault<UserAccount>(
+			sql: "user_account_api.update_contact_preferences",
+			param: new {
+				user_account_id = userAccountId,
+				receive_website_updates = receiveWebsiteUpdates,
+				receive_suggested_readings = receiveSuggestedReadings
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public UserAccount UpdateNotificationPreferences(
