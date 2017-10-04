@@ -14,6 +14,10 @@ namespace api.DataAccess.Models {
 		public bool ReceiveReplyDesktopNotifications { get; set; }
 		public DateTime LastNewReplyAck { get; set; }
 		public DateTime LastNewReplyDesktopNotification { get; set; }
+		public DateTime DateCreated { get; set; }
+		public UserAccountRole Role { get; set; }
+		public bool ReceiveWebsiteUpdates { get; set; }
+		public bool ReceiveSuggestedReadings { get; set; }
 		public bool IsEmailConfirmed { get; set; }
 	}
 }
