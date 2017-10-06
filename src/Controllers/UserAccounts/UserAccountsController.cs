@@ -20,6 +20,7 @@ using api.Encryption;
 using Microsoft.AspNetCore.Http.Authentication;
 using api.DataAccess.Models;
 using System.Net;
+using api.Authorization;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -41,11 +42,14 @@ namespace api.Controllers.UserAccounts {
 			iterationCount: 10000,
 			numBytesRequested: 256 / 8
 		);
-		private async Task SignIn(Guid userId) => await this.HttpContext.Authentication.SignInAsync(
+		private async Task SignIn(UserAccount userAccount) => await this.HttpContext.Authentication.SignInAsync(
 			authenticationScheme: authOpts.Scheme,
 			principal: new ClaimsPrincipal(new[] {
 				new ClaimsIdentity(
-					claims: new[] { new Claim(ClaimTypes.NameIdentifier, userId.ToString()) },
+					claims: new[] {
+						new Claim(ClaimTypes.NameIdentifier, userAccount.Id.ToString()),
+						new Claim(ClaimTypes.Role, userAccount.Role.ToString())
+					},
 					authenticationType: "ApplicationCookie"
 				)
 			}),
@@ -90,7 +94,7 @@ namespace api.Controllers.UserAccounts {
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
-					await SignIn(userAccount.Id);
+					await SignIn(userAccount);
 					return Json(userAccount);
 				}
 			} catch (Exception ex) {
@@ -240,7 +244,7 @@ namespace api.Controllers.UserAccounts {
 			if (!IsCorrectPassword(userAccount, binder.Password)) {
 				return BadRequest(new[] { "IncorrectPassword" });
 			}
-			await SignIn(userAccount.Id);
+			await SignIn(userAccount);
 			return Json(userAccount);
 		}
 		[AllowAnonymous]
