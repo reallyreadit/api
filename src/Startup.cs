@@ -99,9 +99,6 @@ namespace api {
 			app.UseMvcWithDefaultRoute();
 
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
-			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
-			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
-			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
 		}
 	}
 }

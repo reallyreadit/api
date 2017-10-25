@@ -14,6 +14,9 @@ namespace api.DataAccess {
 		public DbConnection(IOptions<DatabaseOptions> dbOpts) {
 			conn = new NpgsqlConnection(dbOpts.Value.ConnectionString);
 			conn.Open();
+			conn.MapComposite<CreateArticleAuthor>();
+			conn.MapEnum<SourceRuleAction>();
+			conn.MapEnum<UserAccountRole>();
 		}
 		public void Dispose() {
 			conn.Dispose();
