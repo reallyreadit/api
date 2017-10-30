@@ -15,6 +15,7 @@ namespace api.DataAccess {
 			conn = new NpgsqlConnection(dbOpts.Value.ConnectionString);
 			conn.Open();
 			conn.MapComposite<CreateArticleAuthor>();
+			conn.MapComposite<CreateBulkMailingRecipient>();
 			conn.MapEnum<SourceRuleAction>();
 			conn.MapEnum<UserAccountRole>();
 		}
@@ -240,6 +241,27 @@ namespace api.DataAccess {
 			commandType: CommandType.StoredProcedure
 		);
 
+		// bulk_mailing_api
+		public Guid CreateBulkMailing(
+			string subject,
+			string body,
+			string list,
+			Guid userAccountId,
+			CreateBulkMailingRecipient[] recipients
+		) => conn.QuerySingleOrDefault<Guid>(
+			sql: "bulk_mailing_api.create_bulk_mailing",
+			param: new {
+				subject, body, list,
+				user_account_id = userAccountId,
+				recipients
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public IEnumerable<BulkMailing> ListBulkMailings() => conn.Query<BulkMailing>(
+			sql: "bulk_mailing_api.list_bulk_mailings",
+			commandType: CommandType.StoredProcedure
+		);
+
 		// user_account_api
 		public void AckNewReply(Guid userAccountId) => conn.Execute(
 			sql: "user_account_api.ack_new_reply",
@@ -277,21 +299,6 @@ namespace api.DataAccess {
 		public bool ConfirmEmailAddress(Guid emailConfirmationId) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.confirm_email_address",
 			param: new { email_confirmation_id = emailConfirmationId },
-			commandType: CommandType.StoredProcedure
-		);
-		public int CreateBulkMailing(
-			string subject,
-			string body,
-			string list,
-			Guid userAccountId,
-			Guid[] recipientIds
-		) => conn.QuerySingleOrDefault<int>(
-			sql: "user_account_api.create_bulk_mailing",
-			param: new {
-				subject, body, list,
-				user_account_id = userAccountId,
-				recipient_ids = recipientIds
-			},
 			commandType: CommandType.StoredProcedure
 		);
 		public EmailConfirmation CreateEmailConfirmation(Guid userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(
@@ -365,10 +372,6 @@ namespace api.DataAccess {
 		public bool IsEmailAddressConfirmed(Guid userAccountId, string email) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.is_email_address_confirmed",
 			param: new { user_account_id = userAccountId, email },
-			commandType: CommandType.StoredProcedure
-		);
-		public IEnumerable<BulkMailing> ListBulkMailings() => conn.Query<BulkMailing>(
-			sql: "user_account_api.list_bulk_mailings",
 			commandType: CommandType.StoredProcedure
 		);
 		public IEnumerable<UserAccount> ListUserAccounts() => conn.Query<UserAccount>(
