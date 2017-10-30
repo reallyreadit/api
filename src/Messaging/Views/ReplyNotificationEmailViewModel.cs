@@ -6,19 +6,19 @@ namespace api.Messaging.Views {
 		public ReplyNotificationEmailViewModel(
 			string title,
 			HttpEndpointOptions webServerEndpoint,
-			string unsubscribeToken,
+			string subscriptionsToken,
 			string respondent,
 			string articleTitle,
 			string replyToken,
 			HttpEndpointOptions apiServerEndpoint
 		) : base(title, webServerEndpoint) {
-			UnsubscribeToken = unsubscribeToken;
+			SubscriptionsToken = subscriptionsToken;
 			Respondent = respondent;
 			ArticleTitle = articleTitle;
 			ReplyToken = replyToken;
 			ApiServerEndpoint = apiServerEndpoint;
 		}
-		public string UnsubscribeToken { get; }
+		public string SubscriptionsToken { get; }
 		public string Respondent { get; }
 		public string ArticleTitle { get; }
 		public string ReplyToken { get; }
