@@ -9,5 +9,6 @@ namespace api.DataAccess.Models {
 		public string List { get; set; }
 		public string UserAccount { get; set; }
 		public int RecipientCount { get; set; }
+		public int ErrorCount { get; set; }
 	}
 }
