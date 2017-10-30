@@ -298,23 +298,55 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult Unsubscribe(
+		public JsonResult EmailSubscriptions(
 			string token,
 			[FromServices] DbConnection db,
-			[FromServices] IOptions<EmailOptions> emailOpts,
-			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
 			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
-			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/unsubscribe");
-			if (userAccount.ReceiveReplyEmailNotifications) {
-					db.UpdateNotificationPreferences(
+			if (userAccount != null) {
+				return Json(new {
+					IsValid = true,
+					EmailAddress = userAccount.Email,
+					Subscriptions = new {
+						CommentReplyNotifications = userAccount.ReceiveReplyEmailNotifications,
+						WebsiteUpdates = userAccount.ReceiveWebsiteUpdates,
+						SuggestedReadings = userAccount.ReceiveSuggestedReadings
+					}
+				});
+			}
+			return Json(new {
+				IsValid = false,
+				EmailAddress = null as string,
+				Subscriptions = new {
+					CommentReplyNotifications = false,
+					WebsiteUpdates = false,
+					SuggestedReadings = false
+				}
+			});
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public IActionResult UpdateEmailSubscriptions(
+			[FromBody] UpdateEmailSubscriptionsBinder binder,
+			[FromServices] DbConnection db,
+			[FromServices] IOptions<EmailOptions> emailOpts
+		) {
+			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
+			if (userAccount != null) {
+				db.UpdateNotificationPreferences(
 					userAccountId: userAccount.Id,
-					receiveReplyEmailNotifications: false,
+					receiveReplyEmailNotifications: binder.CommentReplyNotifications,
 					receiveReplyDesktopNotifications: userAccount.ReceiveReplyDesktopNotifications
 				);
-				return Redirect(resultBaseUrl + "/success");
+				db.UpdateContactPreferences(
+					userAccountId: userAccount.Id,
+					receiveWebsiteUpdates: binder.WebsiteUpdates,
+					receiveSuggestedReadings: binder.SuggestedReadings
+				);
+				return Ok();
 			}
-			return Redirect(resultBaseUrl + "/already-unsubscribed");
+			return BadRequest();
 		}
 		[AllowAnonymous]
 		[HttpGet]
