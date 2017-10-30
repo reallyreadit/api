@@ -1,0 +1,15 @@
+@model api.Messaging.Views.BulkMailingEmailViewModel
+
+@{
+	Layout = "EmailLayout";
+	var footerColorStyle = "color: lightgray;";
+}
+
+@Html.Raw(Model.Body)
+
+@section UnsubscribeNotice {
+	<p style="@footerColorStyle">
+		You are receiving this email because you are subscribed to @Model.ListDescription from reallyread.it.<br />
+		<a href="@Model.WebServerEndpoint.CreateUrl("/email/subscriptions?token=" + Model.SubscriptionsToken)" style="@footerColorStyle">Manage your email subscriptions / Unsubscribe</a>
+	</p>
+}
