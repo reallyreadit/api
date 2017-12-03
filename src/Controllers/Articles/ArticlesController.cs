@@ -64,7 +64,7 @@ namespace api.Controllers.Articles {
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
 				var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
-				if (userArticle.PercentComplete >= readingParametersOpts.Value.ArticleUnlockThreshold) {
+				if (userArticle.IsRead) {
 					var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
 					if (binder.ParentCommentId.HasValue) {
 						var parent = db.GetComment(binder.ParentCommentId.Value);
