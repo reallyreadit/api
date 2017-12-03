@@ -19,9 +19,15 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult ListHotTopics(int pageNumber) => Json(this.User.Identity.IsAuthenticated ?
-			db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 40) :
-			db.ListHotTopics(pageNumber, 40)
+		public async Task<IActionResult> ListHotTopics(int pageNumber) => Json(this.User.Identity.IsAuthenticated ?
+			new {
+				Aotd = await db.GetUserAotd(this.User.GetUserAccountId()),
+				Articles = await db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 40)
+			 } :
+			new {
+				Aotd = await db.GetAotd(),
+				Articles = await db.ListHotTopics(pageNumber, 40)
+			}
 		);
 		[HttpGet]
 		public IActionResult ListStarred(int pageNumber) => Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 40));

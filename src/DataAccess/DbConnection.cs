@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using Microsoft.Extensions.Options;
 using api.Configuration;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace api.DataAccess {
     public class DbConnection : IDisposable {
@@ -111,6 +112,10 @@ namespace api.DataAccess {
 			param: new { slug, user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
+		public async Task<UserArticle> GetAotd() => await conn.QuerySingleOrDefaultAsync<UserArticle>(
+			sql: "article_api.get_aotd",
+			commandType: CommandType.StoredProcedure
+		);
 		public Comment GetComment(Guid commentId) => conn.QuerySingleOrDefault<Comment>(
 			sql: "article_api.get_comment",
 			param: new { comment_id = commentId },
@@ -123,6 +128,11 @@ namespace api.DataAccess {
 		);
 		public IEnumerable<SourceRule> GetSourceRules() => conn.Query<SourceRule>(
 			sql: "article_api.get_source_rules",
+			commandType: CommandType.StoredProcedure
+		);
+		public async Task<UserArticle> GetUserAotd(Guid userAccountId) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
+			sql: "article_api.get_user_aotd",
+			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
 		public UserArticle GetUserArticle(Guid articleId, Guid userAccountId) => conn.QuerySingleOrDefault<UserArticle>(
@@ -146,8 +156,8 @@ namespace api.DataAccess {
 			param: new { article_id = articleId },
 			commandType: CommandType.StoredProcedure
 		);
-		public PageResult<UserArticle> ListHotTopics(int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
-			items: conn.Query<UserArticlePageResult>(
+		public async Task<PageResult<UserArticle>> ListHotTopics(int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+			items: await conn.QueryAsync<UserArticlePageResult>(
 				sql: "article_api.list_hot_topics",
 				param: new
 				{
@@ -198,8 +208,8 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public PageResult<UserArticle> ListUserHotTopics(Guid userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
-			items: conn.Query<UserArticlePageResult>(
+		public async Task<PageResult<UserArticle>> ListUserHotTopics(Guid userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+			items: await conn.QueryAsync<UserArticlePageResult>(
 				sql: "article_api.list_user_hot_topics",
 				param: new {
 					user_account_id = userAccountId,

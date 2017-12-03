@@ -11,6 +11,8 @@ namespace api.DataAccess.Models {
 		public DateTime? DateModified { get; set; }
 		public string Section { get; set; }
 		public string Description { get; set; }
+		public DateTime? AotdTimestamp { get; set; }
+		public int Score { get; set; }
 		public string Url { get; set; }
 		public string[] Authors { get; set; }
 		public string[] Tags { get; set; }
@@ -19,10 +21,14 @@ namespace api.DataAccess.Models {
 		public int PageCount { get; set; }
 		public int CommentCount { get; set; }
 		public DateTime? LatestCommentDate { get; set; }
+		public int ReadCount { get; set; }
+		public DateTime? LatestReadDate { get; set; }
 		public Guid UserAccountId { get; set; }
 		public int WordsRead { get; set; }
 		public DateTime? DateCreated { get; set; }
+		public DateTime? LastModified { get; set; }
+		public decimal PercentComplete { get; set; }
+		public bool IsRead { get; set; }
 		public DateTime? DateStarred { get; set; }
-		public decimal PercentComplete => ((decimal)WordsRead / ReadableWordCount) * 100;
 	}
 }
