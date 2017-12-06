@@ -59,8 +59,7 @@ namespace api.Controllers.Articles {
 		[HttpPost]
 		public async Task<IActionResult> PostComment(
 			[FromBody] PostCommentBinder binder,
-			[FromServices] EmailService emailService,
-			[FromServices] IOptions<ReadingParametersOptions> readingParametersOpts
+			[FromServices] EmailService emailService
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
 				var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
