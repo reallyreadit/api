@@ -67,9 +67,9 @@ namespace api {
 			});
 		}
 		public void Configure(IApplicationBuilder app, IOptions<MyAuthenticationOptions> authOpts, IOptions<CorsOptions> corsOpts) {
-			if (env.IsDevelopment()) {
+			//if (env.IsDevelopment()) {
 				app.UseDeveloperExceptionPage();
-			}
+			//}
 			app.UseCors(cors => cors
 				.WithOrigins(corsOpts.Value.Origins)
 				.AllowCredentials()
