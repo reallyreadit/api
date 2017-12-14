@@ -17,6 +17,10 @@ namespace api.Controllers.Articles {
 		public ArticlesController(DbConnection db) {
 			this.db = db;
 		}
+		protected override void Dispose(bool disposing) {
+			db.Dispose();
+			base.Dispose(disposing);
+		}
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> ListHotTopics(int pageNumber) => Json(this.User.Identity.IsAuthenticated ?

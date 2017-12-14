@@ -22,6 +22,10 @@ namespace api.Controllers.BulkMailings {
 		public BulkMailingsController(DbConnection db) {
 			this.db = db;
 		}
+		protected override void Dispose(bool disposing) {
+			db.Dispose();
+			base.Dispose(disposing);
+		}
 		private IEnumerable<UserAccount> GetConfirmedUsers() => db
 			.ListUserAccounts()
 			.Where(u => u.IsEmailConfirmed)

@@ -25,8 +25,14 @@ using api.Authorization;
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
 		private AuthenticationOptions authOpts;
-		public UserAccountsController(IOptions<AuthenticationOptions> authOpts) {
+		private DbConnection db;
+		public UserAccountsController(IOptions<AuthenticationOptions> authOpts, DbConnection db) {
 			this.authOpts = authOpts.Value;
+			this.db = db;
+		}
+		protected override void Dispose(bool disposing) {
+			db.Dispose();
+			base.Dispose(disposing);
 		}
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
@@ -57,7 +63,7 @@ namespace api.Controllers.UserAccounts {
 				IsPersistent = true
 			}
 		);
-		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, DbConnection db, IOptions<ServiceEndpointsOptions> serviceOpts) {
+		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			var slugParts = reply.ArticleSlug.Split('_');
 			db.ReadComment(reply.Id);
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{reply.Id}"));
@@ -80,7 +86,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
 			[FromBody] CreateAccountBinder binder,
-			[FromServices] IOptions<DatabaseOptions> dbOpts,
 			[FromServices] EmailService emailService
 		) {
 			if (!IsPasswordValid(binder.Password)) {
@@ -88,15 +93,13 @@ namespace api.Controllers.UserAccounts {
 			}
 			try {
 				var salt = GenerateSalt();
-				using (var db = new DbConnection(dbOpts)) {
-					var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
-					await emailService.SendWelcomeEmail(
-						recipient: userAccount,
-						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-					);
-					await SignIn(userAccount);
-					return Json(userAccount);
-				}
+				var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
+				await emailService.SendWelcomeEmail(
+					recipient: userAccount,
+					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+				);
+				await SignIn(userAccount);
+				return Json(userAccount);
 			} catch (Exception ex) {
 				return BadRequest((ex as ValidationException)?.Errors);
 			}
@@ -105,7 +108,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult ConfirmEmail(
 			string token,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
@@ -125,7 +127,7 @@ namespace api.Controllers.UserAccounts {
 			return Redirect(resultBaseUrl + "/success");
 		}
 		[HttpPost]
-		public async Task<IActionResult> ResendConfirmationEmail([FromServices] DbConnection db, [FromServices] EmailService emailService) {
+		public async Task<IActionResult> ResendConfirmationEmail([FromServices] EmailService emailService) {
 			if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
 				return BadRequest(new[] { "ResendLimitExceeded" });
 			}
@@ -137,7 +139,7 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpPost]
-		public IActionResult ChangePassword([FromBody] ChangePasswordBinder binder, [FromServices] DbConnection db) {
+		public IActionResult ChangePassword([FromBody] ChangePasswordBinder binder) {
 			if (!IsPasswordValid(binder.NewPassword)) {
 				return BadRequest();
 			}
@@ -153,7 +155,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public IActionResult ResetPassword(
 			[FromBody] ResetPasswordBinder binder,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
 			var request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
@@ -174,7 +175,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> ChangeEmailAddress(
 			[FromBody] EmailAddressBinder binder,
-			[FromServices] DbConnection db,
 			[FromServices] EmailService emailService
 		) {
 			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
@@ -210,7 +210,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> RequestPasswordReset(
 			[FromBody] EmailAddressBinder binder,
-			[FromServices] DbConnection db,
 			[FromServices] EmailService emailService
 		) {
 			var userAccount = db.FindUserAccount(binder.Email);
@@ -225,9 +224,9 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpGet]
-		public IActionResult GetUserAccount([FromServices] DbConnection db) => Json(db.GetUserAccount(this.User.GetUserAccountId()));
+		public IActionResult GetUserAccount() => Json(db.GetUserAccount(this.User.GetUserAccountId()));
 		[HttpGet]
-		public IActionResult GetSessionState([FromServices] DbConnection db) {
+		public IActionResult GetSessionState() {
 			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 			return Json(new {
 				UserAccount = userAccount,
@@ -236,7 +235,7 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder, [FromServices] DbConnection db) {
+		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder) {
 			var userAccount = db.FindUserAccount(binder.Email);
 			if (userAccount == null) {
 				return BadRequest(new[] { "UserAccountNotFound" });
@@ -255,8 +254,7 @@ namespace api.Controllers.UserAccounts {
 		}
 		[HttpPost]
 		public IActionResult UpdateNotificationPreferences(
-			[FromBody] UpdateNotificationPreferencesBinder binder,
-			[FromServices] DbConnection db
+			[FromBody] UpdateNotificationPreferencesBinder binder
 		) => Json(db.UpdateNotificationPreferences(
 			this.User.GetUserAccountId(),
 			binder.ReceiveEmailNotifications,
@@ -264,25 +262,24 @@ namespace api.Controllers.UserAccounts {
 		));
 		[HttpPost]
 		public IActionResult UpdateContactPreferences(
-			[FromBody] UpdateContactPreferencesBinder binder,
-			[FromServices] DbConnection db
+			[FromBody] UpdateContactPreferencesBinder binder
 		) => Json(db.UpdateContactPreferences(
 			this.User.GetUserAccountId(),
 			binder.ReceiveWebsiteUpdates,
 			binder.ReceiveSuggestedReadings
 		));
 		[HttpGet]
-		public IActionResult CheckNewReplyNotification([FromServices] DbConnection db) => Json(new NewReplyNotification(
+		public IActionResult CheckNewReplyNotification() => Json(new NewReplyNotification(
 			userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
 			latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
 		));
 		[HttpPost]
-		public IActionResult AckNewReply([FromServices] DbConnection db) {
+		public IActionResult AckNewReply() {
 			db.AckNewReply(this.User.GetUserAccountId());
 			return Ok();
 		}
 		[HttpPost]
-		public IActionResult CreateDesktopNotification([FromServices] DbConnection db) {
+		public IActionResult CreateDesktopNotification() {
 			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 			db.RecordNewReplyDesktopNotification(userAccount.Id);
 			if (userAccount.ReceiveReplyDesktopNotifications) {
@@ -300,7 +297,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public JsonResult EmailSubscriptions(
 			string token,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
 			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
@@ -329,7 +325,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public IActionResult UpdateEmailSubscriptions(
 			[FromBody] UpdateEmailSubscriptionsBinder binder,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
 			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
@@ -352,7 +347,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult PasswordResetRequest(
 			string token,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
@@ -369,22 +363,18 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult ViewReply(
 			string token,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<EmailOptions> emailOpts,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) => ReadReplyAndRedirectToArticle(
 			reply: db.GetComment(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey))),
-			db: db,
 			serviceOpts: serviceOpts
 		);
 		[HttpGet]
 		public IActionResult ViewReplyFromDesktopNotification(
 			Guid id,
-			[FromServices] DbConnection db,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) => ReadReplyAndRedirectToArticle(
 			reply: db.GetComment(id),
-			db: db,
 			serviceOpts: serviceOpts
 		);
    }
