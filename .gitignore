@@ -1,2 +1,5 @@
 /bin
 /obj
+/appsettings.json
+/appsettings.*.json
+/hosting.json
