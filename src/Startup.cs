@@ -28,11 +28,15 @@ namespace api {
 		private IConfigurationRoot config;
 		public Startup(IHostingEnvironment env) {
 			this.env = env;
-			config = new ConfigurationBuilder()
-				.SetBasePath(Directory.GetCurrentDirectory())
-				.AddJsonFile("appsettings.json")
-				.AddJsonFile($"appsettings.{env.EnvironmentName}.json")
-				.Build();
+			var currentDirectory = Directory.GetCurrentDirectory();
+			var config = new ConfigurationBuilder()
+				.SetBasePath(currentDirectory)
+				.AddJsonFile("appsettings.json");
+			var envConfigFile = $"appsettings.{env.EnvironmentName}.json";
+			if (File.Exists(Path.Combine(currentDirectory, envConfigFile))) {
+				config.AddJsonFile(envConfigFile);
+			}
+			this.config = config.Build();
 		}
 		public void ConfigureServices(IServiceCollection services) {
 			services
