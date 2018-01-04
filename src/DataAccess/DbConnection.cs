@@ -21,6 +21,7 @@ namespace api.DataAccess {
 			conn.MapEnum<UserAccountRole>();
 		}
 		public void Dispose() {
+			conn.Close();
 			conn.Dispose();
 		}
 		
