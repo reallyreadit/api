@@ -24,10 +24,6 @@ namespace api.Controllers.BulkMailings {
 			this.db = db;
 			this.emailService = emailService;
 		}
-		protected override void Dispose(bool disposing) {
-			db.Dispose();
-			base.Dispose(disposing);
-		}
 		private IEnumerable<UserAccount> GetMailableUsers() => db
 			.ListUserAccounts()
 			.Where(account => emailService.CanSendEmailTo(account))

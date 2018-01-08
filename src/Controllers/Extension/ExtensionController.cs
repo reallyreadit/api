@@ -16,10 +16,6 @@ namespace api.Controllers.Extension {
 		public ExtensionController(DbConnection db) {
 			this.db = db;
 		}
-		protected override void Dispose(bool disposing) {
-			db.Dispose();
-			base.Dispose(disposing);
-		}
 		private static string CreateSlug(string value) {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
 			return slug.Length > 80 ? slug.Substring(0, 80) : slug;

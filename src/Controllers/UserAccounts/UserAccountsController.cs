@@ -30,10 +30,6 @@ namespace api.Controllers.UserAccounts {
 			this.authOpts = authOpts.Value;
 			this.db = db;
 		}
-		protected override void Dispose(bool disposing) {
-			db.Dispose();
-			base.Dispose(disposing);
-		}
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
 			using (var rng = RandomNumberGenerator.Create()) {
