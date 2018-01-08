@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading.Tasks;
 using api.Configuration;
 using Microsoft.AspNetCore.Mvc;
@@ -9,14 +10,23 @@ using api.Messaging.Views;
 using api.Encryption;
 using System.Net;
 using api.DataAccess.Models;
+using api.DataAccess;
+using System.Collections.Generic;
 
 namespace api.Messaging {
 	public class EmailService {
+		private Lazy<IEnumerable<string>> bouncedAddresses;
 		private RazorViewToStringRenderer viewRenderer;
 		private EmailOptions emailOpts;
 		private ServiceEndpointsOptions serviceOpts;
+		private static string NormalizeEmailAddress(string address) => String.IsNullOrWhiteSpace(address) ?
+			String.Empty :
+			address.ToLower().Trim();
 		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), emailOpts.EncryptionKey));
-		private async Task<bool> SendEmail(UserAccount recipient, string viewName, EmailLayoutViewModel model) {
+		private async Task<bool> SendEmail(UserAccount recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
+			if (!CanSendEmailTo(recipient, requireConfirmation)) {
+				return false;
+			}
 			EmailMailbox
 				from = new EmailMailbox(emailOpts.From.Name, emailOpts.From.Address),
 				to = new EmailMailbox(recipient.Name, recipient.Email);
@@ -30,11 +40,20 @@ namespace api.Messaging {
 					throw new InvalidOperationException("Unexpected value for DeliveryMethod option");
 			}
 		}
-		public EmailService(RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
+		public EmailService(DbConnection db, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
+			this.bouncedAddresses = new Lazy<IEnumerable<string>>(
+				() => db
+					.ListEmailBounces()
+					.Select(bounce => NormalizeEmailAddress(bounce.Address))
+					.ToArray()
+			);
 			this.viewRenderer = viewRenderer;
 			this.emailOpts = emailOpts.Value;
 			this.serviceOpts = serviceOpts.Value;
 		}
+		public bool CanSendEmailTo(UserAccount account, bool requireConfirmation = true) =>
+			!this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(account.Email)) &&
+			(requireConfirmation ? account.IsEmailConfirmed : true);
 		public async Task<bool> SendWelcomeEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
 			recipient,
 			viewName: "WelcomeEmail",
@@ -44,7 +63,8 @@ namespace api.Messaging {
 				name: recipient.Name,
 				token: CreateToken(emailConfirmationId),
 				apiServerEndpoint: this.serviceOpts.ApiServer
-			)
+			),
+			requireConfirmation: false
 		);
 		public async Task<bool> SendConfirmationEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
 			recipient,
@@ -55,7 +75,8 @@ namespace api.Messaging {
 				name: recipient.Name,
 				token: CreateToken(emailConfirmationId),
 				apiServerEndpoint: this.serviceOpts.ApiServer
-			)
+			),
+			requireConfirmation: false
 		);
 		public async Task<bool> SendPasswordResetEmail(UserAccount recipient, Guid passwordResetRequestId) => await SendEmail(
 			recipient,
@@ -66,7 +87,8 @@ namespace api.Messaging {
 				name: recipient.Name,
 				token: CreateToken(passwordResetRequestId),
 				apiServerEndpoint: this.serviceOpts.ApiServer
-			)
+			),
+			requireConfirmation: false
 		);
 		public async Task<bool> SendCommentReplyNotificationEmail(UserAccount recipient, Comment reply) => await SendEmail(
 			recipient,
@@ -79,7 +101,8 @@ namespace api.Messaging {
 				articleTitle: reply.ArticleTitle,
 				replyToken: CreateToken(reply.Id),
 				apiServerEndpoint: this.serviceOpts.ApiServer
-			)
+			),
+			requireConfirmation: true
 		);
 		public async Task<bool> SendBulkMailingEmail(UserAccount recipient, string list, string subject, string body, string listDescription) => await SendEmail(
 			recipient,
@@ -90,7 +113,8 @@ namespace api.Messaging {
 				body: body,
 				listDescription: listDescription,
 				subscriptionsToken: CreateToken(recipient.Id)
-			)
+			),
+			requireConfirmation: true
 		);
 	}
 }

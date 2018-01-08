@@ -272,6 +272,10 @@ namespace api.DataAccess {
 			sql: "bulk_mailing_api.list_bulk_mailings",
 			commandType: CommandType.StoredProcedure
 		);
+		public IEnumerable<EmailBounce> ListEmailBounces() => conn.Query<EmailBounce>(
+			sql: "bulk_mailing_api.list_email_bounces",
+			commandType: CommandType.StoredProcedure
+		);
 
 		// user_account_api
 		public void AckNewReply(Guid userAccountId) => conn.Execute(

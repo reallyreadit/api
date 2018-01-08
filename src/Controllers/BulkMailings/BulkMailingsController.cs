@@ -13,38 +13,37 @@ namespace api.Controllers.BulkMailings {
 	[AuthorizeUserAccountRole(UserAccountRole.Admin)]
 	public class BulkMailingsController : Controller {
 		private DbConnection db;
+		private EmailService emailService;
 		private static string websiteUpdatesList = "WebsiteUpdates";
 		private static string suggestedReadingsList = "SuggestedReadings";
 		private static Dictionary<string, string> listDescriptions = new Dictionary<string, string>() {
 			{ websiteUpdatesList, "website updates" },
 			{ suggestedReadingsList, "suggested readings" }
 		};
-		public BulkMailingsController(DbConnection db) {
+		public BulkMailingsController(DbConnection db, EmailService emailService) {
 			this.db = db;
+			this.emailService = emailService;
 		}
 		protected override void Dispose(bool disposing) {
 			db.Dispose();
 			base.Dispose(disposing);
 		}
-		private IEnumerable<UserAccount> GetConfirmedUsers() => db
+		private IEnumerable<UserAccount> GetMailableUsers() => db
 			.ListUserAccounts()
-			.Where(u => u.IsEmailConfirmed)
+			.Where(account => emailService.CanSendEmailTo(account))
 			.ToArray();
 		[HttpGet]
 		public JsonResult List() => Json(db.ListBulkMailings().OrderByDescending(m => m.DateSent));
 		[HttpGet]
 		public JsonResult Lists() {
-			var confirmedUsers = GetConfirmedUsers();
+			var mailableUsers = GetMailableUsers();
 			return Json(new[] {
-				new KeyValuePair<string, string>($"{websiteUpdatesList} ({confirmedUsers.Count(u => u.ReceiveWebsiteUpdates)})", websiteUpdatesList),
-				new KeyValuePair<string, string>($"{suggestedReadingsList} ({confirmedUsers.Count(u => u.ReceiveSuggestedReadings)})", suggestedReadingsList)
+				new KeyValuePair<string, string>($"{websiteUpdatesList} ({mailableUsers.Count(u => u.ReceiveWebsiteUpdates)})", websiteUpdatesList),
+				new KeyValuePair<string, string>($"{suggestedReadingsList} ({mailableUsers.Count(u => u.ReceiveSuggestedReadings)})", suggestedReadingsList)
 			});
 		}
 		[HttpPost]
-		public async Task<IActionResult> SendTest(
-			[FromServices] EmailService emailService,
-			[FromBody] BulkMailingTestBinder binder
-		) {
+		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder) {
 			try {
 				var isSuccessful = await emailService.SendBulkMailingEmail(
 					recipient: new UserAccount() {
@@ -65,17 +64,14 @@ namespace api.Controllers.BulkMailings {
 			}
 		}
 		[HttpPost]
-		public async Task<IActionResult> Send(
-			[FromServices] EmailService emailService,
-			[FromBody] BulkMailingBinder binder
-		) {
+		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder) {
 			IEnumerable<UserAccount> recipients;
 			if (binder.List == websiteUpdatesList) {
-				recipients = GetConfirmedUsers()
+				recipients = GetMailableUsers()
 					.Where(u => u.ReceiveWebsiteUpdates)
 					.ToArray();
 			} else if (binder.List == suggestedReadingsList) {
-				recipients = GetConfirmedUsers()
+				recipients = GetMailableUsers()
 					.Where(u => u.ReceiveSuggestedReadings)
 					.ToArray();
 			} else {

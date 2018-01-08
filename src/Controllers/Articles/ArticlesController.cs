@@ -73,7 +73,7 @@ namespace api.Controllers.Articles {
 						var parent = db.GetComment(binder.ParentCommentId.Value);
 						if (parent.UserAccountId != this.User.GetUserAccountId()) {
 							var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
-							if (parentUserAccount.ReceiveReplyEmailNotifications && parentUserAccount.IsEmailConfirmed) {
+							if (parentUserAccount.ReceiveReplyEmailNotifications) {
 								await emailService.SendCommentReplyNotificationEmail(
 									recipient: parentUserAccount,
 									reply: comment
