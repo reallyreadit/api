@@ -21,14 +21,15 @@ using Microsoft.AspNetCore.Http.Authentication;
 using api.DataAccess.Models;
 using System.Net;
 using api.Authorization;
+using Npgsql;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
 		private AuthenticationOptions authOpts;
-		private DbConnection db;
-		public UserAccountsController(IOptions<AuthenticationOptions> authOpts, DbConnection db) {
+		private DatabaseOptions dbOpts;
+		public UserAccountsController(IOptions<AuthenticationOptions> authOpts, IOptions<DatabaseOptions> dbOpts) {
 			this.authOpts = authOpts.Value;
-			this.db = db;
+			this.dbOpts = dbOpts.Value;
 		}
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
@@ -61,7 +62,9 @@ namespace api.Controllers.UserAccounts {
 		);
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			var slugParts = reply.ArticleSlug.Split('_');
-			db.ReadComment(reply.Id);
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				db.ReadComment(reply.Id);
+			}
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{reply.Id}"));
 		}
 		private bool IsPasswordValid(string password) =>
@@ -88,12 +91,15 @@ namespace api.Controllers.UserAccounts {
 				return BadRequest();
 			}
 			try {
+				UserAccount userAccount;
 				var salt = GenerateSalt();
-				var userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
-				await emailService.SendWelcomeEmail(
-					recipient: userAccount,
-					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-				);
+				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+					userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
+					await emailService.SendWelcomeEmail(
+						recipient: userAccount,
+						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+					);
+				}
 				await SignIn(userAccount);
 				return Json(userAccount);
 			} catch (Exception ex) {
@@ -108,30 +114,34 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			var emailConfirmationId = new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey));
-			var confirmation = db.GetEmailConfirmation(emailConfirmationId);
-			var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/confirm");
-			if (confirmation == null) {
-				return Redirect(resultBaseUrl + "/not-found");
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var confirmation = db.GetEmailConfirmation(emailConfirmationId);
+				var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/confirm");
+				if (confirmation == null) {
+					return Redirect(resultBaseUrl + "/not-found");
+				}
+				if (confirmation.DateConfirmed.HasValue) {
+					return Redirect(resultBaseUrl + "/already-confirmed");
+				}
+				if (confirmation.Id != db.GetLatestUnconfirmedEmailConfirmation(confirmation.UserAccountId).Id) {
+					return Redirect(resultBaseUrl + "/expired");
+				}
+				db.ConfirmEmailAddress(emailConfirmationId);
+				return Redirect(resultBaseUrl + "/success");
 			}
-			if (confirmation.DateConfirmed.HasValue) {
-				return Redirect(resultBaseUrl + "/already-confirmed");
-			}
-			if (confirmation.Id != db.GetLatestUnconfirmedEmailConfirmation(confirmation.UserAccountId).Id) {
-				return Redirect(resultBaseUrl + "/expired");
-			}
-			db.ConfirmEmailAddress(emailConfirmationId);
-			return Redirect(resultBaseUrl + "/success");
 		}
 		[HttpPost]
 		public async Task<IActionResult> ResendConfirmationEmail([FromServices] EmailService emailService) {
-			if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
-				return BadRequest(new[] { "ResendLimitExceeded" });
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
+					return BadRequest(new[] { "ResendLimitExceeded" });
+				}
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				await emailService.SendConfirmationEmail(
+					recipient: userAccount,
+					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+				);
 			}
-			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-			await emailService.SendConfirmationEmail(
-				recipient: userAccount,
-				emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-			);
 			return Ok();
 		}
 		[HttpPost]
@@ -139,12 +149,14 @@ namespace api.Controllers.UserAccounts {
 			if (!IsPasswordValid(binder.NewPassword)) {
 				return BadRequest();
 			}
-			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-			if (!IsCorrectPassword(userAccount, binder.CurrentPassword)) {
-				return BadRequest(new[] { "IncorrectPassword" });
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				if (!IsCorrectPassword(userAccount, binder.CurrentPassword)) {
+					return BadRequest(new[] { "IncorrectPassword" });
+				}
+				var salt = GenerateSalt();
+				db.ChangePassword(userAccount.Id, HashPassword(binder.NewPassword, salt), salt);
 			}
-			var salt = GenerateSalt();
-			db.ChangePassword(userAccount.Id, HashPassword(binder.NewPassword, salt), salt);
 			return Ok();
 		}
 		[AllowAnonymous]
@@ -153,18 +165,20 @@ namespace api.Controllers.UserAccounts {
 			[FromBody] ResetPasswordBinder binder,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
-			var request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
-			if (request == null) {
-				return BadRequest(new[] { "RequestNotFound" });
-			}
-			if (IsPasswordResetRequestValid(request)) {
-				if (!IsPasswordValid(binder.Password)) {
-					return BadRequest();
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
+				if (request == null) {
+					return BadRequest(new[] { "RequestNotFound" });
 				}
-				var salt = GenerateSalt();
-				db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
-				db.CompletePasswordResetRequest(request.Id);
-				return Ok();
+				if (IsPasswordResetRequestValid(request)) {
+					if (!IsPasswordValid(binder.Password)) {
+						return BadRequest();
+					}
+					var salt = GenerateSalt();
+					db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
+					db.CompletePasswordResetRequest(request.Id);
+					return Ok();
+				}
 			}
 			return BadRequest(new[] { "RequestExpired" });
 		}
@@ -173,32 +187,34 @@ namespace api.Controllers.UserAccounts {
 			[FromBody] EmailAddressBinder binder,
 			[FromServices] EmailService emailService
 		) {
-			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-			if (userAccount.Email == binder.Email) {
-				return BadRequest();
-			}
-			var isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
-			if (
-				isEmailAddressConfirmed ||
-				!IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(userAccount.Id))
-			) {
-				try {
-					db.ChangeEmailAddress(userAccount.Id, binder.Email);
-				} catch (Exception ex) {
-					return BadRequest((ex as ValidationException)?.Errors);
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				if (userAccount.Email == binder.Email) {
+					return BadRequest();
 				}
-				var confirmation = db.CreateEmailConfirmation(userAccount.Id);
-				if (isEmailAddressConfirmed) {
-					db.ConfirmEmailAddress(confirmation.Id);
+				var isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
+				if (
+					isEmailAddressConfirmed ||
+					!IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(userAccount.Id))
+				) {
+					try {
+						db.ChangeEmailAddress(userAccount.Id, binder.Email);
+					} catch (Exception ex) {
+						return BadRequest((ex as ValidationException)?.Errors);
+					}
+					var confirmation = db.CreateEmailConfirmation(userAccount.Id);
+					if (isEmailAddressConfirmed) {
+						db.ConfirmEmailAddress(confirmation.Id);
+					}
+					var updatedUserAccount = db.GetUserAccount(userAccount.Id);
+					if (!isEmailAddressConfirmed) {
+						await emailService.SendConfirmationEmail(
+							recipient: updatedUserAccount,
+							emailConfirmationId: confirmation.Id
+						);
+					}
+					return Json(updatedUserAccount);
 				}
-				var updatedUserAccount = db.GetUserAccount(userAccount.Id);
-				if (!isEmailAddressConfirmed) {
-					await emailService.SendConfirmationEmail(
-						recipient: updatedUserAccount,
-						emailConfirmationId: confirmation.Id
-					);
-				}
-				return Json(updatedUserAccount);
 			}
 			return BadRequest(new[] { "ResendLimitExceeded" });
 		}
@@ -208,31 +224,42 @@ namespace api.Controllers.UserAccounts {
 			[FromBody] EmailAddressBinder binder,
 			[FromServices] EmailService emailService
 		) {
-			var userAccount = db.FindUserAccount(binder.Email);
-			if (userAccount == null) {
-				return BadRequest(new[] { "UserAccountNotFound" });
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = db.FindUserAccount(binder.Email);
+				if (userAccount == null) {
+					return BadRequest(new[] { "UserAccountNotFound" });
+				}
+				var latestRequest = db.GetLatestPasswordResetRequest(userAccount.Id);
+				if (IsPasswordResetRequestValid(latestRequest)) {
+					return BadRequest(new[] { "RequestLimitExceeded" });
+				}
+				await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
 			}
-			var latestRequest = db.GetLatestPasswordResetRequest(userAccount.Id);
-			if (IsPasswordResetRequestValid(latestRequest)) {
-				return BadRequest(new[] { "RequestLimitExceeded" });
-			}
-			await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
 			return Ok();
 		}
 		[HttpGet]
-		public IActionResult GetUserAccount() => Json(db.GetUserAccount(this.User.GetUserAccountId()));
+		public IActionResult GetUserAccount() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(db.GetUserAccount(this.User.GetUserAccountId()));
+			}
+		}
 		[HttpGet]
 		public IActionResult GetSessionState() {
-			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-			return Json(new {
-				UserAccount = userAccount,
-				NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestUnreadReply(userAccount.Id))
-			});
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				return Json(new {
+					UserAccount = userAccount,
+					NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestUnreadReply(userAccount.Id))
+				});
+			}
 		}
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder) {
-			var userAccount = db.FindUserAccount(binder.Email);
+			UserAccount userAccount;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				userAccount = db.FindUserAccount(binder.Email);
+			}
 			if (userAccount == null) {
 				return BadRequest(new[] { "UserAccountNotFound" });
 			}
@@ -251,40 +278,56 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public IActionResult UpdateNotificationPreferences(
 			[FromBody] UpdateNotificationPreferencesBinder binder
-		) => Json(db.UpdateNotificationPreferences(
-			this.User.GetUserAccountId(),
-			binder.ReceiveEmailNotifications,
-			binder.ReceiveDesktopNotifications
-		));
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(db.UpdateNotificationPreferences(
+					this.User.GetUserAccountId(),
+					binder.ReceiveEmailNotifications,
+					binder.ReceiveDesktopNotifications
+				));
+			}
+		}
 		[HttpPost]
 		public IActionResult UpdateContactPreferences(
 			[FromBody] UpdateContactPreferencesBinder binder
-		) => Json(db.UpdateContactPreferences(
-			this.User.GetUserAccountId(),
-			binder.ReceiveWebsiteUpdates,
-			binder.ReceiveSuggestedReadings
-		));
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(db.UpdateContactPreferences(
+					this.User.GetUserAccountId(),
+					binder.ReceiveWebsiteUpdates,
+					binder.ReceiveSuggestedReadings
+				));
+			}
+		}
 		[HttpGet]
-		public IActionResult CheckNewReplyNotification() => Json(new NewReplyNotification(
-			userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
-			latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
-		));
+		public IActionResult CheckNewReplyNotification() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(new NewReplyNotification(
+					userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
+					latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
+				));
+			}
+		}
 		[HttpPost]
 		public IActionResult AckNewReply() {
-			db.AckNewReply(this.User.GetUserAccountId());
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				db.AckNewReply(this.User.GetUserAccountId());
+			}
 			return Ok();
 		}
 		[HttpPost]
 		public IActionResult CreateDesktopNotification() {
-			var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-			db.RecordNewReplyDesktopNotification(userAccount.Id);
-			if (userAccount.ReceiveReplyDesktopNotifications) {
-				var latestUnreadReply = db.GetLatestUnreadReply(userAccount.Id);
-				if (
-					latestUnreadReply.DateCreated > userAccount.LastNewReplyAck &&
-					latestUnreadReply.DateCreated > userAccount.LastNewReplyDesktopNotification
-				) {
-					return Json(latestUnreadReply);
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				db.RecordNewReplyDesktopNotification(userAccount.Id);
+				if (userAccount.ReceiveReplyDesktopNotifications) {
+					var latestUnreadReply = db.GetLatestUnreadReply(userAccount.Id);
+					if (
+						latestUnreadReply.DateCreated > userAccount.LastNewReplyAck &&
+						latestUnreadReply.DateCreated > userAccount.LastNewReplyDesktopNotification
+					) {
+						return Json(latestUnreadReply);
+					}
 				}
 			}
 			return BadRequest();
@@ -295,7 +338,10 @@ namespace api.Controllers.UserAccounts {
 			string token,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
-			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			UserAccount userAccount;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			}
 			if (userAccount != null) {
 				return Json(new {
 					IsValid = true,
@@ -323,19 +369,21 @@ namespace api.Controllers.UserAccounts {
 			[FromBody] UpdateEmailSubscriptionsBinder binder,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
-			var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
-			if (userAccount != null) {
-				db.UpdateNotificationPreferences(
-					userAccountId: userAccount.Id,
-					receiveReplyEmailNotifications: binder.CommentReplyNotifications,
-					receiveReplyDesktopNotifications: userAccount.ReceiveReplyDesktopNotifications
-				);
-				db.UpdateContactPreferences(
-					userAccountId: userAccount.Id,
-					receiveWebsiteUpdates: binder.WebsiteUpdates,
-					receiveSuggestedReadings: binder.SuggestedReadings
-				);
-				return Ok();
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = db.GetUserAccount(new Guid(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
+				if (userAccount != null) {
+					db.UpdateNotificationPreferences(
+						userAccountId: userAccount.Id,
+						receiveReplyEmailNotifications: binder.CommentReplyNotifications,
+						receiveReplyDesktopNotifications: userAccount.ReceiveReplyDesktopNotifications
+					);
+					db.UpdateContactPreferences(
+						userAccountId: userAccount.Id,
+						receiveWebsiteUpdates: binder.WebsiteUpdates,
+						receiveSuggestedReadings: binder.SuggestedReadings
+					);
+					return Ok();
+				}
 			}
 			return BadRequest();
 		}
@@ -346,7 +394,10 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] IOptions<EmailOptions> emailOpts,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
-			var request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			PasswordResetRequest request;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				request = db.GetPasswordResetRequest(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			}
 			if (request == null) {
 				return Redirect(serviceOpts.Value.WebServer.CreateUrl("/password/reset/not-found"));
 			}
@@ -361,17 +412,25 @@ namespace api.Controllers.UserAccounts {
 			string token,
 			[FromServices] IOptions<EmailOptions> emailOpts,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
-		) => ReadReplyAndRedirectToArticle(
-			reply: db.GetComment(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey))),
-			serviceOpts: serviceOpts
-		);
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return ReadReplyAndRedirectToArticle(
+					reply: db.GetComment(new Guid(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey))),
+					serviceOpts: serviceOpts
+				);
+			}
+		}
 		[HttpGet]
 		public IActionResult ViewReplyFromDesktopNotification(
 			Guid id,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
-		) => ReadReplyAndRedirectToArticle(
-			reply: db.GetComment(id),
-			serviceOpts: serviceOpts
-		);
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return ReadReplyAndRedirectToArticle(
+					reply: db.GetComment(id),
+					serviceOpts: serviceOpts
+				);
+			}
+		}
    }
 }

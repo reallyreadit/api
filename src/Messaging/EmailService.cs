@@ -12,6 +12,7 @@ using System.Net;
 using api.DataAccess.Models;
 using api.DataAccess;
 using System.Collections.Generic;
+using Npgsql;
 
 namespace api.Messaging {
 	public class EmailService {
@@ -40,12 +41,16 @@ namespace api.Messaging {
 					throw new InvalidOperationException("Unexpected value for DeliveryMethod option");
 			}
 		}
-		public EmailService(DbConnection db, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
+		public EmailService(IOptions<DatabaseOptions> dbOpts, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			this.bouncedAddresses = new Lazy<IEnumerable<string>>(
-				() => db
-					.ListEmailBounces()
-					.Select(bounce => NormalizeEmailAddress(bounce.Address))
-					.ToArray()
+				() => {
+					using (var db = new NpgsqlConnection(dbOpts.Value.ConnectionString)) {
+						return db
+							.ListEmailBounces()
+							.Select(bounce => NormalizeEmailAddress(bounce.Address))
+							.ToArray();
+					}
+				}
 			);
 			this.viewRenderer = viewRenderer;
 			this.emailOpts = emailOpts.Value;

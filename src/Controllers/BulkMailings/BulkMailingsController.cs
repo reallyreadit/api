@@ -3,16 +3,19 @@ using System.Linq;
 using System.Threading.Tasks;
 using api.Authentication;
 using api.Authorization;
+using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
 using api.Messaging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace api.Controllers.BulkMailings {
 	[AuthorizeUserAccountRole(UserAccountRole.Admin)]
 	public class BulkMailingsController : Controller {
-		private DbConnection db;
+		private DatabaseOptions dbOpts;
 		private EmailService emailService;
 		private static string websiteUpdatesList = "WebsiteUpdates";
 		private static string suggestedReadingsList = "SuggestedReadings";
@@ -20,16 +23,24 @@ namespace api.Controllers.BulkMailings {
 			{ websiteUpdatesList, "website updates" },
 			{ suggestedReadingsList, "suggested readings" }
 		};
-		public BulkMailingsController(DbConnection db, EmailService emailService) {
-			this.db = db;
+		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts, EmailService emailService) {
+			this.dbOpts = dbOpts.Value;
 			this.emailService = emailService;
 		}
-		private IEnumerable<UserAccount> GetMailableUsers() => db
-			.ListUserAccounts()
-			.Where(account => emailService.CanSendEmailTo(account))
-			.ToArray();
+		private IEnumerable<UserAccount> GetMailableUsers() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return db
+				.ListUserAccounts()
+				.Where(account => emailService.CanSendEmailTo(account))
+				.ToArray();
+			}
+		}
 		[HttpGet]
-		public JsonResult List() => Json(db.ListBulkMailings().OrderByDescending(m => m.DateSent));
+		public JsonResult List() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(db.ListBulkMailings().OrderByDescending(m => m.DateSent));
+			}
+		}
 		[HttpGet]
 		public JsonResult Lists() {
 			var mailableUsers = GetMailableUsers();
@@ -92,13 +103,15 @@ namespace api.Controllers.BulkMailings {
 				}
 				bulkMailingRecipients.Add(bulkMailingRecipient);
 			}
-			db.CreateBulkMailing(
-				subject: binder.Subject,
-				body: binder.Body,
-				list: binder.List,
-				userAccountId: User.GetUserAccountId(),
-				recipients: bulkMailingRecipients.ToArray()
-			);
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				db.CreateBulkMailing(
+					subject: binder.Subject,
+					body: binder.Body,
+					list: binder.List,
+					userAccountId: User.GetUserAccountId(),
+					recipients: bulkMailingRecipients.ToArray()
+				);
+			}
 			return Ok();
 		}
 	}

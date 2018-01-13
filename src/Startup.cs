@@ -47,7 +47,6 @@ namespace api {
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
 			services
-				.AddScoped<DbConnection>()
 				.AddScoped<EmailService>()
 				.AddTransient<RazorViewToStringRenderer>();
 			if (env.IsProduction()) {
@@ -102,6 +101,11 @@ namespace api {
 			app.UseMvcWithDefaultRoute();
 
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
+
+			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
+			NpgsqlConnection.MapCompositeGlobally<CreateBulkMailingRecipient>();
+			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
+			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
 		}
 	}
 }
