@@ -21,13 +21,17 @@ using Mvc.RenderViewToString;
 using Microsoft.AspNetCore.Mvc.Razor;
 using System;
 using Microsoft.AspNetCore.DataProtection;
+using Microsoft.Extensions.Logging;
+using Serilog;
 
 namespace api {
 	public class Startup {
 		private IHostingEnvironment env;
 		private IConfigurationRoot config;
 		public Startup(IHostingEnvironment env) {
+			// set the IHostingEnvironment
 			this.env = env;
+			// read configuration
 			var currentDirectory = Directory.GetCurrentDirectory();
 			var config = new ConfigurationBuilder()
 				.SetBasePath(currentDirectory)
@@ -37,8 +41,28 @@ namespace api {
 				config.AddJsonFile(envConfigFile);
 			}
 			this.config = config.Build();
+			// create logger
+			if (env.IsDevelopment()) {
+				Log.Logger = new LoggerConfiguration()
+					.WriteTo
+					.Console()
+					.CreateLogger();
+			} else if (env.IsProduction()) {
+				Log.Logger = new LoggerConfiguration()
+					.MinimumLevel
+					.Warning()
+					.WriteTo
+					.File(
+						path: Path.Combine("logs", "app.txt"),
+						rollingInterval: RollingInterval.Day
+					)
+					.CreateLogger();
+			} else {
+				throw new ArgumentException("Unexpected environment");
+			}
 		}
 		public void ConfigureServices(IServiceCollection services) {
+			// configure options
 			services
 				.Configure<MyAuthenticationOptions>(config.GetSection("Authentication"))
 				.Configure<CorsOptions>(config.GetSection("Cors"))
@@ -46,9 +70,11 @@ namespace api {
 				.Configure<EmailOptions>(config.GetSection("Email"))
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
+			// configure services
 			services
 				.AddScoped<EmailService>()
 				.AddTransient<RazorViewToStringRenderer>();
+			// configure shared key ring in production
 			if (env.IsProduction()) {
 				var dataProtectionOptions = new MyDataProtectionOptions();
 				config.GetSection("DataProtection").Bind(dataProtectionOptions);
@@ -57,8 +83,8 @@ namespace api {
 					.SetApplicationName(dataProtectionOptions.ApplicationName)
 					.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath));
 			}
+			// configure MVC and global filters
 			services.AddMvc(options => {
-				options.Filters.Add(new LogActionFilter());
 				options.Filters.Add(new AuthorizeFilter(
 					policy: new AuthorizationPolicyBuilder()
 						.RequireAuthenticatedUser()
@@ -69,15 +95,23 @@ namespace api {
 				}
 			});
 		}
-		public void Configure(IApplicationBuilder app, IOptions<MyAuthenticationOptions> authOpts, IOptions<CorsOptions> corsOpts) {
-			//if (env.IsDevelopment()) {
-				app.UseDeveloperExceptionPage();
-			//}
+		public void Configure(
+			IApplicationBuilder app,
+			IOptions<MyAuthenticationOptions> authOpts,
+			IOptions<CorsOptions> corsOpts,
+			ILoggerFactory loggerFactory
+		) {
+			// use dev exception page until the db connection leak issue is solved and we have reliable logging
+			app.UseDeveloperExceptionPage();
+			// configure ILoggerFactory
+			loggerFactory.AddSerilog();
+			// configure cors
 			app.UseCors(cors => cors
 				.WithOrigins(corsOpts.Value.Origins)
 				.AllowCredentials()
 				.AllowAnyHeader()
 				.AllowAnyMethod());
+			// configure cookie authentication
 			app.UseCookieAuthentication(new CookieAuthenticationOptions() {
 				AuthenticationScheme = authOpts.Value.Scheme,
 				AutomaticAuthenticate = true,
@@ -98,10 +132,11 @@ namespace api {
 				ExpireTimeSpan = TimeSpan.FromDays(7),
 				SlidingExpiration = true
 			});
+			// configure routes
 			app.UseMvcWithDefaultRoute();
-
+			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
-
+			// configure Npgsql
 			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
 			NpgsqlConnection.MapCompositeGlobally<CreateBulkMailingRecipient>();
 			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
