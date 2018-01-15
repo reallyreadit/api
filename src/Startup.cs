@@ -50,7 +50,7 @@ namespace api {
 			} else if (env.IsProduction()) {
 				Log.Logger = new LoggerConfiguration()
 					.MinimumLevel
-					.Warning()
+					.Error()
 					.WriteTo
 					.File(
 						path: Path.Combine("logs", "app.txt"),
