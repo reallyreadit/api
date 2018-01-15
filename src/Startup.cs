@@ -105,6 +105,10 @@ namespace api {
 			app.UseDeveloperExceptionPage();
 			// configure ILoggerFactory
 			loggerFactory.AddSerilog();
+			// configure forwarded headers
+			app.UseForwardedHeaders(new ForwardedHeadersOptions() {
+				RequireHeaderSymmetry = false
+			});
 			// configure cors
 			app.UseCors(cors => cors
 				.WithOrigins(corsOpts.Value.Origins)
