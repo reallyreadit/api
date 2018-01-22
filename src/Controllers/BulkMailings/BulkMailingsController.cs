@@ -55,7 +55,8 @@ namespace api.Controllers.BulkMailings {
 				var isSuccessful = await emailService.SendBulkMailingEmail(
 					recipient: new UserAccount() {
 						Name = "Test User",
-						Email = binder.EmailAddress
+						Email = binder.EmailAddress,
+						IsEmailConfirmed = true
 					},
 					list: binder.List,
 					subject: binder.Subject,
