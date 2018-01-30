@@ -140,11 +140,6 @@ namespace api {
 			app.UseMvcWithDefaultRoute();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
-			// configure Npgsql
-			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
-			NpgsqlConnection.MapCompositeGlobally<CreateBulkMailingRecipient>();
-			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
-			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
 		}
 	}
 }

@@ -28,7 +28,7 @@ namespace api.Controllers.BulkMailings {
 			this.emailService = emailService;
 		}
 		private IEnumerable<UserAccount> GetMailableUsers() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				return db
 				.ListUserAccounts()
 				.Where(account => emailService.CanSendEmailTo(account))
@@ -37,7 +37,7 @@ namespace api.Controllers.BulkMailings {
 		}
 		[HttpGet]
 		public JsonResult List() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				return Json(db.ListBulkMailings().OrderByDescending(m => m.DateSent));
 			}
 		}
@@ -104,7 +104,7 @@ namespace api.Controllers.BulkMailings {
 				}
 				bulkMailingRecipients.Add(bulkMailingRecipient);
 			}
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				db.CreateBulkMailing(
 					subject: binder.Subject,
 					body: binder.Body,

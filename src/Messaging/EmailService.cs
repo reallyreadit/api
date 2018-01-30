@@ -44,7 +44,7 @@ namespace api.Messaging {
 		public EmailService(IOptions<DatabaseOptions> dbOpts, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			this.bouncedAddresses = new Lazy<IEnumerable<string>>(
 				() => {
-					using (var db = new NpgsqlConnection(dbOpts.Value.ConnectionString)) {
+					using (var db = DbApi.CreateConnection(dbOpts.Value.ConnectionString)) {
 						return db
 							.ListEmailBounces()
 							.Select(bounce => NormalizeEmailAddress(bounce.Address))

@@ -38,20 +38,20 @@ namespace api.Controllers.Extension {
 		}
 		[HttpGet]
 		public IActionResult FindSource(string hostname) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				return Json(db.FindSource(hostname));
 			}
 		}
 		[HttpGet]
 		public IActionResult UserArticle(Guid id) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				return Json(db.GetUserArticle(id, this.User.GetUserAccountId()));
 			}
 		}
 		[HttpPost]
 		public IActionResult GetUserArticle([FromBody] PageInfoBinder binder) {
 			var userAccountId = this.User.GetUserAccountId();
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				var page = db.FindPage(binder.Url);
 				UserPage userPage;
 				if (page != null) {
@@ -103,21 +103,21 @@ namespace api.Controllers.Extension {
 		}
 		[HttpPost]
 		public IActionResult CommitReadState([FromBody] CommitReadStateBinder binder) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
 				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, this.User.GetUserAccountId()));
 			}
 		}
 		[HttpGet]
 		public IActionResult GetSourceRules() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				return Json(db.GetSourceRules());
 			}
 		}
 		[HttpPost]
 		public IActionResult SetStarred([FromBody] SetStarredBinder binder) {
 			var userAccountId = this.User.GetUserAccountId();
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				if (binder.IsStarred) {
 					db.StarArticle(userAccountId, binder.ArticleId);
 				} else {
