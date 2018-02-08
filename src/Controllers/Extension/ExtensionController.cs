@@ -85,7 +85,7 @@ namespace api.Controllers.Extension {
 						dateModified: ParseArticleDate(binder.Article.DateModified),
 						section: Decode(binder.Article.Section),
 						description: Decode(binder.Article.Description),
-						authors: binder.Article.Authors.Distinct().ToArray(),
+						authors: binder.Article.Authors.Distinct(new CreateArticleAuthorEqualityComparer()).ToArray(),
 						tags: binder.Article.Tags.Distinct().ToArray()
 					);
 					page = db.CreatePage(articleId, binder.Number ?? 1, binder.WordCount, binder.ReadableWordCount, binder.Url);
