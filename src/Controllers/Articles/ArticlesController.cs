@@ -91,6 +91,7 @@ namespace api.Controllers.Articles {
 							if (parent.UserAccountId != this.User.GetUserAccountId()) {
 								var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
+									emailService.RegisterEmailBounces(db.ListEmailBounces());
 									await emailService.SendCommentReplyNotificationEmail(
 										recipient: parentUserAccount,
 										reply: comment

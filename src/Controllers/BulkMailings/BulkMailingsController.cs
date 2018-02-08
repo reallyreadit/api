@@ -16,18 +16,16 @@ namespace api.Controllers.BulkMailings {
 	[AuthorizeUserAccountRole(UserAccountRole.Admin)]
 	public class BulkMailingsController : Controller {
 		private DatabaseOptions dbOpts;
-		private EmailService emailService;
 		private static string websiteUpdatesList = "WebsiteUpdates";
 		private static string suggestedReadingsList = "SuggestedReadings";
 		private static Dictionary<string, string> listDescriptions = new Dictionary<string, string>() {
 			{ websiteUpdatesList, "website updates" },
 			{ suggestedReadingsList, "suggested readings" }
 		};
-		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts, EmailService emailService) {
+		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
-			this.emailService = emailService;
 		}
-		private IEnumerable<UserAccount> GetMailableUsers() {
+		private IEnumerable<UserAccount> GetMailableUsers(EmailService emailService) {
 			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
 				return db
 				.ListUserAccounts()
@@ -42,69 +40,76 @@ namespace api.Controllers.BulkMailings {
 			}
 		}
 		[HttpGet]
-		public JsonResult Lists() {
-			var mailableUsers = GetMailableUsers();
-			return Json(new[] {
-				new KeyValuePair<string, string>($"{websiteUpdatesList} ({mailableUsers.Count(u => u.ReceiveWebsiteUpdates)})", websiteUpdatesList),
-				new KeyValuePair<string, string>($"{suggestedReadingsList} ({mailableUsers.Count(u => u.ReceiveSuggestedReadings)})", suggestedReadingsList)
-			});
-		}
-		[HttpPost]
-		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder) {
-			try {
-				var isSuccessful = await emailService.SendBulkMailingEmail(
-					recipient: new UserAccount() {
-						Name = "Test User",
-						Email = binder.EmailAddress,
-						IsEmailConfirmed = true
-					},
-					list: binder.List,
-					subject: binder.Subject,
-					body: binder.Body,
-					listDescription: listDescriptions[binder.List]
-				);
-				if (isSuccessful) {
-					return Ok();
-				}
-				return BadRequest();
-			} catch {
-				return BadRequest();
+		public JsonResult Lists([FromServices] EmailService emailService) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+				emailService.RegisterEmailBounces(db.ListEmailBounces());
+				var mailableUsers = GetMailableUsers(emailService);
+				return Json(new[] {
+					new KeyValuePair<string, string>($"{websiteUpdatesList} ({mailableUsers.Count(u => u.ReceiveWebsiteUpdates)})", websiteUpdatesList),
+					new KeyValuePair<string, string>($"{suggestedReadingsList} ({mailableUsers.Count(u => u.ReceiveSuggestedReadings)})", suggestedReadingsList)
+				});
 			}
 		}
 		[HttpPost]
-		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder) {
-			IEnumerable<UserAccount> recipients;
-			if (binder.List == websiteUpdatesList) {
-				recipients = GetMailableUsers()
-					.Where(u => u.ReceiveWebsiteUpdates)
-					.ToArray();
-			} else if (binder.List == suggestedReadingsList) {
-				recipients = GetMailableUsers()
-					.Where(u => u.ReceiveSuggestedReadings)
-					.ToArray();
-			} else {
-				return BadRequest();
-			}
-			var bulkMailingRecipients = new List<CreateBulkMailingRecipient>();
-			foreach (var recipient in recipients) {
-				var bulkMailingRecipient = new CreateBulkMailingRecipient() {
-					UserAccountId = recipient.Id
-				};
+		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder, [FromServices] EmailService emailService) {
+			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				try {
 					var isSuccessful = await emailService.SendBulkMailingEmail(
-						recipient: recipient,
+						recipient: new UserAccount() {
+							Name = "Test User",
+							Email = binder.EmailAddress,
+							IsEmailConfirmed = true
+						},
 						list: binder.List,
 						subject: binder.Subject,
 						body: binder.Body,
 						listDescription: listDescriptions[binder.List]
 					);
-					bulkMailingRecipient.IsSuccessful = isSuccessful;
+					if (isSuccessful) {
+						return Ok();
+					}
+					return BadRequest();
 				} catch {
-					bulkMailingRecipient.IsSuccessful = false;
+					return BadRequest();
 				}
-				bulkMailingRecipients.Add(bulkMailingRecipient);
 			}
+		}
+		[HttpPost]
+		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder, [FromServices] EmailService emailService) {
 			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+				emailService.RegisterEmailBounces(db.ListEmailBounces());
+				IEnumerable<UserAccount> recipients;
+				if (binder.List == websiteUpdatesList) {
+					recipients = GetMailableUsers(emailService)
+						.Where(u => u.ReceiveWebsiteUpdates)
+						.ToArray();
+				} else if (binder.List == suggestedReadingsList) {
+					recipients = GetMailableUsers(emailService)
+						.Where(u => u.ReceiveSuggestedReadings)
+						.ToArray();
+				} else {
+					return BadRequest();
+				}
+				var bulkMailingRecipients = new List<CreateBulkMailingRecipient>();
+				foreach (var recipient in recipients) {
+					var bulkMailingRecipient = new CreateBulkMailingRecipient() {
+						UserAccountId = recipient.Id
+					};
+					try {
+						var isSuccessful = await emailService.SendBulkMailingEmail(
+							recipient: recipient,
+							list: binder.List,
+							subject: binder.Subject,
+							body: binder.Body,
+							listDescription: listDescriptions[binder.List]
+						);
+						bulkMailingRecipient.IsSuccessful = isSuccessful;
+					} catch {
+						bulkMailingRecipient.IsSuccessful = false;
+					}
+					bulkMailingRecipients.Add(bulkMailingRecipient);
+				}
 				db.CreateBulkMailing(
 					subject: binder.Subject,
 					body: binder.Body,
