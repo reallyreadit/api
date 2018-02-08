@@ -26,7 +26,7 @@ namespace api.Controllers.BulkMailings {
 			this.dbOpts = dbOpts.Value;
 		}
 		private IEnumerable<UserAccount> GetMailableUsers(EmailService emailService) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return db
 				.ListUserAccounts()
 				.Where(account => emailService.CanSendEmailTo(account))
@@ -35,13 +35,13 @@ namespace api.Controllers.BulkMailings {
 		}
 		[HttpGet]
 		public JsonResult List() {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(db.ListBulkMailings().OrderByDescending(m => m.DateSent));
 			}
 		}
 		[HttpGet]
 		public JsonResult Lists([FromServices] EmailService emailService) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				var mailableUsers = GetMailableUsers(emailService);
 				return Json(new[] {
@@ -52,7 +52,7 @@ namespace api.Controllers.BulkMailings {
 		}
 		[HttpPost]
 		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder, [FromServices] EmailService emailService) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				try {
 					var isSuccessful = await emailService.SendBulkMailingEmail(
@@ -77,7 +77,7 @@ namespace api.Controllers.BulkMailings {
 		}
 		[HttpPost]
 		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder, [FromServices] EmailService emailService) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				IEnumerable<UserAccount> recipients;
 				if (binder.List == websiteUpdatesList) {

@@ -138,6 +138,11 @@ namespace api {
 			});
 			// configure routes
 			app.UseMvcWithDefaultRoute();
+			// configure Npgsql
+			NpgsqlConnection.MapCompositeGlobally<CreateArticleAuthor>();
+			NpgsqlConnection.MapCompositeGlobally<CreateBulkMailingRecipient>();
+			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
+			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 		}

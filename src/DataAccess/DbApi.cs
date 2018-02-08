@@ -11,16 +11,6 @@ using System.Threading.Tasks;
 
 namespace api.DataAccess {
     public static class DbApi {
-		// using this factory method since Npgsql seems to forget globally mapped types
-		public static NpgsqlConnection CreateConnection(string connectionString) {
-			var conn = new NpgsqlConnection(connectionString);
-			conn.Open();
-			conn.MapComposite<CreateArticleAuthor>();
-			conn.MapComposite<CreateBulkMailingRecipient>();
-			conn.MapEnum<SourceRuleAction>();
-			conn.MapEnum<UserAccountRole>();
-			return conn;
-		}
 		#region article_api
 		public static Guid CreateArticle(
 			this NpgsqlConnection conn,

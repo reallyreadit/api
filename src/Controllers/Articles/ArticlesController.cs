@@ -21,7 +21,7 @@ namespace api.Controllers.Articles {
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> ListHotTopics(int pageNumber) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(this.User.Identity.IsAuthenticated ?
 					new {
 						Aotd = await db.GetUserAotd(this.User.GetUserAccountId()),
@@ -36,20 +36,20 @@ namespace api.Controllers.Articles {
 		}
 		[HttpGet]
 		public IActionResult ListStarred(int pageNumber) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 40));
 			}
 		}
 		[HttpGet]
 		public IActionResult ListHistory(int pageNumber) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(db.ListUserArticleHistory(this.User.GetUserAccountId(), pageNumber, 40));
 			}
 		}
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(string slug) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(this.User.Identity.IsAuthenticated ?
 					db.FindUserArticle(slug, this.User.GetUserAccountId()) :
 					db.FindArticle(slug)
@@ -60,7 +60,7 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult ListComments(string slug) {
 			CommentThread[] comments;
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
 					.ListComments(db.FindArticle(slug).Id)
 					.Select(c => new CommentThread(c))
@@ -82,7 +82,7 @@ namespace api.Controllers.Articles {
 			[FromServices] EmailService emailService
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
-				using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 					var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
 					if (userArticle.IsRead) {
 						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
@@ -108,7 +108,7 @@ namespace api.Controllers.Articles {
 		[HttpPost]
 		public IActionResult UserDelete([FromBody] ArticleIdBinder binder) {
 			var userAccountId = this.User.GetUserAccountId();
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var article = db.GetUserArticle(binder.ArticleId, userAccountId);
 				if (article.DateStarred.HasValue) {
 					db.UnstarArticle(userAccountId, article.Id);
@@ -121,7 +121,7 @@ namespace api.Controllers.Articles {
 		}
 		[HttpGet]
 		public IActionResult ListReplies(int pageNumber) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(PageResult<CommentThread>.Create(
 					source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 40),
 					map: comments => comments.Select(c => new CommentThread(c))
@@ -130,7 +130,7 @@ namespace api.Controllers.Articles {
 		}
 		[HttpPost]
 		public IActionResult ReadReply([FromBody] ReadReplyBinder binder) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var comment = db.GetComment(binder.CommentId);
 				if (db.GetComment(comment.ParentCommentId.Value).UserAccountId == User.GetUserAccountId()) {
 					db.ReadComment(comment.Id);
@@ -141,14 +141,14 @@ namespace api.Controllers.Articles {
 		}
 		[HttpPost]
 		public IActionResult Star([FromBody] ArticleIdBinder binder) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.StarArticle(this.User.GetUserAccountId(), binder.ArticleId);
 			}
 			return Ok();
 		}
 		[HttpPost]
 		public IActionResult Unstar([FromBody] ArticleIdBinder binder) {
-			using (var db = DbApi.CreateConnection(dbOpts.ConnectionString)) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.UnstarArticle(this.User.GetUserAccountId(), binder.ArticleId);
 			}
 			return Ok();
