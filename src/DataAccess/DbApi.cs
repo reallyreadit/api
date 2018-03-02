@@ -21,7 +21,8 @@ namespace api.DataAccess {
 			DateTime? dateModified,
 			string section,
 			string description,
-			CreateArticleAuthor[] authors,
+			string[] authorNames,
+			string[] authorUrls,
 			string[] tags
 		) => conn.QuerySingleOrDefault<Guid>(
 			sql: "article_api.create_article",
@@ -33,7 +34,8 @@ namespace api.DataAccess {
 				date_modified = dateModified,
 				section,
 				description,
-				authors,
+				author_names = authorNames,
+				author_urls = authorUrls,
 				tags
 			},
 			commandType: CommandType.StoredProcedure
@@ -247,13 +249,15 @@ namespace api.DataAccess {
 			string body,
 			string list,
 			Guid userAccountId,
-			CreateBulkMailingRecipient[] recipients
+			Guid[] recipientIds,
+			bool[] recipientResults
 		) => conn.QuerySingleOrDefault<Guid>(
 			sql: "bulk_mailing_api.create_bulk_mailing",
 			param: new {
 				subject, body, list,
 				user_account_id = userAccountId,
-				recipients
+				recipient_ids = recipientIds,
+				recipient_results = recipientResults
 			},
 			commandType: CommandType.StoredProcedure
 		);

@@ -91,9 +91,9 @@ namespace api.Controllers.BulkMailings {
 				} else {
 					return BadRequest();
 				}
-				var bulkMailingRecipients = new List<CreateBulkMailingRecipient>();
+				var bulkMailingRecipients = new List<BulkMailingRecipient>();
 				foreach (var recipient in recipients) {
-					var bulkMailingRecipient = new CreateBulkMailingRecipient() {
+					var bulkMailingRecipient = new BulkMailingRecipient() {
 						UserAccountId = recipient.Id
 					};
 					try {
@@ -110,12 +110,14 @@ namespace api.Controllers.BulkMailings {
 					}
 					bulkMailingRecipients.Add(bulkMailingRecipient);
 				}
+				// temp workaround to circumvent npgsql type mapping bug
 				db.CreateBulkMailing(
 					subject: binder.Subject,
 					body: binder.Body,
 					list: binder.List,
 					userAccountId: User.GetUserAccountId(),
-					recipients: bulkMailingRecipients.ToArray()
+					recipientIds: bulkMailingRecipients.Select(recipient => recipient.UserAccountId).ToArray(),
+					recipientResults: bulkMailingRecipients.Select(recipient => recipient.IsSuccessful).ToArray()
 				);
 			}
 			return Ok();

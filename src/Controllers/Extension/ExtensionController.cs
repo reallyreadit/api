@@ -77,6 +77,8 @@ namespace api.Controllers.Extension {
 						);
 					}
 					var title = Decode(binder.Article.Title);
+					// temp workaround to circumvent npgsql type mapping bug
+					var authors = binder.Article.Authors.Distinct().ToArray();
 					var articleId = db.CreateArticle(
 						title,
 						slug: source.Slug + "_" + CreateSlug(title),
@@ -85,7 +87,8 @@ namespace api.Controllers.Extension {
 						dateModified: ParseArticleDate(binder.Article.DateModified),
 						section: Decode(binder.Article.Section),
 						description: Decode(binder.Article.Description),
-						authors: binder.Article.Authors.Distinct(new CreateArticleAuthorEqualityComparer()).ToArray(),
+						authorNames: authors.Select(author => author.Name).ToArray(),
+						authorUrls: authors.Select(author => author.Url).ToArray(),
 						tags: binder.Article.Tags.Distinct().ToArray()
 					);
 					page = db.CreatePage(articleId, binder.Number ?? 1, binder.WordCount, binder.ReadableWordCount, binder.Url);
