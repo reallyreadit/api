@@ -64,7 +64,7 @@ namespace api.Messaging {
 			recipient,
 			viewName: "WelcomeEmail",
 			model: new ConfirmationEmailViewModel(
-				title: "Welcome to reallyread.it!",
+				title: "Please confirm your email address",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
 				token: CreateToken(emailConfirmationId),
