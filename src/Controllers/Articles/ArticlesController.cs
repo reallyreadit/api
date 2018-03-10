@@ -11,6 +11,7 @@ using api.Messaging;
 using System.Threading.Tasks;
 using api.DataAccess.Models;
 using Npgsql;
+using System.Collections.Generic;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -152,6 +153,53 @@ namespace api.Controllers.Articles {
 				db.UnstarArticle(this.User.GetUserAccountId(), binder.ArticleId);
 			}
 			return Ok();
+		}
+		[HttpPost]
+		public async Task<IActionResult> Share([FromBody] ShareArticleBinder binder, [FromServices] EmailService emailService) {
+			if (
+				binder.EmailAddresses.Length < 1 ||
+				binder.EmailAddresses.Length > 5 ||
+				binder.EmailAddresses.Any(address => address.Length > 256) ||
+				binder.Message?.Length > 10000
+			) {
+				return BadRequest();
+			}
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				emailService.RegisterEmailBounces(db.ListEmailBounces());
+				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId());
+				if (userArticle.IsRead) {
+					var sender = db.GetUserAccount(User.GetUserAccountId());
+					var recipients = new List<EmailShareRecipient>();
+					foreach (var address in binder.EmailAddresses) {
+						var recipient = db.FindUserAccount(address);
+						bool sentSuccessfully;
+						try {
+							sentSuccessfully = await emailService.SendShareEmail(
+								sender: sender,
+								recipient: recipient != null ?
+									recipient as IEmailRecipient :
+									new EmailRecipient(address),
+								article: userArticle,
+								message: binder.Message
+							);
+						} catch {
+							sentSuccessfully = false;
+						}
+						recipients.Add(new EmailShareRecipient(address, recipient?.Id ?? Guid.Empty, sentSuccessfully));
+					}
+					db.CreateEmailShare(
+						dateSent: DateTime.UtcNow,
+						articleId: userArticle.Id,
+						userAccountId: sender.Id,
+						message: binder.Message,
+						recipientAddresses: recipients.Select(r => r.EmailAddress).ToArray(),
+						recipientIds: recipients.Select(r => r.UserAccountId).ToArray(),
+						recipientResults: recipients.Select(r => r.IsSuccessful).ToArray()
+					);
+					return Ok();
+				}
+				return BadRequest();
+			}
 		}
 	}
 }

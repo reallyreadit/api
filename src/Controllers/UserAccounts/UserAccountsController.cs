@@ -22,6 +22,7 @@ using api.DataAccess.Models;
 using System.Net;
 using api.Authorization;
 using Npgsql;
+using System.IO;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -61,11 +62,10 @@ namespace api.Controllers.UserAccounts {
 			}
 		);
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
-			var slugParts = reply.ArticleSlug.Split('_');
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.ReadComment(reply.Id);
 			}
-			return Redirect(serviceOpts.Value.WebServer.CreateUrl($"/articles/{slugParts[0]}/{slugParts[1]}/{reply.Id}"));
+			return Redirect(serviceOpts.Value.WebServer.CreateUrl(RouteHelper.GetArticlePath(reply.ArticleSlug) + "/" + reply.Id.ToString()));
 		}
 		private bool IsPasswordValid(string password) =>
 			!String.IsNullOrWhiteSpace(password) &&

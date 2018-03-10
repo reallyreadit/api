@@ -24,13 +24,13 @@ namespace api.Messaging {
 			String.Empty :
 			address.ToLower().Trim();
 		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), emailOpts.EncryptionKey));
-		private async Task<bool> SendEmail(UserAccount recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
+		private async Task<bool> SendEmail(IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
 			if (!CanSendEmailTo(recipient, requireConfirmation)) {
 				return false;
 			}
 			EmailMailbox
 				from = new EmailMailbox(emailOpts.From.Name, emailOpts.From.Address),
-				to = new EmailMailbox(recipient.Name, recipient.Email);
+				to = new EmailMailbox(recipient.Name, recipient.EmailAddress);
 			var body = await this.viewRenderer.RenderViewToStringAsync(viewName, model);
 			switch (emailOpts.DeliveryMethod) {
 				case EmailDeliveryMethod.AmazonSes:
@@ -51,13 +51,13 @@ namespace api.Messaging {
 				.Select(bounce => NormalizeEmailAddress(bounce.Address))
 				.ToArray();
 		}
-		public bool CanSendEmailTo(UserAccount account, bool requireConfirmation = true) {
+		public bool CanSendEmailTo(IEmailRecipient recipient, bool requireConfirmation = true) {
 			if (this.bouncedAddresses == null) {
 				throw new InvalidOperationException("Email bounces must be registered before calling method");
 			}
 			return (
-				!this.bouncedAddresses.Contains(NormalizeEmailAddress(account.Email)) &&
-				(requireConfirmation ? account.IsEmailConfirmed : true)
+				!this.bouncedAddresses.Contains(NormalizeEmailAddress(recipient.EmailAddress)) &&
+				(requireConfirmation ? recipient.IsEmailAddressConfirmed : true)
 			);
 		}
 		public async Task<bool> SendWelcomeEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
@@ -121,6 +121,18 @@ namespace api.Messaging {
 				subscriptionsToken: CreateToken(recipient.Id)
 			),
 			requireConfirmation: true
+		);
+		public async Task<bool> SendShareEmail(UserAccount sender, IEmailRecipient recipient, UserArticle article, string message) => await SendEmail(
+			recipient,
+			viewName: "ShareEmail",
+			model: new ShareEmailViewModel(
+				title: $"{sender.Name} shared an article with you",
+				webServerEndpoint: this.serviceOpts.WebServer,
+				sender: sender,
+				article: article,
+				message: message
+			),
+			requireConfirmation: false
 		);
 	}
 }

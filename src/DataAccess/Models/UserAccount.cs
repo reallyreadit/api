@@ -1,8 +1,9 @@
 using System;
 using System.Runtime.Serialization;
+using api.Messaging;
 
 namespace api.DataAccess.Models {
-	public class UserAccount {
+	public class UserAccount : IEmailRecipient {
 		public Guid Id { get; set; }
 		public string Name { get; set; }
 		public string Email { get; set; }
@@ -19,5 +20,8 @@ namespace api.DataAccess.Models {
 		public bool ReceiveWebsiteUpdates { get; set; }
 		public bool ReceiveSuggestedReadings { get; set; }
 		public bool IsEmailConfirmed { get; set; }
+
+		string IEmailRecipient.EmailAddress => Email;
+		bool IEmailRecipient.IsEmailAddressConfirmed => IsEmailConfirmed;
 	}
 }

@@ -1,0 +1,13 @@
+@model api.Messaging.Views.ShareEmailViewModel
+
+@{ Layout = "EmailLayout"; }
+
+<h2 style="font-size:18px;">@Model.Sender <em>really read</em> this article and thinks you might like it too: <a href="@Model.ArticleUrl">@Model.ArticleTitle</a></h2>
+
+<p>On reallyread.it, we only allow people to share and comment on articles they've really read. It's a revolution. <a href="https://reallyread.it/about">Learn more.</a></p>
+
+@if (!String.IsNullOrWhiteSpace(Model.Message)) {
+	<blockquote style="padding:10px;background:whitesmoke;color:navy;border-left:3px solid;border-radius:6px;">
+		Message from @Model.Sender: <em>@Model.Message</em>
+	</blockquote>
+}
