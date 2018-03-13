@@ -19,7 +19,7 @@ namespace api.Controllers.BulkMailings {
 		private static string websiteUpdatesList = "WebsiteUpdates";
 		private static string suggestedReadingsList = "SuggestedReadings";
 		private static Dictionary<string, string> listDescriptions = new Dictionary<string, string>() {
-			{ websiteUpdatesList, "website updates" },
+			{ websiteUpdatesList, "community updates" },
 			{ suggestedReadingsList, "suggested readings" }
 		};
 		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts) {
