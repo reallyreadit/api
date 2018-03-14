@@ -195,9 +195,14 @@ namespace api.Controllers.UserAccounts {
 					return BadRequest();
 				}
 				var isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
+				var confirmations = db.ListEmailConfirmations(userAccount.Id);
 				if (
 					isEmailAddressConfirmed ||
-					!IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(userAccount.Id))
+					!confirmations.Any(confirmation => (
+						confirmation.EmailAddress == binder.Email &&
+						!confirmation.DateConfirmed.HasValue &&
+						IsEmailConfirmationRateExceeded(confirmation))
+					)
 				) {
 					try {
 						db.ChangeEmailAddress(userAccount.Id, binder.Email);

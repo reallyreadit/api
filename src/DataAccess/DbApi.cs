@@ -405,6 +405,13 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId, email },
 			commandType: CommandType.StoredProcedure
 		);
+		public static IEnumerable<EmailConfirmation> ListEmailConfirmations(this NpgsqlConnection conn, Guid userAccountId) => conn.Query<EmailConfirmation>(
+			sql: "user_account_api.list_email_confirmations",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static IEnumerable<UserAccount> ListUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
 			sql: "user_account_api.list_user_accounts",
 			commandType: CommandType.StoredProcedure
