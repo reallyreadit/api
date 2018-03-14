@@ -75,7 +75,7 @@ namespace api.Controllers.UserAccounts {
 			userAccount.PasswordHash.SequenceEqual(HashPassword(password, userAccount.PasswordSalt));
 		private bool IsEmailConfirmationRateExceeded(EmailConfirmation latestUnconfirmedConfirmation) =>
 			latestUnconfirmedConfirmation != null ?
-				DateTime.UtcNow.Subtract(latestUnconfirmedConfirmation.DateCreated).TotalHours < 24 :
+				DateTime.UtcNow.Subtract(latestUnconfirmedConfirmation.DateCreated).TotalMinutes < 5 :
 				false;
 		private bool IsPasswordResetRequestValid(PasswordResetRequest request) =>
 				request != null &&
