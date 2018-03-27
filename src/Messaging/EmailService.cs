@@ -16,7 +16,7 @@ using Npgsql;
 
 namespace api.Messaging {
 	public class EmailService {
-		private IEnumerable<string> bouncedAddresses;
+		private Lazy<IEnumerable<string>> bouncedAddresses;
 		private RazorViewToStringRenderer viewRenderer;
 		private EmailOptions emailOpts;
 		private ServiceEndpointsOptions serviceOpts;
@@ -41,25 +41,25 @@ namespace api.Messaging {
 					throw new InvalidOperationException("Unexpected value for DeliveryMethod option");
 			}
 		}
-		public EmailService(RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
+		public EmailService(IOptions<DatabaseOptions> dbOpts, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
+			this.bouncedAddresses = new Lazy<IEnumerable<string>>(
+				() => {
+					using (var db = new NpgsqlConnection(dbOpts.Value.ConnectionString)) {
+						return db
+							.ListEmailBounces()
+							.Select(bounce => NormalizeEmailAddress(bounce.Address))
+							.ToArray();
+					}
+				}
+			);
 			this.viewRenderer = viewRenderer;
 			this.emailOpts = emailOpts.Value;
 			this.serviceOpts = serviceOpts.Value;
 		}
-		public void RegisterEmailBounces(IEnumerable<EmailBounce> bounces) {
-			this.bouncedAddresses = bounces
-				.Select(bounce => NormalizeEmailAddress(bounce.Address))
-				.ToArray();
-		}
-		public bool CanSendEmailTo(IEmailRecipient recipient, bool requireConfirmation = true) {
-			if (this.bouncedAddresses == null) {
-				throw new InvalidOperationException("Email bounces must be registered before calling method");
-			}
-			return (
-				!this.bouncedAddresses.Contains(NormalizeEmailAddress(recipient.EmailAddress)) &&
-				(requireConfirmation ? recipient.IsEmailAddressConfirmed : true)
-			);
-		}
+		public bool CanSendEmailTo(IEmailRecipient recipient, bool requireConfirmation = true) => (
+			!this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(recipient.EmailAddress)) &&
+			(requireConfirmation ? recipient.IsEmailAddressConfirmed : true)
+		);
 		public async Task<bool> SendWelcomeEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
 			recipient,
 			viewName: "WelcomeEmail",

@@ -95,7 +95,6 @@ namespace api.Controllers.UserAccounts {
 				var salt = GenerateSalt();
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 					userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
-					emailService.RegisterEmailBounces(db.ListEmailBounces());
 					await emailService.SendWelcomeEmail(
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
@@ -138,7 +137,6 @@ namespace api.Controllers.UserAccounts {
 					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
 				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
-				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				await emailService.SendConfirmationEmail(
 					recipient: userAccount,
 					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
@@ -215,7 +213,6 @@ namespace api.Controllers.UserAccounts {
 					}
 					var updatedUserAccount = db.GetUserAccount(userAccount.Id);
 					if (!isEmailAddressConfirmed) {
-						emailService.RegisterEmailBounces(db.ListEmailBounces());
 						await emailService.SendConfirmationEmail(
 							recipient: updatedUserAccount,
 							emailConfirmationId: confirmation.Id
@@ -241,7 +238,6 @@ namespace api.Controllers.UserAccounts {
 				if (IsPasswordResetRequestValid(latestRequest)) {
 					return BadRequest(new[] { "RequestLimitExceeded" });
 				}
-				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
 			}
 			return Ok();

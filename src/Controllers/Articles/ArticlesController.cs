@@ -92,7 +92,6 @@ namespace api.Controllers.Articles {
 							if (parent.UserAccountId != this.User.GetUserAccountId()) {
 								var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
-									emailService.RegisterEmailBounces(db.ListEmailBounces());
 									await emailService.SendCommentReplyNotificationEmail(
 										recipient: parentUserAccount,
 										reply: comment
@@ -165,7 +164,6 @@ namespace api.Controllers.Articles {
 				return BadRequest();
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId());
 				if (userArticle.IsRead) {
 					var sender = db.GetUserAccount(User.GetUserAccountId());

@@ -42,7 +42,6 @@ namespace api.Controllers.BulkMailings {
 		[HttpGet]
 		public JsonResult Lists([FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				var mailableUsers = GetMailableUsers(emailService);
 				return Json(new[] {
 					new KeyValuePair<string, string>($"{websiteUpdatesList} ({mailableUsers.Count(u => u.ReceiveWebsiteUpdates)})", websiteUpdatesList),
@@ -53,7 +52,6 @@ namespace api.Controllers.BulkMailings {
 		[HttpPost]
 		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder, [FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				try {
 					var isSuccessful = await emailService.SendBulkMailingEmail(
 						recipient: new UserAccount() {
@@ -78,7 +76,6 @@ namespace api.Controllers.BulkMailings {
 		[HttpPost]
 		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder, [FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				emailService.RegisterEmailBounces(db.ListEmailBounces());
 				IEnumerable<UserAccount> recipients;
 				if (binder.List == websiteUpdatesList) {
 					recipients = GetMailableUsers(emailService)
