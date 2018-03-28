@@ -8,6 +8,6 @@
 
 @if (!String.IsNullOrWhiteSpace(Model.Message)) {
 	<blockquote style="padding:10px;background:whitesmoke;color:navy;border-left:3px solid;border-radius:6px;">
-		Message from @Model.Sender: <em>@Model.Message</em>
+		Message from @Model.Sender: <em>@Html.Raw(Model.Message.Replace("\n", "<br />"))</em>
 	</blockquote>
 }
