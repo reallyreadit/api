@@ -2,8 +2,8 @@ using System;
 using api.Configuration;
 
 namespace api.Messaging.Views {
-	public class BulkMailingEmailViewModel : EmailLayoutViewModel {
-		public BulkMailingEmailViewModel(
+	public class ListSubscriptionEmailViewModel : EmailLayoutViewModel {
+		public ListSubscriptionEmailViewModel(
 			string title,
 			HttpEndpointOptions webServerEndpoint,
 			string body,

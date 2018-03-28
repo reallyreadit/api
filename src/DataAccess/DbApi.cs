@@ -283,6 +283,10 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static IEnumerable<UserAccount> ListConfirmationReminderRecipients(this NpgsqlConnection conn) => conn.Query<UserAccount>(
+			sql: "bulk_mailing_api.list_confirmation_reminder_recipients",
+			commandType: CommandType.StoredProcedure
+		);
 		public static IEnumerable<BulkMailing> ListBulkMailings(this NpgsqlConnection conn) => conn.Query<BulkMailing>(
 			sql: "bulk_mailing_api.list_bulk_mailings",
 			commandType: CommandType.StoredProcedure

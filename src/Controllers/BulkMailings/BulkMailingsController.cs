@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -16,22 +17,43 @@ namespace api.Controllers.BulkMailings {
 	[AuthorizeUserAccountRole(UserAccountRole.Admin)]
 	public class BulkMailingsController : Controller {
 		private DatabaseOptions dbOpts;
-		private static string websiteUpdatesList = "WebsiteUpdates";
-		private static string suggestedReadingsList = "SuggestedReadings";
+		private readonly EmailService emailService;
+		private const string websiteUpdatesList = "WebsiteUpdates";
+		private const string suggestedReadingsList = "SuggestedReadings";
+		private const string confirmationReminderList = "ConfirmationReminder";
 		private static Dictionary<string, string> listDescriptions = new Dictionary<string, string>() {
 			{ websiteUpdatesList, "community updates" },
 			{ suggestedReadingsList, "suggested readings" }
 		};
-		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts) {
+		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts, EmailService emailService) {
 			this.dbOpts = dbOpts.Value;
+			this.emailService = emailService;
 		}
-		private IEnumerable<UserAccount> GetMailableUsers(EmailService emailService) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return db
+		private IEnumerable<UserAccount> GetWebsiteUpdateListUsers(NpgsqlConnection db) => (
+			db
 				.ListUserAccounts()
-				.Where(account => emailService.CanSendEmailTo(account))
+				.Where(user => user.ReceiveWebsiteUpdates && !emailService.HasEmailAddressBounced(user.Email))
+				.ToArray()
+		);
+		private IEnumerable<UserAccount> GetSuggestedReadingListUsers(NpgsqlConnection db) => (
+			db
+				.ListUserAccounts()
+				.Where(user => user.ReceiveSuggestedReadings && !emailService.HasEmailAddressBounced(user.Email))
+				.ToArray()
+		);
+		private IEnumerable<UserAccount> GetConfirmationReminderListUsers(NpgsqlConnection db) {
+			var reminderRecipientAddresses = db
+				.ListConfirmationReminderRecipients()
+				.Select(user => EmailService.NormalizeEmailAddress(user.Email))
 				.ToArray();
-			}
+			return db
+				.ListUserAccounts()
+				.Where(user =>
+					!user.IsEmailConfirmed &&
+					!reminderRecipientAddresses.Contains(EmailService.NormalizeEmailAddress(user.Email)) &&
+					!emailService.HasEmailAddressBounced(user.Email)
+				)
+				.ToArray();
 		}
 		[HttpGet]
 		public JsonResult List() {
@@ -40,12 +62,12 @@ namespace api.Controllers.BulkMailings {
 			}
 		}
 		[HttpGet]
-		public JsonResult Lists([FromServices] EmailService emailService) {
+		public JsonResult Lists() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var mailableUsers = GetMailableUsers(emailService);
 				return Json(new[] {
-					new KeyValuePair<string, string>($"{websiteUpdatesList} ({mailableUsers.Count(u => u.ReceiveWebsiteUpdates)})", websiteUpdatesList),
-					new KeyValuePair<string, string>($"{suggestedReadingsList} ({mailableUsers.Count(u => u.ReceiveSuggestedReadings)})", suggestedReadingsList)
+					new KeyValuePair<string, string>($"{websiteUpdatesList} ({GetWebsiteUpdateListUsers(db).Count()})", websiteUpdatesList),
+					new KeyValuePair<string, string>($"{suggestedReadingsList} ({GetSuggestedReadingListUsers(db).Count()})", suggestedReadingsList),
+					new KeyValuePair<string, string>($"{confirmationReminderList} ({GetConfirmationReminderListUsers(db).Count()})", confirmationReminderList)
 				});
 			}
 		}
@@ -53,17 +75,30 @@ namespace api.Controllers.BulkMailings {
 		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder, [FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				try {
-					var isSuccessful = await emailService.SendBulkMailingEmail(
-						recipient: new UserAccount() {
-							Name = "Test User",
-							Email = binder.EmailAddress,
-							IsEmailConfirmed = true
-						},
-						list: binder.List,
-						subject: binder.Subject,
-						body: binder.Body,
-						listDescription: listDescriptions[binder.List]
-					);
+					bool isSuccessful;
+					if (binder.List == confirmationReminderList) {
+						isSuccessful = await emailService.SendConfirmationReminderEmail(
+							recipient: new UserAccount() {
+								Name = "Test User",
+								Email = binder.EmailAddress,
+								IsEmailConfirmed = false
+							},
+							subject: binder.Subject,
+							body: binder.Body,
+							emailConfirmationId: Guid.NewGuid()
+						);
+					} else {
+						isSuccessful = await emailService.SendListSubscriptionEmail(
+							recipient: new UserAccount() {
+								Name = "Test User",
+								Email = binder.EmailAddress,
+								IsEmailConfirmed = true
+							},
+							subject: binder.Subject,
+							body: binder.Body,
+							listDescription: listDescriptions[binder.List]
+						);
+					}
 					if (isSuccessful) {
 						return Ok();
 					}
@@ -77,16 +112,18 @@ namespace api.Controllers.BulkMailings {
 		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder, [FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				IEnumerable<UserAccount> recipients;
-				if (binder.List == websiteUpdatesList) {
-					recipients = GetMailableUsers(emailService)
-						.Where(u => u.ReceiveWebsiteUpdates)
-						.ToArray();
-				} else if (binder.List == suggestedReadingsList) {
-					recipients = GetMailableUsers(emailService)
-						.Where(u => u.ReceiveSuggestedReadings)
-						.ToArray();
-				} else {
-					return BadRequest();
+				switch (binder.List) {
+					case websiteUpdatesList:
+						recipients = GetWebsiteUpdateListUsers(db);
+						break;
+					case suggestedReadingsList:
+						recipients = GetSuggestedReadingListUsers(db);
+						break;
+					case confirmationReminderList:
+						recipients = GetConfirmationReminderListUsers(db);
+						break;
+					default:
+						return BadRequest();
 				}
 				var bulkMailingRecipients = new List<BulkMailingRecipient>();
 				foreach (var recipient in recipients) {
@@ -94,14 +131,21 @@ namespace api.Controllers.BulkMailings {
 						UserAccountId = recipient.Id
 					};
 					try {
-						var isSuccessful = await emailService.SendBulkMailingEmail(
-							recipient: recipient,
-							list: binder.List,
-							subject: binder.Subject,
-							body: binder.Body,
-							listDescription: listDescriptions[binder.List]
-						);
-						bulkMailingRecipient.IsSuccessful = isSuccessful;
+						if (binder.List == confirmationReminderList) {
+							bulkMailingRecipient.IsSuccessful = await emailService.SendConfirmationReminderEmail(
+								recipient: recipient,
+								subject: binder.Subject,
+								body: binder.Body,
+								emailConfirmationId: db.GetLatestUnconfirmedEmailConfirmation(recipient.Id).Id
+							);
+						} else {
+							bulkMailingRecipient.IsSuccessful = await emailService.SendListSubscriptionEmail(
+								recipient: recipient,
+								subject: binder.Subject,
+								body: binder.Body,
+								listDescription: listDescriptions[binder.List]
+							);
+						}
 					} catch {
 						bulkMailingRecipient.IsSuccessful = false;
 					}

@@ -20,12 +20,12 @@ namespace api.Messaging {
 		private RazorViewToStringRenderer viewRenderer;
 		private EmailOptions emailOpts;
 		private ServiceEndpointsOptions serviceOpts;
-		private static string NormalizeEmailAddress(string address) => String.IsNullOrWhiteSpace(address) ?
-			String.Empty :
-			address.ToLower().Trim();
 		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), emailOpts.EncryptionKey));
 		private async Task<bool> SendEmail(IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
-			if (!CanSendEmailTo(recipient, requireConfirmation)) {
+			if (
+				(requireConfirmation && !recipient.IsEmailAddressConfirmed) ||
+				(HasEmailAddressBounced(recipient.EmailAddress))
+			) {
 				return false;
 			}
 			EmailMailbox
@@ -41,6 +41,11 @@ namespace api.Messaging {
 					throw new InvalidOperationException("Unexpected value for DeliveryMethod option");
 			}
 		}
+		public static string NormalizeEmailAddress(string address) => (
+			String.IsNullOrWhiteSpace(address) ?
+				String.Empty :
+				address.ToLower().Trim()
+		);
 		public EmailService(IOptions<DatabaseOptions> dbOpts, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			this.bouncedAddresses = new Lazy<IEnumerable<string>>(
 				() => {
@@ -56,9 +61,8 @@ namespace api.Messaging {
 			this.emailOpts = emailOpts.Value;
 			this.serviceOpts = serviceOpts.Value;
 		}
-		public bool CanSendEmailTo(IEmailRecipient recipient, bool requireConfirmation = true) => (
-			!this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(recipient.EmailAddress)) &&
-			(requireConfirmation ? recipient.IsEmailAddressConfirmed : true)
+		public bool HasEmailAddressBounced(string emailAddress) => (
+			this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(emailAddress))
 		);
 		public async Task<bool> SendWelcomeEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
 			recipient,
@@ -110,10 +114,10 @@ namespace api.Messaging {
 			),
 			requireConfirmation: true
 		);
-		public async Task<bool> SendBulkMailingEmail(UserAccount recipient, string list, string subject, string body, string listDescription) => await SendEmail(
+		public async Task<bool> SendListSubscriptionEmail(UserAccount recipient, string subject, string body, string listDescription) => await SendEmail(
 			recipient,
-			viewName: "BulkMailingEmail",
-			model: new BulkMailingEmailViewModel(
+			viewName: "ListSubscriptionEmail",
+			model: new ListSubscriptionEmailViewModel(
 				title: subject,
 				webServerEndpoint: this.serviceOpts.WebServer,
 				body: body,
@@ -121,6 +125,19 @@ namespace api.Messaging {
 				subscriptionsToken: CreateToken(recipient.Id)
 			),
 			requireConfirmation: true
+		);
+		public async Task<bool> SendConfirmationReminderEmail(UserAccount recipient, string subject, string body, Guid emailConfirmationId) => await SendEmail(
+			recipient,
+			viewName: "ConfirmationReminderEmail",
+			model: new ConfirmationReminderEmailViewModel(
+				title: subject,
+				webServerEndpoint: this.serviceOpts.WebServer,
+				body: body,
+				confirmationToken: CreateToken(emailConfirmationId),
+				subscriptionsToken: CreateToken(recipient.Id),
+				apiServerEndpoint: this.serviceOpts.ApiServer
+			),
+			requireConfirmation: false
 		);
 		public async Task<bool> SendShareEmail(UserAccount sender, IEmailRecipient recipient, UserArticle article, string message) => await SendEmail(
 			recipient,
