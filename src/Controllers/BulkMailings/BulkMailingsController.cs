@@ -32,13 +32,21 @@ namespace api.Controllers.BulkMailings {
 		private IEnumerable<UserAccount> GetWebsiteUpdateListUsers(NpgsqlConnection db) => (
 			db
 				.ListUserAccounts()
-				.Where(user => user.ReceiveWebsiteUpdates && !emailService.HasEmailAddressBounced(user.Email))
+				.Where(user =>
+					user.IsEmailConfirmed &&
+					user.ReceiveWebsiteUpdates &&
+					!emailService.HasEmailAddressBounced(user.Email)
+				)
 				.ToArray()
 		);
 		private IEnumerable<UserAccount> GetSuggestedReadingListUsers(NpgsqlConnection db) => (
 			db
 				.ListUserAccounts()
-				.Where(user => user.ReceiveSuggestedReadings && !emailService.HasEmailAddressBounced(user.Email))
+				.Where(user =>
+					user.IsEmailConfirmed &&
+					user.ReceiveSuggestedReadings &&
+					!emailService.HasEmailAddressBounced(user.Email)
+				)
 				.ToArray()
 		);
 		private IEnumerable<UserAccount> GetConfirmationReminderListUsers(NpgsqlConnection db) {
