@@ -1,7 +1,5 @@
-using System;
-
 namespace api.Controllers.Articles {
 	public class ReadReplyBinder {
-		public Guid CommentId { get; set; }
+		public long CommentId { get; set; }
 	}
 }

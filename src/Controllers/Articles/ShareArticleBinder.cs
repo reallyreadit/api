@@ -6,7 +6,7 @@ namespace api.Controllers.Articles {
 	public class ShareArticleBinder {
 		private string message;
 		private string[] emailAddresses = new string[0];
-		public Guid ArticleId { get; set; }
+		public long ArticleId { get; set; }
 		public string[] EmailAddresses {
 			get { return emailAddresses; }
 			set {

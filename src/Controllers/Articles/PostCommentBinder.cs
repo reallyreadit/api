@@ -1,9 +1,7 @@
-using System;
-
 namespace api.Controllers.Articles {
 	public class PostCommentBinder {
 		public string Text { get; set; }
-		public Guid ArticleId { get; set; }
-		public Guid? ParentCommentId { get; set; }
+		public long ArticleId { get; set; }
+		public long? ParentCommentId { get; set; }
 	}
 }

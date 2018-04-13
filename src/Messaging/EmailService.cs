@@ -64,7 +64,7 @@ namespace api.Messaging {
 		public bool HasEmailAddressBounced(string emailAddress) => (
 			this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(emailAddress))
 		);
-		public async Task<bool> SendWelcomeEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
+		public async Task<bool> SendWelcomeEmail(UserAccount recipient, long emailConfirmationId) => await SendEmail(
 			recipient,
 			viewName: "WelcomeEmail",
 			model: new ConfirmationEmailViewModel(
@@ -76,7 +76,7 @@ namespace api.Messaging {
 			),
 			requireConfirmation: false
 		);
-		public async Task<bool> SendConfirmationEmail(UserAccount recipient, Guid emailConfirmationId) => await SendEmail(
+		public async Task<bool> SendConfirmationEmail(UserAccount recipient, long emailConfirmationId) => await SendEmail(
 			recipient,
 			viewName: "ConfirmationEmail",
 			model: new ConfirmationEmailViewModel(
@@ -88,7 +88,7 @@ namespace api.Messaging {
 			),
 			requireConfirmation: false
 		);
-		public async Task<bool> SendPasswordResetEmail(UserAccount recipient, Guid passwordResetRequestId) => await SendEmail(
+		public async Task<bool> SendPasswordResetEmail(UserAccount recipient, long passwordResetRequestId) => await SendEmail(
 			recipient,
 			viewName: "PasswordResetEmail",
 			model: new ConfirmationEmailViewModel(
@@ -126,7 +126,7 @@ namespace api.Messaging {
 			),
 			requireConfirmation: true
 		);
-		public async Task<bool> SendConfirmationReminderEmail(UserAccount recipient, string subject, string body, Guid emailConfirmationId) => await SendEmail(
+		public async Task<bool> SendConfirmationReminderEmail(UserAccount recipient, string subject, string body, long emailConfirmationId) => await SendEmail(
 			recipient,
 			viewName: "ConfirmationReminderEmail",
 			model: new ConfirmationReminderEmailViewModel(

@@ -93,7 +93,7 @@ namespace api.Controllers.BulkMailings {
 							},
 							subject: binder.Subject,
 							body: binder.Body,
-							emailConfirmationId: Guid.NewGuid()
+							emailConfirmationId: 0
 						);
 					} else {
 						isSuccessful = await emailService.SendListSubscriptionEmail(
@@ -164,7 +164,7 @@ namespace api.Controllers.BulkMailings {
 					subject: binder.Subject,
 					body: binder.Body,
 					list: binder.List,
-					userAccountId: User.GetUserAccountId(),
+					userAccountId: User.GetUserAccountId(db),
 					recipientIds: bulkMailingRecipients.Select(recipient => recipient.UserAccountId).ToArray(),
 					recipientResults: bulkMailingRecipients.Select(recipient => recipient.IsSuccessful).ToArray()
 				);
