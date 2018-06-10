@@ -23,6 +23,7 @@ using System.Net;
 using api.Authorization;
 using Npgsql;
 using System.IO;
+using api.Security;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -85,10 +86,14 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
 			[FromBody] CreateAccountBinder binder,
-			[FromServices] EmailService emailService
+			[FromServices] EmailService emailService,
+			[FromServices] CaptchaService captchaService
 		) {
 			if (!IsPasswordValid(binder.Password)) {
 				return BadRequest();
+			}
+			if (!await captchaService.IsValid("6LcxOV4UAAAAANL4lei_e8pFZM-q0_wjbvTb0vPy", binder.CaptchaResponse)) {
+				return BadRequest(new[] { "InvalidCaptcha" });
 			}
 			try {
 				UserAccount userAccount;
@@ -226,9 +231,13 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> RequestPasswordReset(
-			[FromBody] EmailAddressBinder binder,
-			[FromServices] EmailService emailService
+			[FromBody] PasswordResetRequestBinder binder,
+			[FromServices] EmailService emailService,
+			[FromServices] CaptchaService captchaService
 		) {
+			if (!await captchaService.IsValid("6LeSR14UAAAAAJqdK9Bqa9sibWfKTveSVf3OdH_x", binder.CaptchaResponse)) {
+				return BadRequest(new[] { "InvalidCaptcha" });
+			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccount = db.FindUserAccount(binder.Email);
 				if (userAccount == null) {
@@ -261,6 +270,8 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder) {
+			// rate limit
+			await Task.Delay(1000);
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				userAccount = db.FindUserAccount(binder.Email);

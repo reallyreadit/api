@@ -23,6 +23,7 @@ using System;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Serilog;
+using api.Security;
 
 namespace api {
 	public class Startup {
@@ -65,6 +66,7 @@ namespace api {
 			// configure options
 			services
 				.Configure<MyAuthenticationOptions>(config.GetSection("Authentication"))
+				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
 				.Configure<CorsOptions>(config.GetSection("Cors"))
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(config.GetSection("Email"))
@@ -72,6 +74,7 @@ namespace api {
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
 			// configure services
 			services
+				.AddScoped<CaptchaService>()
 				.AddScoped<EmailService>()
 				.AddTransient<RazorViewToStringRenderer>();
 			// configure shared key ring in production

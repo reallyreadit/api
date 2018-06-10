@@ -12,6 +12,7 @@ using System.Threading.Tasks;
 using api.DataAccess.Models;
 using Npgsql;
 using System.Collections.Generic;
+using api.Security;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -154,7 +155,11 @@ namespace api.Controllers.Articles {
 			return Ok();
 		}
 		[HttpPost]
-		public async Task<IActionResult> Share([FromBody] ShareArticleBinder binder, [FromServices] EmailService emailService) {
+		public async Task<IActionResult> Share(
+			[FromBody] ShareArticleBinder binder,
+			[FromServices] EmailService emailService,
+			[FromServices] CaptchaService captchaService
+		) {
 			if (
 				binder.EmailAddresses.Length < 1 ||
 				binder.EmailAddresses.Length > 5 ||
@@ -164,9 +169,15 @@ namespace api.Controllers.Articles {
 				return BadRequest();
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var sender = db.GetUserAccount(User.GetUserAccountId(db));
+				if (!sender.IsEmailConfirmed) {
+					return BadRequest(new[] { "UnconfirmedEmail" });
+				}
+				if (!await captchaService.IsValid("6LegNF4UAAAAAJvSX5a7aZXvgQ_4h0W2NzWiGmCe", binder.CaptchaResponse)) {
+					return BadRequest(new[] { "InvalidCaptcha" });
+				}
 				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId(db));
 				if (userArticle.IsRead) {
-					var sender = db.GetUserAccount(User.GetUserAccountId(db));
 					var recipients = new List<EmailShareRecipient>();
 					foreach (var address in binder.EmailAddresses) {
 						var recipient = db.FindUserAccount(address);

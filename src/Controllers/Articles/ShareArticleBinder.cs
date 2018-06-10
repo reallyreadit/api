@@ -25,5 +25,6 @@ namespace api.Controllers.Articles {
 				}
 			}
 		}
+		public string CaptchaResponse { get; set; }
 	}
 }
