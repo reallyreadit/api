@@ -29,6 +29,7 @@ namespace api.DataAccess.Models {
 		public DateTime? LastModified { get; set; }
 		public decimal PercentComplete { get; set; }
 		public bool IsRead { get; set; }
+		public DateTime? DateCompleted { get; set; }
 		public DateTime? DateStarred { get; set; }
 	}
 }

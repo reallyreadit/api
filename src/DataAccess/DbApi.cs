@@ -8,6 +8,8 @@ using Microsoft.Extensions.Options;
 using api.Configuration;
 using System.Linq;
 using System.Threading.Tasks;
+using NpgsqlTypes;
+using System.Data.Common;
 
 namespace api.DataAccess {
     public static class DbApi {
@@ -297,6 +299,103 @@ namespace api.DataAccess {
 		);
 		#endregion
 
+		#region challenge_api
+		public static ChallengeResponse CreateChallengeResponse(
+			this NpgsqlConnection conn,
+			long challengeId,
+			long userAccountId,
+			ChallengeResponseAction action,
+			long? timeZoneId
+		) {
+			conn.Open();
+			using (var cmd = new NpgsqlCommand("challenge_api.create_challenge_response", conn) {
+				Parameters = {
+					new NpgsqlParameter("challenge_id", challengeId),
+					new NpgsqlParameter("user_account_id", userAccountId),
+					new NpgsqlParameter("action", action) {
+						NpgsqlDbType = NpgsqlDbType.Enum,
+						SpecificType = typeof(ChallengeResponseAction)
+					},
+					new NpgsqlParameter("time_zone_id", timeZoneId.HasValue ? timeZoneId.Value : DBNull.Value as Object)
+				},
+				CommandType = CommandType.StoredProcedure
+			})
+			using (var reader = cmd.ExecuteReader()) {
+				reader.Read();
+				return new ChallengeResponse() {
+					Id = reader.GetInt64(0),
+					ChallengeId = reader.GetInt64(1),
+					UserAccountId = reader.GetInt64(2),
+					Date = reader.GetDateTime(3),
+					Action = reader.GetFieldValue<ChallengeResponseAction>(4),
+					TimeZoneId = reader.IsDBNull(5) ? null : new Nullable<Int64>(reader.GetInt64(5)),
+					TimeZoneName = reader.IsDBNull(6) ? null : reader.GetString(6)
+				};
+			}
+		}
+		public static IEnumerable<Challenge> GetActiveChallenges(
+			this NpgsqlConnection conn
+		) => conn.Query<Challenge>(
+			sql: "challenge_api.get_active_challenges",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<ChallengeContender>> GetChallengeContenders(
+			this NpgsqlConnection conn,
+			long challengeId
+		) => await conn.QueryAsync<ChallengeContender>(
+			sql: "challenge_api.get_challenge_contenders",
+			param: new { challenge_id = challengeId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static IEnumerable<ChallengeResponseTotal> GetChallengeResponseActionTotals(
+			this NpgsqlConnection conn
+		) => conn.Query<ChallengeResponseTotal>(
+			sql: "challenge_api.get_challenge_response_action_totals",
+			commandType: CommandType.StoredProcedure
+		);
+		public static ChallengeScore GetChallengeScore(
+			this NpgsqlConnection conn,
+			long challengeId,
+			long userAccountId
+		) => conn.QuerySingleOrDefault<ChallengeScore>(
+			sql: "challenge_api.get_challenge_score",
+			param: new {
+				challenge_id = challengeId,
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<ChallengeWinner>> GetChallengeWinners(
+			this NpgsqlConnection conn,
+			long challengeId
+		) => await conn.QueryAsync<ChallengeWinner>(
+			sql: "challenge_api.get_challenge_winners",
+			param: new { challenge_id = challengeId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static ChallengeResponse GetLatestChallengeResponse(
+			this NpgsqlConnection conn,
+			long challengeId,
+			long userAccountId
+		) => conn.QuerySingleOrDefault<ChallengeResponse>(
+			sql: "challenge_api.get_latest_challenge_response",
+			param: new {
+				challenge_id = challengeId,
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
+
+		#region core
+		public static IEnumerable<TimeZone> GetTimeZones(
+			this NpgsqlConnection conn
+		) => conn.Query<TimeZone>(
+			sql: "get_time_zones",
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
+
 		#region user_account_api
 		public static void AckNewReply(this NpgsqlConnection conn, long userAccountId) => conn.Execute(
 			sql: "user_account_api.ack_new_reply",
@@ -450,6 +549,18 @@ namespace api.DataAccess {
 				user_account_id = userAccountId,
 				receive_reply_email_notifications = receiveReplyEmailNotifications,
 				receive_reply_desktop_notifications = receiveReplyDesktopNotifications
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static UserAccount UpdateTimeZone(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			long timeZoneId
+		) => conn.QuerySingleOrDefault<UserAccount>(
+			sql: "user_account_api.update_time_zone",
+			param: new {
+				user_account_id = userAccountId,
+				time_zone_id = timeZoneId
 			},
 			commandType: CommandType.StoredProcedure
 		);

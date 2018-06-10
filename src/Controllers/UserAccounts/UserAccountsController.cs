@@ -437,5 +437,29 @@ namespace api.Controllers.UserAccounts {
 				);
 			}
 		}
+		[HttpGet]
+		public JsonResult TimeZones() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					db
+						.GetTimeZones()
+						.GroupBy(zone => new { zone.DisplayName, zone.BaseUtcOffset })
+						.OrderBy(group => group.Key.BaseUtcOffset)
+						.ThenBy(group => group.Key.DisplayName)
+						.Select(group => new KeyValuePair<string, object[]>(
+							key: group.Key.DisplayName,
+							value: group
+								.OrderBy(zone => zone.Territory)
+								.Select(zone => new {
+									zone.Id,
+									zone.Territory,
+									zone.Name
+								})
+								.ToArray()
+						))
+						.ToArray()
+				);
+			}
+		}
    }
 }

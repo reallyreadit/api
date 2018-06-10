@@ -20,6 +20,9 @@ namespace api.DataAccess.Models {
 		public bool ReceiveWebsiteUpdates { get; set; }
 		public bool ReceiveSuggestedReadings { get; set; }
 		public bool IsEmailConfirmed { get; set; }
+		public long? TimeZoneId { get; set; }
+		public string TimeZoneName { get; set; }
+		public string TimeZoneDisplayName { get; set; }
 
 		string IEmailRecipient.EmailAddress => Email;
 		bool IEmailRecipient.IsEmailAddressConfirmed => IsEmailConfirmed;

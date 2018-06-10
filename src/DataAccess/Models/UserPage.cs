@@ -9,5 +9,6 @@ namespace api.DataAccess.Models {
 		public DateTime? LastModified { get; set; }
 		public int[] ReadState { get; set; }
 		public int WordsRead { get; set; }
+		public DateTime? DateCompleted { get; set; }
 	}
 }

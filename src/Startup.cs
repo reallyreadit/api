@@ -139,6 +139,7 @@ namespace api {
 			// configure routes
 			app.UseMvcWithDefaultRoute();
 			// configure Npgsql
+			NpgsqlConnection.MapEnumGlobally<ChallengeResponseAction>();
 			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
 			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
 			// configure Dapper
