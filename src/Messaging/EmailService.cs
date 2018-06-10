@@ -21,22 +21,27 @@ namespace api.Messaging {
 		private EmailOptions emailOpts;
 		private ServiceEndpointsOptions serviceOpts;
 		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), emailOpts.EncryptionKey));
-		private async Task<bool> SendEmail(IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
+		private async Task<bool> SendEmail(IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) => await SendEmail(
+			new EmailMailbox(emailOpts.From.Name, emailOpts.From.Address),
+			recipient,
+			viewName,
+			model,
+			requireConfirmation
+		);
+		private async Task<bool> SendEmail(EmailMailbox sender, IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
 			if (
 				(requireConfirmation && !recipient.IsEmailAddressConfirmed) ||
 				(HasEmailAddressBounced(recipient.EmailAddress))
 			) {
 				return false;
 			}
-			EmailMailbox
-				from = new EmailMailbox(emailOpts.From.Name, emailOpts.From.Address),
-				to = new EmailMailbox(recipient.Name, recipient.EmailAddress);
+			var recipientMailbox = new EmailMailbox(recipient.Name, recipient.EmailAddress);
 			var body = await this.viewRenderer.RenderViewToStringAsync(viewName, model);
 			switch (emailOpts.DeliveryMethod) {
 				case EmailDeliveryMethod.AmazonSes:
-					return await AmazonSesEmailService.SendEmail(from, to, model.Title, body, emailOpts.AmazonSesRegionEndpoint);
+					return await AmazonSesEmailService.SendEmail(sender, recipientMailbox, model.Title, body, emailOpts.AmazonSesRegionEndpoint);
 				case EmailDeliveryMethod.Smtp:
-					return await SmtpEmailService.SendEmail(from, to, model.Title, body, emailOpts.SmtpServer.Host, emailOpts.SmtpServer.Port);
+					return await SmtpEmailService.SendEmail(sender, recipientMailbox, model.Title, body, emailOpts.SmtpServer.Host, emailOpts.SmtpServer.Port);
 				default:
 					throw new InvalidOperationException("Unexpected value for DeliveryMethod option");
 			}
@@ -140,6 +145,7 @@ namespace api.Messaging {
 			requireConfirmation: false
 		);
 		public async Task<bool> SendShareEmail(UserAccount sender, IEmailRecipient recipient, UserArticle article, string message) => await SendEmail(
+			new EmailMailbox(sender.Name, sender.Email),
 			recipient,
 			viewName: "ShareEmail",
 			model: new ShareEmailViewModel(
