@@ -26,7 +26,31 @@ namespace api.Controllers.Challenges {
 			}
 		}
 		[HttpPost]
-		public IActionResult Respond([FromBody] ResponseForm form) {
+		public IActionResult Quit([FromBody] QuitForm form) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccountId = User.GetUserAccountId(db);
+				var latestResponse = db.GetLatestChallengeResponse(form.ChallengeId, userAccountId);
+				if (latestResponse == null || latestResponse.Action == ChallengeResponseAction.Enroll) {
+					return Json(db.CreateChallengeResponse(
+						challengeId: form.ChallengeId,
+						userAccountId: userAccountId,
+						action: latestResponse == null ?
+							ChallengeResponseAction.Decline :
+							ChallengeResponseAction.Disenroll,
+						timeZoneId: null
+					));
+				}
+				return BadRequest();
+			}
+		}
+		[HttpGet]
+		public JsonResult Score(int challengeId) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(db.GetChallengeScore(challengeId, User.GetUserAccountId(db)));
+			}
+		}
+		[HttpPost]
+		public IActionResult Start([FromBody] StartForm form) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = User.GetUserAccountId(db);
 				if (!db.GetUserAccount(userAccountId).IsEmailConfirmed) {
@@ -35,25 +59,14 @@ namespace api.Controllers.Challenges {
 				var response = db.CreateChallengeResponse(
 					challengeId: form.ChallengeId,
 					userAccountId: userAccountId,
-					action: form.Action,
+					action: ChallengeResponseAction.Enroll,
 					timeZoneId: form.TimeZoneId
 				);
-				ChallengeScore score;
-				if (form.Action == ChallengeResponseAction.Enroll) {
-					score = db.GetChallengeScore(form.ChallengeId, userAccountId);
-				} else {
-					score = null;
-				}
+				var score = db.GetChallengeScore(form.ChallengeId, userAccountId);
 				return Json(new {
 					Response = response,
 					Score = score
 				});
-			}
-		}
-		[HttpGet]
-		public JsonResult Score(int challengeId) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetChallengeScore(challengeId, User.GetUserAccountId(db)));
 			}
 		}
 		[AllowAnonymous]
