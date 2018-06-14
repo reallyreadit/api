@@ -10,6 +10,7 @@ using api.DataAccess.Models;
 using api.Messaging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -18,6 +19,7 @@ namespace api.Controllers.BulkMailings {
 	public class BulkMailingsController : Controller {
 		private DatabaseOptions dbOpts;
 		private readonly EmailService emailService;
+		private readonly ILogger<BulkMailingsController> log;
 		private const string websiteUpdatesList = "WebsiteUpdates";
 		private const string suggestedReadingsList = "SuggestedReadings";
 		private const string confirmationReminderList = "ConfirmationReminder";
@@ -25,9 +27,14 @@ namespace api.Controllers.BulkMailings {
 			{ websiteUpdatesList, "community updates" },
 			{ suggestedReadingsList, "suggested readings" }
 		};
-		public BulkMailingsController(IOptions<DatabaseOptions> dbOpts, EmailService emailService) {
+		public BulkMailingsController(
+			IOptions<DatabaseOptions> dbOpts,
+			EmailService emailService,
+			ILogger<BulkMailingsController> log
+		) {
 			this.dbOpts = dbOpts.Value;
 			this.emailService = emailService;
+			this.log = log;
 		}
 		private IEnumerable<UserAccount> GetWebsiteUpdateListUsers(NpgsqlConnection db) => (
 			db
@@ -111,7 +118,8 @@ namespace api.Controllers.BulkMailings {
 						return Ok();
 					}
 					return BadRequest();
-				} catch {
+				} catch (Exception ex) {
+					log.LogError(500, ex, "Error sending bulk email.");
 					return BadRequest();
 				}
 			}

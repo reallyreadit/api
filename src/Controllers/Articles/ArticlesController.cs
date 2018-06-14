@@ -13,12 +13,15 @@ using api.DataAccess.Models;
 using Npgsql;
 using System.Collections.Generic;
 using api.Security;
+using Microsoft.Extensions.Logging;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
 		private DatabaseOptions dbOpts;
-		public ArticlesController(IOptions<DatabaseOptions> dbOpts) {
+		private readonly ILogger<ArticlesController> log;
+		public ArticlesController(IOptions<DatabaseOptions> dbOpts, ILogger<ArticlesController> log) {
 			this.dbOpts = dbOpts.Value;
+			this.log = log;
 		}
 		[AllowAnonymous]
 		[HttpGet]
@@ -191,7 +194,8 @@ namespace api.Controllers.Articles {
 								article: userArticle,
 								message: binder.Message
 							);
-						} catch {
+						} catch (Exception ex) {
+							log.LogError(500, ex, "Error sending share email.");
 							sentSuccessfully = false;
 						}
 						recipients.Add(new EmailShareRecipient(address, recipient?.Id ?? 0, sentSuccessfully));
