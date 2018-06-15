@@ -1,6 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using api.Authentication;
+using api.Authorization;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
@@ -20,7 +23,9 @@ namespace api.Controllers.Challenges {
 		public async Task<JsonResult> Leaderboard(int challengeId) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(new {
-					Winners = await db.GetChallengeWinners(challengeId),
+					Winners = (await db.GetChallengeWinners(challengeId))
+						.Select(winner => new { winner.Name, winner.DateAwarded })
+						.ToArray(),
 					Contenders = await db.GetChallengeContenders(challengeId)
 				});
 			}
@@ -41,6 +46,13 @@ namespace api.Controllers.Challenges {
 					));
 				}
 				return BadRequest();
+			}
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		[HttpGet]
+		public JsonResult ResponseActionTotals(int challengeId) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(db.GetChallengeResponseActionTotals(challengeId));
 			}
 		}
 		[HttpGet]
@@ -95,6 +107,13 @@ namespace api.Controllers.Challenges {
 					LatestResponse = latestResponse,
 					Score = score
 				});
+			}
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		[HttpGet]
+		public async Task<JsonResult> Winners(int challengeId) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.GetChallengeWinners(challengeId));
 			}
 		}
 	}

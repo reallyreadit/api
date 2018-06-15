@@ -348,9 +348,13 @@ namespace api.DataAccess {
 			commandType: CommandType.StoredProcedure
 		);
 		public static IEnumerable<ChallengeResponseTotal> GetChallengeResponseActionTotals(
-			this NpgsqlConnection conn
+			this NpgsqlConnection conn,
+			int challengeId
 		) => conn.Query<ChallengeResponseTotal>(
 			sql: "challenge_api.get_challenge_response_action_totals",
+			param: new {
+				challenge_id = challengeId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static ChallengeScore GetChallengeScore(

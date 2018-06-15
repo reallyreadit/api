@@ -472,5 +472,16 @@ namespace api.Controllers.UserAccounts {
 				);
 			}
 		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		[HttpGet]
+		public JsonResult Stats() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var users = db.ListUserAccounts();
+				return Json(new {
+					TotalCount = users.Count(),
+					ConfirmedCount = users.Count(user => user.IsEmailConfirmed)
+				});
+			}
+		}
    }
 }
