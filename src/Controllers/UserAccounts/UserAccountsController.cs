@@ -138,10 +138,10 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> ResendConfirmationEmail([FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId(db)))) {
+				if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
 					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId(db));
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 				await emailService.SendConfirmationEmail(
 					recipient: userAccount,
 					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
@@ -155,7 +155,7 @@ namespace api.Controllers.UserAccounts {
 				return BadRequest();
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId(db));
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 				if (!IsCorrectPassword(userAccount, binder.CurrentPassword)) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
@@ -193,7 +193,7 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] EmailService emailService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId(db));
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 				if (userAccount.Email == binder.Email) {
 					return BadRequest();
 				}
@@ -254,13 +254,13 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult GetUserAccount() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetUserAccount(this.User.GetUserAccountId(db)));
+				return Json(db.GetUserAccount(this.User.GetUserAccountId()));
 			}
 		}
 		[HttpGet]
 		public IActionResult GetSessionState() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId(db));
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 				return Json(new {
 					UserAccount = userAccount,
 					NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestUnreadReply(userAccount.Id))
@@ -297,7 +297,7 @@ namespace api.Controllers.UserAccounts {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(db.UpdateNotificationPreferences(
-					this.User.GetUserAccountId(db),
+					this.User.GetUserAccountId(),
 					binder.ReceiveEmailNotifications,
 					binder.ReceiveDesktopNotifications
 				));
@@ -309,7 +309,7 @@ namespace api.Controllers.UserAccounts {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(db.UpdateContactPreferences(
-					this.User.GetUserAccountId(db),
+					this.User.GetUserAccountId(),
 					binder.ReceiveWebsiteUpdates,
 					binder.ReceiveSuggestedReadings
 				));
@@ -319,22 +319,22 @@ namespace api.Controllers.UserAccounts {
 		public IActionResult CheckNewReplyNotification() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(new NewReplyNotification(
-					userAccount: db.GetUserAccount(this.User.GetUserAccountId(db)),
-					latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId(db))
+					userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
+					latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
 				));
 			}
 		}
 		[HttpPost]
 		public IActionResult AckNewReply() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.AckNewReply(this.User.GetUserAccountId(db));
+				db.AckNewReply(this.User.GetUserAccountId());
 			}
 			return Ok();
 		}
 		[HttpPost]
 		public IActionResult CreateDesktopNotification() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId(db));
+				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 				db.RecordNewReplyDesktopNotification(userAccount.Id);
 				if (userAccount.ReceiveReplyDesktopNotifications) {
 					var latestUnreadReply = db.GetLatestUnreadReply(userAccount.Id);

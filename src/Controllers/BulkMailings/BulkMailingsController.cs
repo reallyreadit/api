@@ -172,7 +172,7 @@ namespace api.Controllers.BulkMailings {
 					subject: binder.Subject,
 					body: binder.Body,
 					list: binder.List,
-					userAccountId: User.GetUserAccountId(db),
+					userAccountId: User.GetUserAccountId(),
 					recipientIds: bulkMailingRecipients.Select(recipient => recipient.UserAccountId).ToArray(),
 					recipientResults: bulkMailingRecipients.Select(recipient => recipient.IsSuccessful).ToArray()
 				);

@@ -29,8 +29,8 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(this.User.Identity.IsAuthenticated ?
 					new {
-						Aotd = await db.GetUserAotd(this.User.GetUserAccountId(db)),
-						Articles = await db.ListUserHotTopics(this.User.GetUserAccountId(db), pageNumber, 40)
+						Aotd = await db.GetUserAotd(this.User.GetUserAccountId()),
+						Articles = await db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 40)
 					} :
 					new {
 						Aotd = await db.GetAotd(),
@@ -42,13 +42,13 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult ListStarred(int pageNumber) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.ListStarredArticles(this.User.GetUserAccountId(db), pageNumber, 40));
+				return Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 40));
 			}
 		}
 		[HttpGet]
 		public IActionResult ListHistory(int pageNumber) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.ListUserArticleHistory(this.User.GetUserAccountId(db), pageNumber, 40));
+				return Json(db.ListUserArticleHistory(this.User.GetUserAccountId(), pageNumber, 40));
 			}
 		}
 		[AllowAnonymous]
@@ -56,7 +56,7 @@ namespace api.Controllers.Articles {
 		public IActionResult Details(string slug) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(this.User.Identity.IsAuthenticated ?
-					db.FindUserArticle(slug, this.User.GetUserAccountId(db)) :
+					db.FindUserArticle(slug, this.User.GetUserAccountId()) :
 					db.FindArticle(slug)
 				);
 			}
@@ -88,12 +88,12 @@ namespace api.Controllers.Articles {
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId(db));
+					var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
 					if (userArticle.IsRead) {
-						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId(db));
+						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
 						if (binder.ParentCommentId.HasValue) {
 							var parent = db.GetComment(binder.ParentCommentId.Value);
-							if (parent.UserAccountId != this.User.GetUserAccountId(db)) {
+							if (parent.UserAccountId != this.User.GetUserAccountId()) {
 								var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
 									await emailService.SendCommentReplyNotificationEmail(
@@ -112,7 +112,7 @@ namespace api.Controllers.Articles {
 		[HttpPost]
 		public IActionResult UserDelete([FromBody] ArticleIdBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId(db);
+				var userAccountId = this.User.GetUserAccountId();
 				var article = db.GetUserArticle(binder.ArticleId, userAccountId);
 				if (article.DateStarred.HasValue) {
 					db.UnstarArticle(userAccountId, article.Id);
@@ -127,7 +127,7 @@ namespace api.Controllers.Articles {
 		public IActionResult ListReplies(int pageNumber) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(PageResult<CommentThread>.Create(
-					source: db.ListReplies(this.User.GetUserAccountId(db), pageNumber, 40),
+					source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 40),
 					map: comments => comments.Select(c => new CommentThread(c))
 				));
 			}
@@ -136,7 +136,7 @@ namespace api.Controllers.Articles {
 		public IActionResult ReadReply([FromBody] ReadReplyBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var comment = db.GetComment(binder.CommentId);
-				if (db.GetComment(comment.ParentCommentId.Value).UserAccountId == User.GetUserAccountId(db)) {
+				if (db.GetComment(comment.ParentCommentId.Value).UserAccountId == User.GetUserAccountId()) {
 					db.ReadComment(comment.Id);
 					return Ok();
 				}
@@ -146,14 +146,14 @@ namespace api.Controllers.Articles {
 		[HttpPost]
 		public IActionResult Star([FromBody] ArticleIdBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.StarArticle(this.User.GetUserAccountId(db), binder.ArticleId);
+				db.StarArticle(this.User.GetUserAccountId(), binder.ArticleId);
 			}
 			return Ok();
 		}
 		[HttpPost]
 		public IActionResult Unstar([FromBody] ArticleIdBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.UnstarArticle(this.User.GetUserAccountId(db), binder.ArticleId);
+				db.UnstarArticle(this.User.GetUserAccountId(), binder.ArticleId);
 			}
 			return Ok();
 		}
@@ -172,14 +172,14 @@ namespace api.Controllers.Articles {
 				return BadRequest();
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var sender = db.GetUserAccount(User.GetUserAccountId(db));
+				var sender = db.GetUserAccount(User.GetUserAccountId());
 				if (!sender.IsEmailConfirmed) {
 					return BadRequest(new[] { "UnconfirmedEmail" });
 				}
 				if (!await captchaService.IsValid("6LegNF4UAAAAAJvSX5a7aZXvgQ_4h0W2NzWiGmCe", binder.CaptchaResponse)) {
 					return BadRequest(new[] { "InvalidCaptcha" });
 				}
-				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId(db));
+				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId());
 				if (userArticle.IsRead) {
 					var recipients = new List<EmailShareRecipient>();
 					foreach (var address in binder.EmailAddresses) {

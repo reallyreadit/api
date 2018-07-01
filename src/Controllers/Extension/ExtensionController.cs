@@ -45,13 +45,13 @@ namespace api.Controllers.Extension {
 		[HttpGet]
 		public IActionResult UserArticle(long id) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetUserArticle(id, this.User.GetUserAccountId(db)));
+				return Json(db.GetUserArticle(id, this.User.GetUserAccountId()));
 			}
 		}
 		[HttpPost]
 		public IActionResult GetUserArticle([FromBody] PageInfoBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId(db);
+				var userAccountId = this.User.GetUserAccountId();
 				var page = db.FindPage(binder.Url);
 				UserPage userPage;
 				if (page != null) {
@@ -108,7 +108,7 @@ namespace api.Controllers.Extension {
 		public IActionResult CommitReadState([FromBody] CommitReadStateBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
-				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, this.User.GetUserAccountId(db)));
+				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, this.User.GetUserAccountId()));
 			}
 		}
 		[HttpGet]
@@ -120,7 +120,7 @@ namespace api.Controllers.Extension {
 		[HttpPost]
 		public IActionResult SetStarred([FromBody] SetStarredBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId(db);
+				var userAccountId = this.User.GetUserAccountId();
 				if (binder.IsStarred) {
 					db.StarArticle(userAccountId, binder.ArticleId);
 				} else {

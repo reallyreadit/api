@@ -33,7 +33,7 @@ namespace api.Controllers.Challenges {
 		[HttpPost]
 		public IActionResult Quit([FromBody] QuitForm form) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = User.GetUserAccountId(db);
+				var userAccountId = User.GetUserAccountId();
 				var latestResponse = db.GetLatestChallengeResponse(form.ChallengeId, userAccountId);
 				if (latestResponse == null || latestResponse.Action == ChallengeResponseAction.Enroll) {
 					return Json(db.CreateChallengeResponse(
@@ -58,13 +58,13 @@ namespace api.Controllers.Challenges {
 		[HttpGet]
 		public JsonResult Score(int challengeId) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetChallengeScore(challengeId, User.GetUserAccountId(db)));
+				return Json(db.GetChallengeScore(challengeId, User.GetUserAccountId()));
 			}
 		}
 		[HttpPost]
 		public IActionResult Start([FromBody] StartForm form) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = User.GetUserAccountId(db);
+				var userAccountId = User.GetUserAccountId();
 				if (!db.GetUserAccount(userAccountId).IsEmailConfirmed) {
 					return BadRequest();
 				}
@@ -85,7 +85,7 @@ namespace api.Controllers.Challenges {
 		[HttpGet]
 		public JsonResult State() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = User.GetUserAccountIdOrDefault(db);
+				var userAccountId = User.GetUserAccountIdOrDefault();
 				var activeChallenge = db
 					.GetActiveChallenges()
 					.SingleOrDefault();
