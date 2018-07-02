@@ -47,21 +47,6 @@ namespace api.Controllers.UserAccounts {
 			iterationCount: 10000,
 			numBytesRequested: 256 / 8
 		);
-		private async Task SignIn(UserAccount userAccount) => await this.HttpContext.Authentication.SignInAsync(
-			authenticationScheme: authOpts.Scheme,
-			principal: new ClaimsPrincipal(new[] {
-				new ClaimsIdentity(
-					claims: new[] {
-						new Claim(ClaimTypes.NameIdentifier, userAccount.Id.ToString()),
-						new Claim(ClaimTypes.Role, userAccount.Role.ToString())
-					},
-					authenticationType: "ApplicationCookie"
-				)
-			}),
-			properties: new AuthenticationProperties() {
-				IsPersistent = true
-			}
-		);
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.ReadComment(reply.Id);
@@ -105,7 +90,7 @@ namespace api.Controllers.UserAccounts {
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
 				}
-				await SignIn(userAccount);
+				await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
 				return Json(userAccount);
 			} catch (Exception ex) {
 				return BadRequest((ex as ValidationException)?.Errors);
@@ -282,7 +267,7 @@ namespace api.Controllers.UserAccounts {
 			if (!IsCorrectPassword(userAccount, binder.Password)) {
 				return BadRequest(new[] { "IncorrectPassword" });
 			}
-			await SignIn(userAccount);
+			await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
 			return Json(userAccount);
 		}
 		[AllowAnonymous]

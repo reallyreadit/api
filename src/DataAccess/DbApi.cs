@@ -502,6 +502,11 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
+		public static UserAccount GetUserAccountUsingOldId(this NpgsqlConnection conn, Guid userAccountId) => conn.QuerySingleOrDefault<UserAccount>(
+			sql: "user_account_api.get_user_account_using_old_id",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
 		public static void RecordNewReplyDesktopNotification(this NpgsqlConnection conn, long userAccountId) => conn.Execute(
 			sql: "user_account_api.record_new_reply_desktop_notification",
 			param: new { user_account_id = userAccountId },

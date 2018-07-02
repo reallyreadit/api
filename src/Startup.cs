@@ -24,6 +24,9 @@ using Microsoft.AspNetCore.DataProtection;
 using Microsoft.Extensions.Logging;
 using Serilog;
 using api.Security;
+using api.Authentication;
+using System.Linq;
+using System.Security.Claims;
 
 namespace api {
 	public class Startup {
@@ -102,6 +105,7 @@ namespace api {
 			IApplicationBuilder app,
 			IOptions<MyAuthenticationOptions> authOpts,
 			IOptions<CorsOptions> corsOpts,
+			IOptions<DatabaseOptions> databaseOpts,
 			ILoggerFactory loggerFactory
 		) {
 			// use dev exception page until the db connection leak issue is solved and we have reliable logging
@@ -138,6 +142,18 @@ namespace api {
 				},
 				ExpireTimeSpan = TimeSpan.FromDays(7),
 				SlidingExpiration = true
+			});
+			// id migration
+			app.Use(async (context, next) => {
+				var idClaim = context.User.Claims.SingleOrDefault(claim => claim.Type == ClaimTypes.NameIdentifier);
+				Guid oldId;
+				if (idClaim != null && Guid.TryParse(idClaim.Value, out oldId)) {
+					using (var db = new NpgsqlConnection(databaseOpts.Value.ConnectionString)) {
+						var userAccount = db.GetUserAccountUsingOldId(oldId);
+						await context.Authentication.SignInAsync(authOpts.Value.Scheme, userAccount);
+					}
+				}
+				await next();
 			});
 			// configure routes
 			app.UseMvcWithDefaultRoute();
