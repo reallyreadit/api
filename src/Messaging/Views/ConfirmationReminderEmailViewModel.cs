@@ -8,17 +8,14 @@ namespace api.Messaging.Views {
 			HttpEndpointOptions webServerEndpoint,
 			string body,
 			string confirmationToken,
-			string subscriptionsToken,
-			HttpEndpointOptions apiServerEndpoint
+			string subscriptionsToken
 		) : base(title, webServerEndpoint) {
 			Body = body;
 			ConfirmationToken = confirmationToken;
 			SubscriptionsToken = subscriptionsToken;
-			ApiServerEndpoint = apiServerEndpoint;
 		}
 		public string Body { get; }
 		public string ConfirmationToken { get; }
 		public string SubscriptionsToken { get; }
-		public HttpEndpointOptions ApiServerEndpoint { get; }
 	}
 }

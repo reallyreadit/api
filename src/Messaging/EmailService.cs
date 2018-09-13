@@ -78,8 +78,7 @@ namespace api.Messaging {
 				title: "Please confirm your email address",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
-				token: CreateToken(emailConfirmationId),
-				apiServerEndpoint: this.serviceOpts.ApiServer
+				token: CreateToken(emailConfirmationId)
 			),
 			requireConfirmation: false
 		);
@@ -90,8 +89,7 @@ namespace api.Messaging {
 				title: "Please confirm your email address",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
-				token: CreateToken(emailConfirmationId),
-				apiServerEndpoint: this.serviceOpts.ApiServer
+				token: CreateToken(emailConfirmationId)
 			),
 			requireConfirmation: false
 		);
@@ -102,8 +100,7 @@ namespace api.Messaging {
 				title: "Password reset request",
 				webServerEndpoint: this.serviceOpts.WebServer,
 				name: recipient.Name,
-				token: CreateToken(passwordResetRequestId),
-				apiServerEndpoint: this.serviceOpts.ApiServer
+				token: CreateToken(passwordResetRequestId)
 			),
 			requireConfirmation: false
 		);
@@ -116,8 +113,7 @@ namespace api.Messaging {
 				subscriptionsToken: CreateToken(recipient.Id),
 				respondent: reply.UserAccount,
 				articleTitle: reply.ArticleTitle,
-				replyToken: CreateToken(reply.Id),
-				apiServerEndpoint: this.serviceOpts.ApiServer
+				replyToken: CreateToken(reply.Id)
 			),
 			requireConfirmation: true
 		);
@@ -141,8 +137,7 @@ namespace api.Messaging {
 				webServerEndpoint: this.serviceOpts.WebServer,
 				body: body,
 				confirmationToken: CreateToken(emailConfirmationId),
-				subscriptionsToken: CreateToken(recipient.Id),
-				apiServerEndpoint: this.serviceOpts.ApiServer
+				subscriptionsToken: CreateToken(recipient.Id)
 			),
 			requireConfirmation: false
 		);

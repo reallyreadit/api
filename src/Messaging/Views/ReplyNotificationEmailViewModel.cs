@@ -9,19 +9,16 @@ namespace api.Messaging.Views {
 			string subscriptionsToken,
 			string respondent,
 			string articleTitle,
-			string replyToken,
-			HttpEndpointOptions apiServerEndpoint
+			string replyToken
 		) : base(title, webServerEndpoint) {
 			SubscriptionsToken = subscriptionsToken;
 			Respondent = respondent;
 			ArticleTitle = articleTitle;
 			ReplyToken = replyToken;
-			ApiServerEndpoint = apiServerEndpoint;
 		}
 		public string SubscriptionsToken { get; }
 		public string Respondent { get; }
 		public string ArticleTitle { get; }
 		public string ReplyToken { get; }
-		public HttpEndpointOptions ApiServerEndpoint { get; }
 	}
 }

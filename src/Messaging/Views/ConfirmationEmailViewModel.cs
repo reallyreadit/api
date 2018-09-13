@@ -7,15 +7,12 @@ namespace api.Messaging.Views {
 			string title,
 			HttpEndpointOptions webServerEndpoint,
 			string name,
-			string token,
-			HttpEndpointOptions apiServerEndpoint
+			string token
 		) : base(title, webServerEndpoint) {
 			Name = name;
 			Token = token;
-			ApiServerEndpoint = apiServerEndpoint;
 		}
 		public string Name { get; }
 		public string Token { get; }
-		public HttpEndpointOptions ApiServerEndpoint { get; }
 	}
 }

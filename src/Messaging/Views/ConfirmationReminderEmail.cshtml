@@ -5,7 +5,7 @@
 	var footerColorStyle = "color: lightgray;";
 }
 
-@Html.Raw(Model.Body.Replace("{CONFIRMATION_URL}", Model.ApiServerEndpoint.CreateUrl("/UserAccounts/ConfirmEmail?token=" + Model.ConfirmationToken)))
+@Html.Raw(Model.Body.Replace("{CONFIRMATION_URL}", Model.WebServerEndpoint.CreateUrl("/confirmEmail?token=" + Model.ConfirmationToken)))
 
 @section UnsubscribeNotice {
 	<p style="@footerColorStyle">

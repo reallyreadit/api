@@ -6,7 +6,7 @@
 }
 
 <p>@Model.Respondent just replied to your comment re: @Model.ArticleTitle</p>
-<p>Click <a href="@Model.ApiServerEndpoint.CreateUrl("/UserAccounts/ViewReply?token=" + Model.ReplyToken)">here</a> to view the reply in the comment thread.</p>
+<p>Click <a href="@Model.WebServerEndpoint.CreateUrl("/viewReply?token=" + Model.ReplyToken)">here</a> to view the reply in the comment thread.</p>
 
 @section UnsubscribeNotice {
 	<p style="@footerColorStyle">

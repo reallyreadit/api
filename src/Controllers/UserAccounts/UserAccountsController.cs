@@ -47,6 +47,7 @@ namespace api.Controllers.UserAccounts {
 			iterationCount: 10000,
 			numBytesRequested: 256 / 8
 		);
+		// deprecated
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.ReadComment(reply.Id);
@@ -96,6 +97,7 @@ namespace api.Controllers.UserAccounts {
 				return BadRequest((ex as ValidationException)?.Errors);
 			}
       }
+		// deprecated
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ConfirmEmail(
@@ -388,6 +390,7 @@ namespace api.Controllers.UserAccounts {
 			}
 			return BadRequest();
 		}
+		// deprecated
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult PasswordResetRequest(
@@ -407,6 +410,7 @@ namespace api.Controllers.UserAccounts {
 			}
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl("/password/reset/expired"));
 		}
+		// deprecated
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ViewReply(
@@ -421,6 +425,7 @@ namespace api.Controllers.UserAccounts {
 				);
 			}
 		}
+		// deprecated
 		[HttpGet]
 		public IActionResult ViewReplyFromDesktopNotification(
 			long id,
@@ -466,6 +471,72 @@ namespace api.Controllers.UserAccounts {
 					TotalCount = users.Count(),
 					ConfirmedCount = users.Count(user => user.IsEmailConfirmed)
 				});
+			}
+		}
+
+		// new versions
+		[AllowAnonymous]
+		[HttpPost]
+		public IActionResult ConfirmEmail2(
+			[FromBody] ConfirmEmailForm form,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(form.Token, emailOpts.Value.EncryptionKey));
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var confirmation = db.GetEmailConfirmation(emailConfirmationId);
+				if (confirmation == null) {
+					return BadRequest("NotFound");
+				}
+				if (confirmation.DateConfirmed.HasValue) {
+					return BadRequest("AlreadyConfirmed");
+				}
+				if (confirmation.Id != db.GetLatestUnconfirmedEmailConfirmation(confirmation.UserAccountId).Id) {
+					return BadRequest("Expired");
+				}
+				db.ConfirmEmailAddress(emailConfirmationId);
+				return Ok();
+			}
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public IActionResult PasswordResetRequest2(
+			string token,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			PasswordResetRequest request;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+			}
+			if (request == null) {
+				return BadRequest("NotFound");
+			}
+			if (IsPasswordResetRequestValid(request)) {
+				return Json(request);
+			}
+			return BadRequest("Expired");
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public IActionResult ViewReply2(
+			[FromBody] ViewReplyForm form,
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+		) {
+			Int64 commentId;
+			if (form.Id.HasValue) {
+				if (User.Identity.IsAuthenticated) {
+					commentId = form.Id.Value;
+				} else {
+					return BadRequest();
+				}
+			} else {
+				commentId = Int64.Parse(StringEncryption.Decrypt(form.Token, emailOpts.Value.EncryptionKey));
+			}
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				db.ReadComment(commentId);
+				return Json(db.GetComment(commentId));
 			}
 		}
    }
