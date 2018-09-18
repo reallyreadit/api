@@ -21,6 +21,22 @@ namespace api.Controllers.Extension {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
 			return slug.Length > 80 ? slug.Substring(0, 80) : slug;
 		}
+		private static string PrepareArticleTitle(string title) {
+			// return if null
+			if (title == null) {
+				return title;
+			}
+			// trim whitespace
+			title = title.Trim();
+			// check for double title
+			if (title.Length > 2 && title.Length % 2 == 0) {
+				var firstHalf = title.Substring(0, title.Length / 2);
+				if (firstHalf == title.Substring(title.Length / 2)) {
+					title = firstHalf;
+				}
+			}
+			return title;
+		}
 		private static DateTime? ParseArticleDate(string dateString) {
 			DateTime date;
 			if (DateTime.TryParse(dateString, out date)) {
@@ -76,7 +92,7 @@ namespace api.Controllers.Extension {
 							slug: CreateSlug(sourceName)
 						);
 					}
-					var title = Decode(binder.Article.Title);
+					var title = PrepareArticleTitle(Decode(binder.Article.Title));
 					// temp workaround to circumvent npgsql type mapping bug
 					var authors = binder.Article.Authors.Distinct().ToArray();
 					var articleId = db.CreateArticle(
