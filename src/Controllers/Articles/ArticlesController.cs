@@ -25,16 +25,16 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public async Task<IActionResult> ListHotTopics(int pageNumber) {
+		public async Task<IActionResult> ListHotTopics(int pageNumber, int pageSize) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(this.User.Identity.IsAuthenticated ?
 					new {
 						Aotd = await db.GetUserAotd(this.User.GetUserAccountId()),
-						Articles = await db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, 40)
+						Articles = await db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, pageSize)
 					} :
 					new {
 						Aotd = await db.GetAotd(),
-						Articles = await db.ListHotTopics(pageNumber, 40)
+						Articles = await db.ListHotTopics(pageNumber, pageSize)
 					}
 				);
 			}
