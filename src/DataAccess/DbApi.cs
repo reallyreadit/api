@@ -400,6 +400,22 @@ namespace api.DataAccess {
 		);
 		#endregion
 
+		#region stats_api
+		public static async Task<UserWeeklyReadStats> GetUserWeeklyReadStats(this NpgsqlConnection conn, int userAccountId) => await conn.QuerySingleOrDefaultAsync<UserWeeklyReadStats>(
+			sql: "stats_api.get_user_weekly_read_stats",
+			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<WeeklyReadCountLeaderboardRow>> GetWeeklyReadCountLeaderboard(this NpgsqlConnection conn) => await conn.QueryAsync<WeeklyReadCountLeaderboardRow>(
+			sql: "stats_api.get_weekly_read_count_leaderboard",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<WeeklyWordCountLeaderboardRow>> GetWeeklyWordCountLeaderboard(this NpgsqlConnection conn) => await conn.QueryAsync<WeeklyWordCountLeaderboardRow>(
+			sql: "stats_api.get_weekly_word_count_leaderboard",
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
+
 		#region user_account_api
 		public static void AckNewReply(this NpgsqlConnection conn, long userAccountId) => conn.Execute(
 			sql: "user_account_api.ack_new_reply",
