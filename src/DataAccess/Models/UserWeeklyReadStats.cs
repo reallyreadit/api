@@ -1,10 +1,10 @@
 namespace api.DataAccess.Models {
 	public class UserWeeklyReadStats {
-		public int UserAccountId { get; set; }
-		public int UserCount { get; set; }
-		public int ReadCount { get; set; }
-		public int ReadCountRank { get; set; }
-		public int WordCount { get; set; }
-		public int WordCountRank { get; set; }
+		public long UserAccountId { get; set; }
+		public long UserCount { get; set; }
+		public long ReadCount { get; set; }
+		public long ReadCountRank { get; set; }
+		public long WordCount { get; set; }
+		public long WordCountRank { get; set; }
 	}
 }
