@@ -401,18 +401,13 @@ namespace api.DataAccess {
 		#endregion
 
 		#region stats_api
-		public static async Task<UserWeeklyReadStats> GetUserWeeklyReadStats(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserWeeklyReadStats>(
-			sql: "stats_api.get_user_weekly_read_stats",
+		public static async Task<UserReadStats> GetUserReadStats(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserReadStats>(
+			sql: "stats_api.get_user_read_stats",
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<IEnumerable<WeeklyReadCountLeaderboardRow>> GetWeeklyReadCountLeaderboard(this NpgsqlConnection conn, int maxCount) => await conn.QueryAsync<WeeklyReadCountLeaderboardRow>(
-			sql: "stats_api.get_weekly_read_count_leaderboard",
-			param: new { max_count = maxCount },
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<IEnumerable<WeeklyWordCountLeaderboardRow>> GetWeeklyWordCountLeaderboard(this NpgsqlConnection conn, int maxCount) => await conn.QueryAsync<WeeklyWordCountLeaderboardRow>(
-			sql: "stats_api.get_weekly_word_count_leaderboard",
+		public static async Task<IEnumerable<ReadCountLeaderboardRow>> GetReadCountLeaderboard(this NpgsqlConnection conn, int maxCount) => await conn.QueryAsync<ReadCountLeaderboardRow>(
+			sql: "stats_api.get_read_count_leaderboard",
 			param: new { max_count = maxCount },
 			commandType: CommandType.StoredProcedure
 		);

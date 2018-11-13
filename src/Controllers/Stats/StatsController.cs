@@ -14,19 +14,16 @@ namespace api.Controllers.Stats {
 			this.dbOpts = dbOpts.Value;
 		}
 		[HttpGet]
-		public async Task<IActionResult> WeeklyReading() {
+		public async Task<IActionResult> Reading() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.GetUserWeeklyReadStats(this.User.GetUserAccountId()));
+				return Json(await db.GetUserReadStats(this.User.GetUserAccountId()));
 			}
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public async Task<IActionResult> WeeklyReadingLeaderboards() {
+		public async Task<IActionResult> ReadingLeaderboards() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(new {
-					Reads = await db.GetWeeklyReadCountLeaderboard(10),
-					Words = await db.GetWeeklyWordCountLeaderboard(10)
-				});
+				return Json(await db.GetReadCountLeaderboard(10));
 			}
 		}
 	}
