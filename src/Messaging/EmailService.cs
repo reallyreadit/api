@@ -154,5 +154,11 @@ namespace api.Messaging {
 			),
 			requireConfirmation: false
 		);
+		public async Task<bool> SendExtensionInstructionsEmail(UserAccount recipient) => await SendEmail(
+			recipient: recipient,
+			viewName: "ExtensionInstructionsEmail",
+			model: new EmailLayoutViewModel("Extension Instructions", this.serviceOpts.WebServer),
+			requireConfirmation: true
+		);
 	}
 }

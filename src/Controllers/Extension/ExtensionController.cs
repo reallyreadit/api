@@ -10,6 +10,8 @@ using System.Net;
 using Microsoft.Extensions.Options;
 using api.Configuration;
 using Npgsql;
+using System.Threading.Tasks;
+using api.Messaging;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -144,6 +146,15 @@ namespace api.Controllers.Extension {
 				}
 				return Json(db.GetUserArticle(binder.ArticleId, userAccountId));
 			}
+		}
+		[HttpPost]
+		public async Task<IActionResult> SendInstructions([FromServices] EmailService emailService) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				await emailService.SendExtensionInstructionsEmail(
+					recipient: db.GetUserAccount(this.User.GetUserAccountId())
+				);
+			}
+			return Ok();
 		}
 	}
 }
