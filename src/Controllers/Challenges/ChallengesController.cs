@@ -65,14 +65,15 @@ namespace api.Controllers.Challenges {
 		public IActionResult Start([FromBody] StartForm form) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = User.GetUserAccountId();
-				if (!db.GetUserAccount(userAccountId).IsEmailConfirmed) {
+				var userAccount = db.GetUserAccount(userAccountId);
+				if (!userAccount.IsEmailConfirmed) {
 					return BadRequest();
 				}
 				var response = db.CreateChallengeResponse(
 					challengeId: form.ChallengeId,
 					userAccountId: userAccountId,
 					action: ChallengeResponseAction.Enroll,
-					timeZoneId: form.TimeZoneId
+					timeZoneId: userAccount.TimeZoneId
 				);
 				var score = db.GetChallengeScore(form.ChallengeId, userAccountId);
 				return Json(new {

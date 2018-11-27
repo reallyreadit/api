@@ -462,14 +462,26 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserAccount CreateUserAccount(this NpgsqlConnection conn, string name, string email, byte[] passwordHash, byte[] passwordSalt) {
+		public static UserAccount CreateUserAccount(
+			this NpgsqlConnection conn,
+			string name,
+			string email,
+			byte[] passwordHash,
+			byte[] passwordSalt,
+			long timeZoneId
+		) {
 			try {
-				return conn.QuerySingleOrDefault<UserAccount>("user_account_api.create_user_account", new {
-					name = name,
-					email = email,
-					password_hash = passwordHash,
-					password_salt = passwordSalt
-				}, commandType: CommandType.StoredProcedure);
+				return conn.QuerySingleOrDefault<UserAccount>(
+					sql: "user_account_api.create_user_account",
+					param: new {
+						name = name,
+						email = email,
+						password_hash = passwordHash,
+						password_salt = passwordSalt,
+						time_zone_id = timeZoneId
+					},
+					commandType: CommandType.StoredProcedure
+				);
 			} catch (NpgsqlException ex) when (ex.Data.Contains("ConstraintName")) {
 				if (String.Equals(ex.Data["ConstraintName"], "user_account_name_key")) {
 					throw new ValidationException("DuplicateName");

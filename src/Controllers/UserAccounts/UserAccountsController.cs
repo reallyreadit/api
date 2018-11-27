@@ -47,6 +47,11 @@ namespace api.Controllers.UserAccounts {
 			iterationCount: 10000,
 			numBytesRequested: 256 / 8
 		);
+		private static long GetTimeZoneIdFromName(IEnumerable<TimeZone> timeZones, string timeZoneName) => timeZones
+			.Where(zone => zone.Name == timeZoneName)
+			.OrderBy(zone => zone.Territory)
+			.First()
+			.Id;
 		// deprecated
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
@@ -85,7 +90,13 @@ namespace api.Controllers.UserAccounts {
 				UserAccount userAccount;
 				var salt = GenerateSalt();
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					userAccount = db.CreateUserAccount(binder.Name, binder.Email, HashPassword(binder.Password, salt), salt);
+					userAccount = db.CreateUserAccount(
+						name: binder.Name,
+						email: binder.Email,
+						passwordHash: HashPassword(binder.Password, salt),
+						passwordSalt: salt,
+						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName)
+					);
 					await emailService.SendWelcomeEmail(
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
@@ -460,6 +471,18 @@ namespace api.Controllers.UserAccounts {
 						))
 						.ToArray()
 				);
+			}
+		}
+		[HttpPost]
+		public JsonResult ChangeTimeZone([FromBody] ChangeTimeZoneBinder binder) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				long timeZoneId;
+				if (binder.Id.HasValue) {
+					timeZoneId = binder.Id.Value;
+				} else {
+					timeZoneId = GetTimeZoneIdFromName(db.GetTimeZones(), binder.Name);
+				}
+				return Json(db.UpdateTimeZone(this.User.GetUserAccountId(), timeZoneId));
 			}
 		}
 		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
