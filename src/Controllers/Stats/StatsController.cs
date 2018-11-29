@@ -13,17 +13,23 @@ namespace api.Controllers.Stats {
 		public StatsController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
 		}
-		[HttpGet]
-		public async Task<IActionResult> Reading() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.GetUserReadStats(this.User.GetUserAccountId()));
-			}
-		}
 		[AllowAnonymous]
 		[HttpGet]
-		public async Task<IActionResult> ReadingLeaderboards() {
+		public async Task<IActionResult> Leaderboards() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.GetReadCountLeaderboard(10));
+				return Json(new {
+					CurrentStreak = await db.GetCurrentStreakLeaderboard(
+						userAccountId: this.User.GetUserAccountIdOrDefault(),
+						maxCount: 10
+					),
+					ReadCount = await db.GetReadCountLeaderboard(10)
+				});
+			}
+		}
+		[HttpGet]
+		public async Task<IActionResult> UserStats() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.GetUserStats(this.User.GetUserAccountId()));
 			}
 		}
 	}
