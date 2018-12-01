@@ -164,7 +164,7 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public IActionResult ResetPassword(
+		public async Task<IActionResult> ResetPassword(
 			[FromBody] ResetPasswordBinder binder,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
@@ -180,7 +180,9 @@ namespace api.Controllers.UserAccounts {
 					var salt = GenerateSalt();
 					db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
 					db.CompletePasswordResetRequest(request.Id);
-					return Ok();
+					var userAccount = db.GetUserAccount(request.UserAccountId);
+					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
+					return Json(userAccount);
 				}
 			}
 			return BadRequest(new[] { "RequestExpired" });
