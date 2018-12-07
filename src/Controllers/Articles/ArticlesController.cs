@@ -27,16 +27,18 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public async Task<IActionResult> ListHotTopics(int pageNumber, int pageSize) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(this.User.Identity.IsAuthenticated ?
-					new {
-						Aotd = await db.GetUserAotd(this.User.GetUserAccountId()),
-						Articles = await db.ListUserHotTopics(this.User.GetUserAccountId(), pageNumber, pageSize)
-					} :
-					new {
-						Aotd = await db.GetAotd(),
-						Articles = await db.ListHotTopics(pageNumber, pageSize)
-					}
-				);
+				if (this.User.Identity.IsAuthenticated) {
+					var userAccountId = this.User.GetUserAccountId();
+					return Json(new {
+						Aotd = await db.GetUserAotd(userAccountId),
+						Articles = await db.ListUserHotTopics(userAccountId, pageNumber, pageSize),
+						UserStats = await db.GetUserStats(userAccountId)
+					});
+				}
+				return Json(new {
+					Aotd = await db.GetAotd(),
+					Articles = await db.ListHotTopics(pageNumber, pageSize)
+				});
 			}
 		}
 		[HttpGet]
