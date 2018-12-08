@@ -83,29 +83,30 @@ namespace api.Controllers.UserAccounts {
 			if (!IsPasswordValid(binder.Password)) {
 				return BadRequest();
 			}
-			if (!await captchaService.IsValid("6LcxOV4UAAAAANL4lei_e8pFZM-q0_wjbvTb0vPy", binder.CaptchaResponse)) {
-				return BadRequest(new[] { "InvalidCaptcha" });
-			}
-			try {
-				UserAccount userAccount;
-				var salt = GenerateSalt();
-				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					userAccount = db.CreateUserAccount(
-						name: binder.Name,
-						email: binder.Email,
-						passwordHash: HashPassword(binder.Password, salt),
-						passwordSalt: salt,
-						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName)
-					);
-					await emailService.SendWelcomeEmail(
-						recipient: userAccount,
-						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-					);
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var captchaResponse = await captchaService.Verify(binder.CaptchaResponse);
+				if (captchaResponse != null) {
+					db.CreateCaptchaResponse("createUserAccount", captchaResponse);
 				}
-				await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
-				return Json(userAccount);
-			} catch (Exception ex) {
-				return BadRequest((ex as ValidationException)?.Errors);
+				try {
+					UserAccount userAccount;
+					var salt = GenerateSalt();
+						userAccount = db.CreateUserAccount(
+							name: binder.Name,
+							email: binder.Email,
+							passwordHash: HashPassword(binder.Password, salt),
+							passwordSalt: salt,
+							timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName)
+						);
+						await emailService.SendWelcomeEmail(
+							recipient: userAccount,
+							emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+						);
+					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
+					return Json(userAccount);
+				} catch (Exception ex) {
+					return BadRequest((ex as ValidationException)?.Errors);
+				}
 			}
       }
 		// deprecated
@@ -235,10 +236,11 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] EmailService emailService,
 			[FromServices] CaptchaService captchaService
 		) {
-			if (!await captchaService.IsValid("6LeSR14UAAAAAJqdK9Bqa9sibWfKTveSVf3OdH_x", binder.CaptchaResponse)) {
-				return BadRequest(new[] { "InvalidCaptcha" });
-			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var captchaResponse = await captchaService.Verify(binder.CaptchaResponse);
+				if (captchaResponse != null) {
+					db.CreateCaptchaResponse("requestPasswordReset", captchaResponse);
+				}
 				var userAccount = db.FindUserAccount(binder.Email);
 				if (userAccount == null) {
 					return BadRequest(new[] { "UserAccountNotFound" });

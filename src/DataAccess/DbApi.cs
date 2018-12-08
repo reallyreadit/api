@@ -10,6 +10,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using NpgsqlTypes;
 using System.Data.Common;
+using api.Security;
 
 namespace api.DataAccess {
     public static class DbApi {
@@ -370,6 +371,19 @@ namespace api.DataAccess {
 		public static bool ConfirmEmailAddress(this NpgsqlConnection conn, long emailConfirmationId) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.confirm_email_address",
 			param: new { email_confirmation_id = emailConfirmationId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static void CreateCaptchaResponse(this NpgsqlConnection conn, string actionVerified, CaptchaVerificationResponse response) => conn.Execute(
+			sql: "user_account_api.create_captcha_response",
+			param: new {
+				action_verified = actionVerified,
+				success = response.Success,
+				score = response.Score,
+				action = response.Action,
+				challenge_ts = response.ChallengeTs,
+				hostname = response.Hostname,
+				error_codes = response.ErrorCodes
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static EmailConfirmation CreateEmailConfirmation(this NpgsqlConnection conn, long userAccountId) => conn.QuerySingleOrDefault<EmailConfirmation>(

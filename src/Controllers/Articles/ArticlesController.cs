@@ -178,8 +178,9 @@ namespace api.Controllers.Articles {
 				if (!sender.IsEmailConfirmed) {
 					return BadRequest(new[] { "UnconfirmedEmail" });
 				}
-				if (!await captchaService.IsValid("6LegNF4UAAAAAJvSX5a7aZXvgQ_4h0W2NzWiGmCe", binder.CaptchaResponse)) {
-					return BadRequest(new[] { "InvalidCaptcha" });
+				var captchaResponse = await captchaService.Verify(binder.CaptchaResponse);
+				if (captchaResponse != null) {
+					db.CreateCaptchaResponse("shareArticle", captchaResponse);
 				}
 				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId());
 				if (userArticle.IsRead) {
