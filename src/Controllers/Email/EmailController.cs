@@ -35,7 +35,7 @@ namespace api.Controllers.Email {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
 							using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-								var notification = JsonConvert.DeserializeObject<SesNotification>(body.ReadToEnd());
+								var notification = JsonConvert.DeserializeObject<SesNotification>(message.MessageText);
 								await db.CreateEmailNotification(
 									notificationType: notification.NotificationType,
 									jsonMail: PostgresSerialize(notification.Mail),
