@@ -58,8 +58,7 @@ namespace api.Messaging {
 				() => {
 					using (var db = new NpgsqlConnection(dbOpts.Value.ConnectionString)) {
 						return db
-							.ListEmailBounces()
-							.Select(bounce => NormalizeEmailAddress(bounce.Address))
+							.GetBlockedEmailAddresses()
 							.ToArray();
 					}
 				}
@@ -115,7 +114,7 @@ namespace api.Messaging {
 				articleTitle: reply.ArticleTitle,
 				replyToken: CreateToken(reply.Id)
 			),
-			requireConfirmation: true
+			requireConfirmation: false
 		);
 		public async Task<bool> SendListSubscriptionEmail(UserAccount recipient, string subject, string body, string listDescription) => await SendEmail(
 			recipient,
@@ -127,7 +126,7 @@ namespace api.Messaging {
 				listDescription: listDescription,
 				subscriptionsToken: CreateToken(recipient.Id)
 			),
-			requireConfirmation: true
+			requireConfirmation: false
 		);
 		public async Task<bool> SendConfirmationReminderEmail(UserAccount recipient, string subject, string body, long emailConfirmationId) => await SendEmail(
 			recipient,
@@ -158,7 +157,7 @@ namespace api.Messaging {
 			recipient: recipient,
 			viewName: "ExtensionInstructionsEmail",
 			model: new EmailLayoutViewModel("Use stars to get any article on reallyread.it", this.serviceOpts.WebServer),
-			requireConfirmation: true
+			requireConfirmation: false
 		);
 	}
 }

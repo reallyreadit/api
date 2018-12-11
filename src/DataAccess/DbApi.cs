@@ -11,6 +11,7 @@ using System.Threading.Tasks;
 using NpgsqlTypes;
 using System.Data.Common;
 using api.Security;
+using SesNotification = api.Messaging.AmazonSesNotifications.Notification;
 
 namespace api.DataAccess {
     public static class DbApi {
@@ -286,16 +287,32 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task CreateEmailNotification(
+			this NpgsqlConnection conn,
+			string notificationType,
+			string jsonMail,
+			string jsonBounce,
+			string jsonComplaint
+		) => conn.ExecuteAsync(
+			sql: "bulk_mailing_api.create_email_notification",
+			param: new {
+				notification_type = notificationType,
+				mail = jsonMail,
+				bounce = jsonBounce,
+				complaint = jsonComplaint
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static IEnumerable<string> GetBlockedEmailAddresses(this NpgsqlConnection conn) => conn.Query<string>(
+			sql: "bulk_mailing_api.get_blocked_email_addresses",
+			commandType: CommandType.StoredProcedure
+		);
 		public static IEnumerable<UserAccount> ListConfirmationReminderRecipients(this NpgsqlConnection conn) => conn.Query<UserAccount>(
 			sql: "bulk_mailing_api.list_confirmation_reminder_recipients",
 			commandType: CommandType.StoredProcedure
 		);
 		public static IEnumerable<BulkMailing> ListBulkMailings(this NpgsqlConnection conn) => conn.Query<BulkMailing>(
 			sql: "bulk_mailing_api.list_bulk_mailings",
-			commandType: CommandType.StoredProcedure
-		);
-		public static IEnumerable<EmailBounce> ListEmailBounces(this NpgsqlConnection conn) => conn.Query<EmailBounce>(
-			sql: "bulk_mailing_api.list_email_bounces",
 			commandType: CommandType.StoredProcedure
 		);
 		#endregion

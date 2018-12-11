@@ -40,7 +40,6 @@ namespace api.Controllers.BulkMailings {
 			db
 				.ListUserAccounts()
 				.Where(user =>
-					user.IsEmailConfirmed &&
 					user.ReceiveWebsiteUpdates &&
 					!emailService.HasEmailAddressBounced(user.Email)
 				)
@@ -50,7 +49,6 @@ namespace api.Controllers.BulkMailings {
 			db
 				.ListUserAccounts()
 				.Where(user =>
-					user.IsEmailConfirmed &&
 					user.ReceiveSuggestedReadings &&
 					!emailService.HasEmailAddressBounced(user.Email)
 				)
