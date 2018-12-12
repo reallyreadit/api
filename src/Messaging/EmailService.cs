@@ -13,6 +13,7 @@ using api.DataAccess.Models;
 using api.DataAccess;
 using System.Collections.Generic;
 using Npgsql;
+using System.Text.RegularExpressions;
 
 namespace api.Messaging {
 	public class EmailService {
@@ -59,6 +60,13 @@ namespace api.Messaging {
 					using (var db = new NpgsqlConnection(dbOpts.Value.ConnectionString)) {
 						return db
 							.GetBlockedEmailAddresses()
+							.Select(address => {
+								var match = Regex.Match(address, "<([^>]+)>");
+								if (match.Success) {
+									return match.Groups[1].Value;
+								}
+								return address;
+							})
 							.ToArray();
 					}
 				}
