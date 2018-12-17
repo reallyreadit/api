@@ -132,6 +132,11 @@ namespace api.DataAccess {
 			sql: "article_api.get_aotd",
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<UserArticle> GetArticle(this NpgsqlConnection conn, long articleId) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
+			sql: "article_api.get_article",
+			param: new { article_id = articleId },
+			commandType: CommandType.StoredProcedure
+		);
 		public static Comment GetComment(this NpgsqlConnection conn, long commentId) => conn.QuerySingleOrDefault<Comment>(
 			sql: "article_api.get_comment",
 			param: new { comment_id = commentId },

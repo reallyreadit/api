@@ -14,6 +14,7 @@ using Npgsql;
 using System.Collections.Generic;
 using api.Security;
 using Microsoft.Extensions.Logging;
+using api.ReadingVerification;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -25,13 +26,20 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public async Task<IActionResult> ListHotTopics(int pageNumber, int pageSize) {
+		public async Task<IActionResult> ListHotTopics(
+			[FromServices] ReadingVerificationService verificationService,
+			int pageNumber,
+			int pageSize
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					return Json(new {
-						Aotd = await db.GetUserAotd(userAccountId),
-						Articles = await db.ListUserHotTopics(userAccountId, pageNumber, pageSize),
+						Aotd = verificationService.AssignProofToken(await db.GetUserAotd(userAccountId), userAccountId),
+						Articles = PageResult<UserArticle>.Create(
+							await db.ListUserHotTopics(userAccountId, pageNumber, pageSize),
+							articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+						),
 						UserStats = await db.GetUserStats(userAccountId)
 					});
 				}
@@ -42,34 +50,75 @@ namespace api.Controllers.Articles {
 			}
 		}
 		[HttpGet]
-		public IActionResult ListStarred(int pageNumber) {
+		public IActionResult ListStarred(
+			[FromServices] ReadingVerificationService verificationService,
+			int pageNumber
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.ListStarredArticles(this.User.GetUserAccountId(), pageNumber, 40));
+				var userAccountId = this.User.GetUserAccountId();
+				return Json(
+					PageResult<UserArticle>.Create(
+						db.ListStarredArticles(userAccountId, pageNumber, 40),
+						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+					)
+				);
 			}
 		}
 		[HttpGet]
-		public IActionResult ListHistory(int pageNumber) {
+		public IActionResult ListHistory(
+			[FromServices] ReadingVerificationService verificationService,
+			int pageNumber
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.ListUserArticleHistory(this.User.GetUserAccountId(), pageNumber, 40));
-			}
-		}
-		[AllowAnonymous]
-		[HttpGet]
-		public IActionResult Details(string slug) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(this.User.Identity.IsAuthenticated ?
-					db.FindUserArticle(slug, this.User.GetUserAccountId()) :
-					db.FindArticle(slug)
+				var userAccountId = this.User.GetUserAccountId();
+				return Json(
+					PageResult<UserArticle>.Create(
+						db.ListUserArticleHistory(userAccountId, pageNumber, 40),
+						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+					)
 				);
 			}
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult ListComments(string slug) {
+		public async Task<IActionResult> Details(
+			[FromServices] ReadingVerificationService verificationService,
+			string proofToken,
+			string slug
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				if (this.User.Identity.IsAuthenticated) {
+					var userAccountId = this.User.GetUserAccountId();
+					return Json(verificationService.AssignProofToken(
+						article: slug != null ?
+							db.FindUserArticle(slug, userAccountId) :
+							db.GetUserArticle(verificationService.GetTokenData(proofToken).ArticleId, userAccountId),
+						userAccountId: userAccountId
+					));
+				} else {
+					return Json(
+						slug != null ?
+							db.FindArticle(slug) :
+							await db.GetArticle(verificationService.GetTokenData(proofToken).ArticleId)
+					);
+				}
+			}
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public IActionResult ListComments(
+			[FromServices] ReadingVerificationService verificationService,
+			string proofToken,
+			string slug
+		) {
 			CommentThread[] comments;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
-					.ListComments(db.FindArticle(slug).Id)
+					.ListComments(
+						slug != null ?
+							db.FindArticle(slug).Id :
+							verificationService.GetTokenData(proofToken).ArticleId
+					)
 					.Select(c => new CommentThread(c))
 					.ToArray();
 			}
@@ -215,6 +264,31 @@ namespace api.Controllers.Articles {
 					return Ok();
 				}
 				return BadRequest();
+			}
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<IActionResult> VerifyProofToken(
+			[FromServices] ReadingVerificationService verificationService,
+			string token
+		) {
+			var tokenData = verificationService.GetTokenData(token);
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var readerName = db.GetUserAccount(tokenData.UserAccountId).Name;
+				UserArticle article;
+				if (this.User.Identity.IsAuthenticated) {
+					var userAccountId = this.User.GetUserAccountId();
+					article = verificationService.AssignProofToken(
+						db.GetUserArticle(tokenData.ArticleId, userAccountId),
+						userAccountId
+					);
+				} else {
+					article = await db.GetArticle(tokenData.ArticleId);
+				}
+				return Json(new {
+					Article = article,
+					ReaderName = readerName
+				});
 			}
 		}
 	}

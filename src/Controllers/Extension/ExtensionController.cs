@@ -12,6 +12,7 @@ using api.Configuration;
 using Npgsql;
 using System.Threading.Tasks;
 using api.Messaging;
+using api.ReadingVerification;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -61,13 +62,25 @@ namespace api.Controllers.Extension {
 			}
 		}
 		[HttpGet]
-		public IActionResult UserArticle(long id) {
+		public IActionResult UserArticle(
+			[FromServices] ReadingVerificationService verificationService,
+			long id
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetUserArticle(id, this.User.GetUserAccountId()));
+				var userAccountId = this.User.GetUserAccountId();
+				return Json(
+					verificationService.AssignProofToken(
+						db.GetUserArticle(id, userAccountId),
+						userAccountId
+					)
+				);
 			}
 		}
 		[HttpPost]
-		public IActionResult GetUserArticle([FromBody] PageInfoBinder binder) {
+		public IActionResult GetUserArticle(
+			[FromServices] ReadingVerificationService verificationService,
+			[FromBody] PageInfoBinder binder
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				var page = db.FindPage(binder.Url);
@@ -117,16 +130,28 @@ namespace api.Controllers.Extension {
 					userPage = db.CreateUserPage(page.Id, userAccountId);
 				}
 				return Json(new {
-					UserArticle = db.GetUserArticle(page.ArticleId, userAccountId),
+					UserArticle = verificationService.AssignProofToken(
+						db.GetUserArticle(page.ArticleId, userAccountId),
+						userAccountId
+					),
 					UserPage = userPage
 				});
 			}
 		}
 		[HttpPost]
-		public IActionResult CommitReadState([FromBody] CommitReadStateBinder binder) {
+		public IActionResult CommitReadState(
+			[FromServices] ReadingVerificationService verificationService,
+			[FromBody] CommitReadStateBinder binder
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
-				return Json(db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, this.User.GetUserAccountId()));
+				var userAccountId = this.User.GetUserAccountId();
+				return Json(
+					verificationService.AssignProofToken(
+						db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, userAccountId),
+						userAccountId
+					)
+				);
 			}
 		}
 		[HttpGet]
@@ -136,7 +161,10 @@ namespace api.Controllers.Extension {
 			}
 		}
 		[HttpPost]
-		public IActionResult SetStarred([FromBody] SetStarredBinder binder) {
+		public IActionResult SetStarred(
+			[FromServices] ReadingVerificationService verificationService,
+			[FromBody] SetStarredBinder binder
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				if (binder.IsStarred) {
@@ -144,7 +172,12 @@ namespace api.Controllers.Extension {
 				} else {
 					db.UnstarArticle(userAccountId, binder.ArticleId);
 				}
-				return Json(db.GetUserArticle(binder.ArticleId, userAccountId));
+				return Json(
+					verificationService.AssignProofToken(
+						db.GetUserArticle(binder.ArticleId, userAccountId),
+						userAccountId
+					)
+				);
 			}
 		}
 		[HttpPost]
