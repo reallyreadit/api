@@ -27,6 +27,7 @@ using api.Security;
 using api.Authentication;
 using System.Linq;
 using System.Security.Claims;
+using api.ReadingVerification;
 
 namespace api {
 	public class Startup {
@@ -74,12 +75,14 @@ namespace api {
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(config.GetSection("Email"))
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
+				.Configure<ReadingVerificationOptions>(config.GetSection("ReadingVerification"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
 			// configure services
 			services
 				.AddScoped<CaptchaService>()
 				.AddScoped<EmailService>()
-				.AddTransient<RazorViewToStringRenderer>();
+				.AddTransient<RazorViewToStringRenderer>()
+				.AddScoped<ReadingVerificationService>();
 			// configure shared key ring in production
 			if (env.IsProduction()) {
 				var dataProtectionOptions = new MyDataProtectionOptions();
