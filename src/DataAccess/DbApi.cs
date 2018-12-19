@@ -177,13 +177,18 @@ namespace api.DataAccess {
 			param: new { article_id = articleId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<PageResult<UserArticle>> ListHotTopics(this NpgsqlConnection conn, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+		public static async Task<PageResult<UserArticle>> ListCommunityReads(
+			this NpgsqlConnection conn,
+			int pageNumber,
+			int pageSize,
+			CommunityReadSort sort
+		) => PageResult<UserArticle>.Create(
 			items: await conn.QueryAsync<UserArticlePageResult>(
-				sql: "article_api.list_hot_topics",
-				param: new
-				{
+				sql: "article_api.list_community_reads",
+				param: new {
 					page_number = pageNumber,
-					page_size = pageSize
+					page_size = pageSize,
+					sort = sort.ToString().ToLower()
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -229,13 +234,20 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public static async Task<PageResult<UserArticle>> ListUserHotTopics(this NpgsqlConnection conn, long userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
+		public static async Task<PageResult<UserArticle>> ListUserCommunityReads(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize,
+			CommunityReadSort sort
+		) => PageResult<UserArticle>.Create(
 			items: await conn.QueryAsync<UserArticlePageResult>(
-				sql: "article_api.list_user_hot_topics",
+				sql: "article_api.list_user_community_reads",
 				param: new {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
-					page_size = pageSize
+					page_size = pageSize,
+					sort = sort.ToString().ToLower()
 				},
 				commandType: CommandType.StoredProcedure
 			),

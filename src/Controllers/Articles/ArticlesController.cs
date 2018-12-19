@@ -24,6 +24,7 @@ namespace api.Controllers.Articles {
 			this.dbOpts = dbOpts.Value;
 			this.log = log;
 		}
+		// Deprecated 2018-12-18
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> ListHotTopics(
@@ -31,13 +32,23 @@ namespace api.Controllers.Articles {
 			int pageNumber,
 			int pageSize
 		) {
+			return await CommunityReads(verificationService, pageNumber, pageSize, CommunityReadSort.Hot);
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<IActionResult> CommunityReads(
+			[FromServices] ReadingVerificationService verificationService,
+			int pageNumber,
+			int pageSize,
+			CommunityReadSort sort
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					return Json(new {
 						Aotd = verificationService.AssignProofToken(await db.GetUserAotd(userAccountId), userAccountId),
 						Articles = PageResult<UserArticle>.Create(
-							await db.ListUserHotTopics(userAccountId, pageNumber, pageSize),
+							await db.ListUserCommunityReads(userAccountId, pageNumber, pageSize, sort),
 							articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
 						),
 						UserStats = await db.GetUserStats(userAccountId)
@@ -45,7 +56,7 @@ namespace api.Controllers.Articles {
 				}
 				return Json(new {
 					Aotd = await db.GetAotd(),
-					Articles = await db.ListHotTopics(pageNumber, pageSize)
+					Articles = await db.ListCommunityReads(pageNumber, pageSize, sort)
 				});
 			}
 		}
