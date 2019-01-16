@@ -42,5 +42,6 @@ namespace api.Controllers.Extension {
 				public string Url { get; set; }
 			}
 		}
+		public bool Star { get; set; }
 	}
 }

@@ -129,6 +129,9 @@ namespace api.Controllers.Extension {
 					// create user page
 					userPage = db.CreateUserPage(page.Id, userAccountId);
 				}
+				if (binder.Star) {
+					db.StarArticle(userAccountId, page.ArticleId);
+				}
 				return Json(new {
 					UserArticle = verificationService.AssignProofToken(
 						db.GetUserArticle(page.ArticleId, userAccountId),
