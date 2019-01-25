@@ -86,9 +86,64 @@ namespace api.Controllers.Extension {
 				var page = db.FindPage(binder.Url);
 				UserPage userPage;
 				if (page != null) {
+					// update the page if either the wordCount or readableWordCount has increased.
+					// we're assuming that the article has been updated with additional text
+					// and always storing the largest counts in the global record.
+					if (
+						binder.WordCount > page.WordCount ||
+						binder.ReadableWordCount > page.ReadableWordCount
+					) {
+						page = db.UpdatePage(
+							pageId: page.Id,
+							wordCount: Math.Max(binder.WordCount, page.WordCount),
+							readableWordCount: Math.Max(binder.ReadableWordCount, page.ReadableWordCount)
+						);
+					}
+					// decide if we're using the global record readableWordCount or the one from this parse result
+					int userReadableWordCount;
+					if (
+						binder.ReadableWordCount < page.ReadableWordCount &&
+						binder.ReadableWordCount >= (page.ReadableWordCount * 0.80)
+					) {
+						userReadableWordCount = binder.ReadableWordCount;
+					} else {
+						userReadableWordCount = page.ReadableWordCount;
+					}
+					// either create the user page if it doesn't exist or update it
+					// as long as it won't erase any read words from the existing read state
 					userPage = db.GetUserPage(page.Id, userAccountId);
 					if (userPage == null) {
-						userPage = db.CreateUserPage(page.Id, userAccountId);
+						userPage = db.CreateUserPage(
+							pageId: page.Id,
+							userAccountId: userAccountId,
+							readableWordCount: userReadableWordCount
+						);
+					} else if (userPage.ReadableWordCount != userReadableWordCount) {
+						var readClusters = userPage.ReadState.Last() > 0 ?
+							userPage.ReadState :
+							userPage.ReadState.Length > 1 ?
+								userPage.ReadState
+									.Take(userPage.ReadState.Length - 1)
+									.ToArray() :
+								new int[0];
+						var readClustersWordCount = readClusters.Sum(cluster => Math.Abs(cluster));
+						if (userReadableWordCount >= readClustersWordCount) {
+							int[] newReadState;
+							if (!readClusters.Any()) {
+								newReadState = new[] { -userReadableWordCount };
+							} else if (userReadableWordCount > readClustersWordCount) {
+								newReadState = readClusters
+									.Append(readClustersWordCount - userReadableWordCount)
+									.ToArray();
+							} else {
+								newReadState = readClusters;
+							}
+							userPage = db.UpdateUserPage(
+								userPageId: userPage.Id,
+								readableWordCount: userReadableWordCount,
+								readState: newReadState
+							);
+						}
 					}
 				} else {
 					// create article
@@ -122,12 +177,28 @@ namespace api.Controllers.Extension {
 						authorUrls: authors.Select(author => author.Url).ToArray(),
 						tags: binder.Article.Tags.Distinct().ToArray()
 					);
-					page = db.CreatePage(articleId, binder.Number ?? 1, binder.WordCount, binder.ReadableWordCount, binder.Url);
+					page = db.CreatePage(
+						articleId: articleId,
+						number: binder.Number ?? 1,
+						wordCount: binder.WordCount,
+						readableWordCount: binder.ReadableWordCount,
+						url: binder.Url
+					);
 					foreach (var pageLink in binder.Article.PageLinks.Where(p => p.Number != page.Number)) {
-						db.CreatePage(articleId, pageLink.Number, 0, 0, pageLink.Url);
+						db.CreatePage(
+							articleId: articleId,
+							number: pageLink.Number,
+							wordCount: 0,
+							readableWordCount: binder.ReadableWordCount,
+							url: pageLink.Url
+						);
 					}
 					// create user page
-					userPage = db.CreateUserPage(page.Id, userAccountId);
+					userPage = db.CreateUserPage(
+						pageId: page.Id,
+						userAccountId: userAccountId,
+						readableWordCount: binder.ReadableWordCount
+					);
 				}
 				if (binder.Star) {
 					db.StarArticle(userAccountId, page.ArticleId);
@@ -147,7 +218,10 @@ namespace api.Controllers.Extension {
 			[FromBody] CommitReadStateBinder binder
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userPage = db.UpdateUserPage(binder.UserPageId, binder.ReadState);
+				var userPage = db.UpdateReadProgress(
+					userPageId: binder.UserPageId,
+					readState: binder.ReadState
+				);
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					verificationService.AssignProofToken(

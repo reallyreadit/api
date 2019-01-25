@@ -92,11 +92,12 @@ namespace api.DataAccess {
 			param: new { name, url, hostname, slug },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage CreateUserPage(this NpgsqlConnection conn, long pageId, long userAccountId) => conn.QuerySingleOrDefault<UserPage>(
+		public static UserPage CreateUserPage(this NpgsqlConnection conn, long pageId, long userAccountId, int readableWordCount) => conn.QuerySingleOrDefault<UserPage>(
 			sql: "article_api.create_user_page",
 			param: new {
 				page_id = pageId,
-				user_account_id = userAccountId
+				user_account_id = userAccountId,
+				readable_word_count = readableWordCount
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -275,10 +276,28 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage UpdateUserPage(this NpgsqlConnection conn, long userPageId, int[] readState) => conn.QuerySingleOrDefault<UserPage>(
+		public static Page UpdatePage(this NpgsqlConnection conn, long pageId, int wordCount, int readableWordCount) => conn.QuerySingleOrDefault<Page>(
+			sql: "article_api.update_page",
+			param: new {
+				page_id = pageId,
+				word_count = wordCount,
+				readable_word_count = readableWordCount
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static UserPage UpdateReadProgress(this NpgsqlConnection conn, long userPageId, int[] readState) => conn.QuerySingleOrDefault<UserPage>(
+			sql: "article_api.update_read_progress",
+			param: new {
+				user_page_id = userPageId,
+				read_state = readState
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static UserPage UpdateUserPage(this NpgsqlConnection conn, long userPageId, int readableWordCount, int[] readState) => conn.QuerySingleOrDefault<UserPage>(
 			sql: "article_api.update_user_page",
 			param: new {
 				user_page_id = userPageId,
+				readable_word_count = readableWordCount,
 				read_state = readState
 			},
 			commandType: CommandType.StoredProcedure
