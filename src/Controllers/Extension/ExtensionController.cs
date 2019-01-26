@@ -118,7 +118,10 @@ namespace api.Controllers.Extension {
 							userAccountId: userAccountId,
 							readableWordCount: userReadableWordCount
 						);
-					} else if (userPage.ReadableWordCount != userReadableWordCount) {
+					} else if (
+						!userPage.DateCompleted.HasValue &&
+						userPage.ReadableWordCount != userReadableWordCount
+					) {
 						var readClusters = userPage.ReadState.Last() > 0 ?
 							userPage.ReadState :
 							userPage.ReadState.Length > 1 ?
