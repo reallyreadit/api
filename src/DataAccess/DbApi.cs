@@ -255,6 +255,20 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
+		public static Task<Rating> RateArticle(
+			this NpgsqlConnection conn,
+			long articleId,
+			long userAccountId,
+			int score
+		) => conn.QuerySingleOrDefaultAsync<Rating>(
+			sql: "article_api.rate_article",
+			param: new {
+				article_id = articleId,
+				user_account_id = userAccountId,
+				score
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static void ReadComment(this NpgsqlConnection conn, long commentId) => conn.Execute(
 			sql: "article_api.read_comment",
 			param: new { comment_id = commentId },
