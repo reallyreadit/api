@@ -302,5 +302,14 @@ namespace api.Controllers.Articles {
 				});
 			}
 		}
+		public async Task<IActionResult> Rate([FromBody] ArticleRatingForm form) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.RateArticle(
+					articleId: form.ArticleId,
+					userAccountId: User.GetUserAccountId(),
+					score: form.Score
+				));
+			}
+		}
 	}
 }
