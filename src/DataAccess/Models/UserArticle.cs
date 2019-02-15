@@ -20,6 +20,7 @@ namespace api.DataAccess.Models {
 		public decimal PercentComplete { get; set; }
 		public bool IsRead { get; set; }
 		public DateTime? DateStarred { get; set; }
+		public int? RatingScore { get; set; }
 		public string ProofToken { get; set; }
 	}
 }
