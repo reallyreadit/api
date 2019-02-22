@@ -143,7 +143,7 @@ namespace api {
 						return Task.CompletedTask;
 					}
 				},
-				ExpireTimeSpan = TimeSpan.FromDays(7),
+				ExpireTimeSpan = TimeSpan.FromDays(60),
 				SlidingExpiration = true
 			});
 			// configure routes
