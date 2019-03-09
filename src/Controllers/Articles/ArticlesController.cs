@@ -15,6 +15,8 @@ using System.Collections.Generic;
 using api.Security;
 using Microsoft.Extensions.Logging;
 using api.ReadingVerification;
+using api.Encryption;
+using api.ClientModels;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -118,6 +120,7 @@ namespace api.Controllers.Articles {
 		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ListComments(
+			[FromServices] ObfuscationService obfuscationService,
 			[FromServices] ReadingVerificationService verificationService,
 			string proofToken,
 			string slug
@@ -130,31 +133,35 @@ namespace api.Controllers.Articles {
 							db.FindArticle(slug).Id :
 							verificationService.GetTokenData(proofToken).ArticleId
 					)
-					.Select(c => new CommentThread(c))
+					.Select(c => new CommentThread(c, obfuscationService))
 					.ToArray();
 			}
-			foreach (var comment in comments.Where(c => c.ParentCommentId.HasValue)) {
+			foreach (var comment in comments.Where(c => c.ParentCommentId != null)) {
 				comments.Single(c => c.Id == comment.ParentCommentId).Children.Add(comment);
 			}
 			foreach (var comment in comments) {
 				comment.Children.Sort((a, b) => b.MaxDate.CompareTo(a.MaxDate));
 			}
-			return Json(comments
-				.Where(c => !c.ParentCommentId.HasValue)
-				.OrderByDescending(c => c.MaxDate));
+			return Json(
+				comments
+					.Where(c => c.ParentCommentId == null)
+					.OrderByDescending(c => c.MaxDate)
+			);
 		}
 		[HttpPost]
 		public async Task<IActionResult> PostComment(
 			[FromBody] PostCommentBinder binder,
-			[FromServices] EmailService emailService
+			[FromServices] EmailService emailService,
+			[FromServices] ObfuscationService obfuscationService
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 					var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
 					if (userArticle.IsRead) {
-						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, binder.ParentCommentId, this.User.GetUserAccountId());
-						if (binder.ParentCommentId.HasValue) {
-							var parent = db.GetComment(binder.ParentCommentId.Value);
+						var parentCommentId = obfuscationService.Decode(binder.ParentCommentId);
+						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, parentCommentId, this.User.GetUserAccountId());
+						if (parentCommentId != null) {
+							var parent = db.GetComment(parentCommentId.Value);
 							if (parent.UserAccountId != this.User.GetUserAccountId()) {
 								var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
@@ -165,7 +172,7 @@ namespace api.Controllers.Articles {
 								}
 							}
 						}
-						return Json(new CommentThread(comment));
+						return Json(new CommentThread(comment, obfuscationService));
 					}
 				}
 			}
@@ -186,18 +193,21 @@ namespace api.Controllers.Articles {
 			return Ok();
 		}
 		[HttpGet]
-		public IActionResult ListReplies(int pageNumber) {
+		public IActionResult ListReplies(int pageNumber, [FromServices] ObfuscationService obfuscationService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(PageResult<CommentThread>.Create(
 					source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 40),
-					map: comments => comments.Select(c => new CommentThread(c))
+					map: comments => comments.Select(c => new CommentThread(c, obfuscationService))
 				));
 			}
 		}
 		[HttpPost]
-		public IActionResult ReadReply([FromBody] ReadReplyBinder binder) {
+		public IActionResult ReadReply(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromBody] ReadReplyBinder binder
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var comment = db.GetComment(binder.CommentId);
+				var comment = db.GetComment(obfuscationService.Decode(binder.CommentId).Value);
 				if (db.GetComment(comment.ParentCommentId.Value).UserAccountId == User.GetUserAccountId()) {
 					db.ReadComment(comment.Id);
 					return Ok();

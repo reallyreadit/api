@@ -9,6 +9,7 @@
     <PackageReference Include="AWSSDK.SimpleEmail" Version="3.3.7.15" />
     <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.3.3.3" />
     <PackageReference Include="Dapper" Version="1.50.4" />
+    <PackageReference Include="Hashids.net" Version="1.2.2" />
     <PackageReference Include="MailKit" Version="1.16.1" />
     <PackageReference Include="Microsoft.AspNetCore.Authentication.Cookies" Version="1.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.Cors" Version="1.1.1" />

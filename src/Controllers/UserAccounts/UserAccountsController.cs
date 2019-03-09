@@ -24,6 +24,7 @@ using api.Authorization;
 using Npgsql;
 using System.IO;
 using api.Security;
+using api.ClientModels;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -334,7 +335,9 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpPost]
-		public IActionResult CreateDesktopNotification() {
+		public IActionResult CreateDesktopNotification(
+			[FromServices] IOptions<EmailOptions> emailOptions
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
 				db.RecordNewReplyDesktopNotification(userAccount.Id);
@@ -344,7 +347,13 @@ namespace api.Controllers.UserAccounts {
 						latestUnreadReply.DateCreated > userAccount.LastNewReplyAck &&
 						latestUnreadReply.DateCreated > userAccount.LastNewReplyDesktopNotification
 					) {
-						return Json(latestUnreadReply);
+						return Json(
+							new {
+								ArticleTitle = latestUnreadReply.ArticleTitle,
+								Token = StringEncryption.Encrypt(latestUnreadReply.Id.ToString(), emailOptions.Value.EncryptionKey),
+								UserName = latestUnreadReply.UserAccount
+							}
+						);
 					}
 				}
 			}
@@ -549,7 +558,8 @@ namespace api.Controllers.UserAccounts {
 		public IActionResult ViewReply2(
 			[FromBody] ViewReplyForm form,
 			[FromServices] IOptions<EmailOptions> emailOpts,
-			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts,
+			[FromServices] ObfuscationService obfuscationService
 		) {
 			Int64 commentId;
 			if (form.Id.HasValue) {
@@ -563,7 +573,7 @@ namespace api.Controllers.UserAccounts {
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.ReadComment(commentId);
-				return Json(db.GetComment(commentId));
+				return Json(new CommentThread(db.GetComment(commentId), obfuscationService));
 			}
 		}
    }
