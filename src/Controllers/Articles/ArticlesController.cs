@@ -94,26 +94,19 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public async Task<IActionResult> Details(
+		public IActionResult Details(
 			[FromServices] ReadingVerificationService verificationService,
-			string proofToken,
 			string slug
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					return Json(verificationService.AssignProofToken(
-						article: slug != null ?
-							db.FindUserArticle(slug, userAccountId) :
-							db.GetUserArticle(verificationService.GetTokenData(proofToken).ArticleId, userAccountId),
+						article: db.FindUserArticle(slug, userAccountId),
 						userAccountId: userAccountId
 					));
 				} else {
-					return Json(
-						slug != null ?
-							db.FindArticle(slug) :
-							await db.GetArticle(verificationService.GetTokenData(proofToken).ArticleId)
-					);
+					return Json(db.FindArticle(slug));
 				}
 			}
 		}
@@ -122,16 +115,13 @@ namespace api.Controllers.Articles {
 		public IActionResult ListComments(
 			[FromServices] ObfuscationService obfuscationService,
 			[FromServices] ReadingVerificationService verificationService,
-			string proofToken,
 			string slug
 		) {
 			CommentThread[] comments;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
 					.ListComments(
-						slug != null ?
-							db.FindArticle(slug).Id :
-							verificationService.GetTokenData(proofToken).ArticleId
+						db.FindArticle(slug).Id
 					)
 					.Select(c => new CommentThread(c, obfuscationService))
 					.ToArray();
