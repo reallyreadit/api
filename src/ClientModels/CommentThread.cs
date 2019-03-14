@@ -13,7 +13,6 @@ namespace api.ClientModels {
             ArticleId = comment.ArticleId;
             ArticleSlug = comment.ArticleSlug;
             ArticleTitle = comment.ArticleTitle;
-            UserAccountId = comment.UserAccountId;
             UserAccount = comment.UserAccount;
             ParentCommentId = (
                 comment.ParentCommentId.HasValue ?
@@ -29,7 +28,6 @@ namespace api.ClientModels {
 		public long ArticleId { get; set; }
 		public string ArticleTitle { get; set; }
 		public string ArticleSlug { get; set; }
-		public long UserAccountId { get; set; }
 		public string UserAccount { get; set; }
 		public string ParentCommentId { get; set; }
 		public DateTime? DateRead { get; set; }
