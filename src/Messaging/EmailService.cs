@@ -148,7 +148,7 @@ namespace api.Messaging {
 			),
 			requireConfirmation: false
 		);
-		public async Task<bool> SendShareEmail(UserAccount sender, IEmailRecipient recipient, UserArticle article, string message) => await SendEmail(
+		public async Task<bool> SendShareEmail(UserAccount sender, IEmailRecipient recipient, Article article, string message) => await SendEmail(
 			new EmailMailbox(sender.Name, sender.Email),
 			recipient,
 			viewName: "ShareEmail",

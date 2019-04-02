@@ -62,7 +62,7 @@ namespace api.Controllers.Extension {
 			}
 		}
 		[HttpGet]
-		public IActionResult UserArticle(
+		public async Task<IActionResult> UserArticle(
 			[FromServices] ReadingVerificationService verificationService,
 			long id
 		) {
@@ -70,14 +70,14 @@ namespace api.Controllers.Extension {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					verificationService.AssignProofToken(
-						db.GetUserArticle(id, userAccountId),
+						await db.GetArticle(id, userAccountId),
 						userAccountId
 					)
 				);
 			}
 		}
 		[HttpPost]
-		public IActionResult GetUserArticle(
+		public async Task<IActionResult> GetUserArticle(
 			[FromServices] ReadingVerificationService verificationService,
 			[FromBody] PageInfoBinder binder
 		) {
@@ -208,7 +208,7 @@ namespace api.Controllers.Extension {
 				}
 				return Json(new {
 					UserArticle = verificationService.AssignProofToken(
-						db.GetUserArticle(page.ArticleId, userAccountId),
+						await db.GetArticle(page.ArticleId, userAccountId),
 						userAccountId
 					),
 					UserPage = userPage
@@ -216,7 +216,7 @@ namespace api.Controllers.Extension {
 			}
 		}
 		[HttpPost]
-		public IActionResult CommitReadState(
+		public async Task<IActionResult> CommitReadState(
 			[FromServices] ReadingVerificationService verificationService,
 			[FromBody] CommitReadStateBinder binder
 		) {
@@ -228,7 +228,7 @@ namespace api.Controllers.Extension {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					verificationService.AssignProofToken(
-						db.GetUserArticle(db.GetPage(userPage.PageId).ArticleId, userAccountId),
+						await db.GetArticle(db.GetPage(userPage.PageId).ArticleId, userAccountId),
 						userAccountId
 					)
 				);
@@ -241,7 +241,7 @@ namespace api.Controllers.Extension {
 			}
 		}
 		[HttpPost]
-		public IActionResult SetStarred(
+		public async Task<IActionResult> SetStarred(
 			[FromServices] ReadingVerificationService verificationService,
 			[FromBody] SetStarredBinder binder
 		) {
@@ -254,7 +254,7 @@ namespace api.Controllers.Extension {
 				}
 				return Json(
 					verificationService.AssignProofToken(
-						db.GetUserArticle(binder.ArticleId, userAccountId),
+						await db.GetArticle(binder.ArticleId, userAccountId),
 						userAccountId
 					)
 				);

@@ -9,7 +9,7 @@ namespace api.Messaging.Views {
 			string title,
 			HttpEndpointOptions webServerEndpoint,
 			UserAccount sender,
-			UserArticle article,
+			Article article,
 			string message
 		) : base(title, webServerEndpoint) {
 			Sender = sender.Name;

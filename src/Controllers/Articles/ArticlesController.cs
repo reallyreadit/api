@@ -48,17 +48,17 @@ namespace api.Controllers.Articles {
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					return Json(new {
-						Aotd = verificationService.AssignProofToken(await db.GetUserAotd(userAccountId), userAccountId),
-						Articles = PageResult<UserArticle>.Create(
-							await db.ListUserCommunityReads(userAccountId, pageNumber, pageSize, sort),
+						Aotd = verificationService.AssignProofToken(await db.GetAotd(userAccountId), userAccountId),
+						Articles = PageResult<Article>.Create(
+							await db.GetCommunityReads(userAccountId, pageNumber, pageSize, sort),
 							articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
 						),
 						UserStats = await db.GetUserStats(userAccountId)
 					});
 				}
 				return Json(new {
-					Aotd = await db.GetAotd(),
-					Articles = await db.ListCommunityReads(pageNumber, pageSize, sort)
+					Aotd = await db.GetAotd(null),
+					Articles = await db.GetCommunityReads(null, pageNumber, pageSize, sort)
 				});
 			}
 		}
@@ -70,8 +70,8 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
-					PageResult<UserArticle>.Create(
-						db.ListStarredArticles(userAccountId, pageNumber, 40),
+					PageResult<Article>.Create(
+						db.GetStarredArticles(userAccountId, pageNumber, 40),
 						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
 					)
 				);
@@ -85,8 +85,8 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
-					PageResult<UserArticle>.Create(
-						db.ListUserArticleHistory(userAccountId, pageNumber, 40),
+					PageResult<Article>.Create(
+						db.GetArticleHistory(userAccountId, pageNumber, 40),
 						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
 					)
 				);
@@ -102,11 +102,11 @@ namespace api.Controllers.Articles {
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					return Json(verificationService.AssignProofToken(
-						article: db.FindUserArticle(slug, userAccountId),
+						article: db.FindArticle(slug, userAccountId),
 						userAccountId: userAccountId
 					));
 				} else {
-					return Json(db.FindArticle(slug));
+					return Json(db.FindArticle(slug, null));
 				}
 			}
 		}
@@ -121,7 +121,7 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
 					.ListComments(
-						db.FindArticle(slug).Id
+						db.FindArticle(slug, null).Id
 					)
 					.Select(c => new CommentThread(c, obfuscationService))
 					.ToArray();
@@ -146,7 +146,7 @@ namespace api.Controllers.Articles {
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					var userArticle = db.GetUserArticle(binder.ArticleId, this.User.GetUserAccountId());
+					var userArticle = await db.GetArticle(binder.ArticleId, this.User.GetUserAccountId());
 					if (userArticle.IsRead) {
 						var parentCommentId = obfuscationService.Decode(binder.ParentCommentId);
 						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, parentCommentId, this.User.GetUserAccountId());
@@ -214,15 +214,15 @@ namespace api.Controllers.Articles {
 			var tokenData = verificationService.GetTokenData(token);
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var readerName = db.GetUserAccount(tokenData.UserAccountId).Name;
-				UserArticle article;
+				Article article;
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					article = verificationService.AssignProofToken(
-						db.GetUserArticle(tokenData.ArticleId, userAccountId),
+						await db.GetArticle(tokenData.ArticleId, userAccountId),
 						userAccountId
 					);
 				} else {
-					article = await db.GetArticle(tokenData.ArticleId);
+					article = await db.GetArticle(tokenData.ArticleId, null);
 				}
 				return Json(new {
 					Article = article,

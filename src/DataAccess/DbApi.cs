@@ -79,9 +79,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserArticle FindArticle(this NpgsqlConnection conn, string slug) => conn.QuerySingleOrDefault<UserArticle>(
+		public static Article FindArticle(
+			this NpgsqlConnection conn,
+			string slug,
+			long? userAccountId
+		) => conn.QuerySingleOrDefault<Article>(
 			sql: "article_api.find_article",
-			param: new { slug },
+			param: new {
+				slug,
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static Page FindPage(this NpgsqlConnection conn, string url) => conn.QuerySingleOrDefault<Page>(
@@ -94,24 +101,70 @@ namespace api.DataAccess {
 			param: new { source_hostname = sourceHostname },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserArticle FindUserArticle(this NpgsqlConnection conn, string slug, long userAccountId) => conn.QuerySingleOrDefault<UserArticle>(
-			sql: "article_api.find_user_article",
-			param: new { slug, user_account_id = userAccountId },
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<UserArticle> GetAotd(this NpgsqlConnection conn) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
+		public static async Task<Article> GetAotd(
+			this NpgsqlConnection conn,
+			long? userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<Article>(
 			sql: "article_api.get_aotd",
+			param: new {
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<UserArticle> GetArticle(this NpgsqlConnection conn, long articleId) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
+		public static async Task<Article> GetArticle(
+			this NpgsqlConnection conn,
+			long articleId,
+			long? userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<Article>(
 			sql: "article_api.get_article",
-			param: new { article_id = articleId },
+			param: new {
+				article_id = articleId,
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
+		);
+		public static PageResult<Article> GetArticleHistory(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<Article>.Create(
+			items: conn.Query<ArticlePageResult>(
+				sql: "article_api.get_article_history",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
 		public static Comment GetComment(this NpgsqlConnection conn, long commentId) => conn.QuerySingleOrDefault<Comment>(
 			sql: "article_api.get_comment",
 			param: new { comment_id = commentId },
 			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PageResult<Article>> GetCommunityReads(
+			this NpgsqlConnection conn,
+			long? userAccountId,
+			int pageNumber,
+			int pageSize,
+			CommunityReadSort sort
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "article_api.get_community_reads",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					sort = sort.ToString().ToLower()
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
 		public static Page GetPage(this NpgsqlConnection conn, long pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
@@ -122,18 +175,23 @@ namespace api.DataAccess {
 			sql: "article_api.get_source_rules",
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<UserArticle> GetUserAotd(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
-			sql: "article_api.get_user_aotd",
-			param: new { user_account_id = userAccountId },
-			commandType: CommandType.StoredProcedure
-		);
-		public static UserArticle GetUserArticle(this NpgsqlConnection conn, long articleId, long userAccountId) => conn.QuerySingleOrDefault<UserArticle>(
-			sql: "article_api.get_user_article",
-			param: new {
-				article_id = articleId,
-				user_account_id = userAccountId
-			},
-			commandType: CommandType.StoredProcedure
+		public static PageResult<Article> GetStarredArticles(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<Article>.Create(
+			items: conn.Query<ArticlePageResult>(
+				sql: "article_api.get_starred_articles",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
 		public static UserPage GetUserPage(this NpgsqlConnection conn, long pageId, long userAccountId) => conn.QuerySingleOrDefault<UserPage>(
 			sql: "article_api.get_user_page",
@@ -148,24 +206,6 @@ namespace api.DataAccess {
 			param: new { article_id = articleId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<PageResult<UserArticle>> ListCommunityReads(
-			this NpgsqlConnection conn,
-			int pageNumber,
-			int pageSize,
-			CommunityReadSort sort
-		) => PageResult<UserArticle>.Create(
-			items: await conn.QueryAsync<UserArticlePageResult>(
-				sql: "article_api.list_community_reads",
-				param: new {
-					page_number = pageNumber,
-					page_size = pageSize,
-					sort = sort.ToString().ToLower()
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
 		public static PageResult<Comment> ListReplies(this NpgsqlConnection conn, long userAccountId, int pageNumber, int pageSize) => PageResult<Comment>.Create(
 			items: conn.Query<CommentPageResult>(
 				sql: "article_api.list_replies",
@@ -173,52 +213,6 @@ namespace api.DataAccess {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
 					page_size = pageSize
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
-		public static PageResult<UserArticle> ListStarredArticles(this NpgsqlConnection conn, long userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
-			items: conn.Query<UserArticlePageResult>(
-				sql: "article_api.list_starred_articles",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
-		public static PageResult<UserArticle> ListUserArticleHistory(this NpgsqlConnection conn, long userAccountId, int pageNumber, int pageSize) => PageResult<UserArticle>.Create(
-			items: conn.Query<UserArticlePageResult>(
-				sql: "article_api.list_user_article_history",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
-		public static async Task<PageResult<UserArticle>> ListUserCommunityReads(
-			this NpgsqlConnection conn,
-			long userAccountId,
-			int pageNumber,
-			int pageSize,
-			CommunityReadSort sort
-		) => PageResult<UserArticle>.Create(
-			items: await conn.QueryAsync<UserArticlePageResult>(
-				sql: "article_api.list_user_community_reads",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize,
-					sort = sort.ToString().ToLower()
 				},
 				commandType: CommandType.StoredProcedure
 			),

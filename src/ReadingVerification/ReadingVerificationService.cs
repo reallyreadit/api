@@ -11,7 +11,7 @@ namespace api.ReadingVerification {
 		public ReadingVerificationService(IOptions<ReadingVerificationOptions> readingVerificationOpts) {
 			this.readingVerificationOpts = readingVerificationOpts.Value;
 		}
-		public UserArticle AssignProofToken(UserArticle article, long userAccountId) {
+		public Article AssignProofToken(Article article, long userAccountId) {
 			if (article.IsRead) {
 				article.ProofToken = UrlSafeBase64.Encode(
 					StringEncryption.Encrypt(
