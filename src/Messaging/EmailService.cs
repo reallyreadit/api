@@ -148,19 +148,6 @@ namespace api.Messaging {
 			),
 			requireConfirmation: false
 		);
-		public async Task<bool> SendShareEmail(UserAccount sender, IEmailRecipient recipient, Article article, string message) => await SendEmail(
-			new EmailMailbox(sender.Name, sender.Email),
-			recipient,
-			viewName: "ShareEmail",
-			model: new ShareEmailViewModel(
-				title: $"{sender.Name} shared an article with you",
-				webServerEndpoint: this.serviceOpts.WebServer,
-				sender: sender,
-				article: article,
-				message: message
-			),
-			requireConfirmation: false
-		);
 		public async Task<bool> SendExtensionInstructionsEmail(UserAccount recipient) => await SendEmail(
 			recipient: recipient,
 			viewName: "ExtensionInstructionsEmail",
