@@ -168,20 +168,6 @@ namespace api.Controllers.Articles {
 			}
 			return BadRequest();
 		}
-		[HttpPost]
-		public IActionResult UserDelete([FromBody] ArticleIdBinder binder) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId();
-				var article = db.GetUserArticle(binder.ArticleId, userAccountId);
-				if (article.DateStarred.HasValue) {
-					db.UnstarArticle(userAccountId, article.Id);
-				}
-				if (article.DateCreated.HasValue) {
-					db.DeleteUserArticle(article.Id, userAccountId);
-				}
-			}
-			return Ok();
-		}
 		[HttpGet]
 		public IActionResult ListReplies(int pageNumber, [FromServices] ObfuscationService obfuscationService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
@@ -218,64 +204,6 @@ namespace api.Controllers.Articles {
 				db.UnstarArticle(this.User.GetUserAccountId(), binder.ArticleId);
 			}
 			return Ok();
-		}
-		[HttpPost]
-		public async Task<IActionResult> Share(
-			[FromBody] ShareArticleBinder binder,
-			[FromServices] EmailService emailService,
-			[FromServices] CaptchaService captchaService
-		) {
-			if (
-				binder.EmailAddresses.Length < 1 ||
-				binder.EmailAddresses.Length > 5 ||
-				binder.EmailAddresses.Any(address => address.Length > 256) ||
-				binder.Message?.Length > 10000
-			) {
-				return BadRequest();
-			}
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var sender = db.GetUserAccount(User.GetUserAccountId());
-				if (!sender.IsEmailConfirmed) {
-					return BadRequest(new[] { "UnconfirmedEmail" });
-				}
-				var captchaResponse = await captchaService.Verify(binder.CaptchaResponse);
-				if (captchaResponse != null) {
-					db.CreateCaptchaResponse("shareArticle", captchaResponse);
-				}
-				var userArticle = db.GetUserArticle(binder.ArticleId, User.GetUserAccountId());
-				if (userArticle.IsRead) {
-					var recipients = new List<EmailShareRecipient>();
-					foreach (var address in binder.EmailAddresses) {
-						var recipient = db.FindUserAccount(address);
-						bool sentSuccessfully;
-						try {
-							sentSuccessfully = await emailService.SendShareEmail(
-								sender: sender,
-								recipient: recipient != null ?
-									recipient as IEmailRecipient :
-									new EmailRecipient(address),
-								article: userArticle,
-								message: binder.Message
-							);
-						} catch (Exception ex) {
-							log.LogError(500, ex, "Error sending share email.");
-							sentSuccessfully = false;
-						}
-						recipients.Add(new EmailShareRecipient(address, recipient?.Id ?? 0, sentSuccessfully));
-					}
-					db.CreateEmailShare(
-						dateSent: DateTime.UtcNow,
-						articleId: userArticle.Id,
-						userAccountId: sender.Id,
-						message: binder.Message,
-						recipientAddresses: recipients.Select(r => r.EmailAddress).ToArray(),
-						recipientIds: recipients.Select(r => r.UserAccountId).ToArray(),
-						recipientResults: recipients.Select(r => r.IsSuccessful).ToArray()
-					);
-					return Ok();
-				}
-				return BadRequest();
-			}
 		}
 		[AllowAnonymous]
 		[HttpGet]

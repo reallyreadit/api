@@ -54,28 +54,6 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Comment CreateEmailShare(
-			this NpgsqlConnection conn,
-			DateTime dateSent,
-			long articleId,
-			long userAccountId,
-			string message,
-			string[] recipientAddresses,
-			long[] recipientIds,
-			bool[] recipientResults
-		) => conn.QuerySingleOrDefault<Comment>(
-			sql: "article_api.create_email_share",
-			param: new {
-				date_sent = dateSent,
-				article_id = articleId,
-				user_account_id = userAccountId,
-				message,
-				recipient_addresses = recipientAddresses,
-				recipient_ids = recipientIds,
-				recipient_results = recipientResults
-			},
-			commandType: CommandType.StoredProcedure
-		);
 		public static Page CreatePage(this NpgsqlConnection conn, long articleId, int number, int wordCount, int readableWordCount, string url) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.create_page",
 			param: new {
@@ -98,14 +76,6 @@ namespace api.DataAccess {
 				page_id = pageId,
 				user_account_id = userAccountId,
 				readable_word_count = readableWordCount
-			},
-			commandType: CommandType.StoredProcedure
-		);
-		public static void DeleteUserArticle(this NpgsqlConnection conn, long articleId, long userAccountId) => conn.Execute(
-			sql: "article_api.delete_user_article",
-			param: new {
-				article_id = articleId,
-				user_account_id = userAccountId
 			},
 			commandType: CommandType.StoredProcedure
 		);
