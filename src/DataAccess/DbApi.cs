@@ -82,7 +82,7 @@ namespace api.DataAccess {
 		public static Article FindArticle(
 			this NpgsqlConnection conn,
 			string slug,
-			long? userAccountId
+			long userAccountId
 		) => conn.QuerySingleOrDefault<Article>(
 			sql: "article_api.find_article",
 			param: new {
@@ -99,16 +99,6 @@ namespace api.DataAccess {
 		public static Source FindSource(this NpgsqlConnection conn, string sourceHostname) => conn.QuerySingleOrDefault<Source>(
 			sql: "article_api.find_source",
 			param: new { source_hostname = sourceHostname },
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<Article> GetAotd(
-			this NpgsqlConnection conn,
-			long? userAccountId
-		) => await conn.QuerySingleOrDefaultAsync<Article>(
-			sql: "article_api.get_aotd",
-			param: new {
-				user_account_id = userAccountId
-			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<Article> GetArticle(
@@ -145,26 +135,6 @@ namespace api.DataAccess {
 			sql: "article_api.get_comment",
 			param: new { comment_id = commentId },
 			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<PageResult<Article>> GetCommunityReads(
-			this NpgsqlConnection conn,
-			long? userAccountId,
-			int pageNumber,
-			int pageSize,
-			CommunityReadSort sort
-		) => PageResult<Article>.Create(
-			items: await conn.QueryAsync<ArticlePageResult>(
-				sql: "article_api.get_community_reads",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize,
-					sort = sort.ToString().ToLower()
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
 		);
 		public static Page GetPage(this NpgsqlConnection conn, long pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
@@ -331,6 +301,115 @@ namespace api.DataAccess {
 		);
 		#endregion
 
+		#region community_reads
+		public static async Task<Article> GetAotd(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<Article>(
+			sql: "community_reads.get_aotd",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PageResult<Article>> GetHighestRatedArticles(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize,
+			DateTime? sinceDate
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_highest_rated",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					since_date = sinceDate
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<Article>> GetHotArticles(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_hot",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<Article>> GetMostCommentedArticles(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize,
+			DateTime? sinceDate
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_most_commented",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					since_date = sinceDate
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<Article>> GetMostReadArticles(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize,
+			DateTime? sinceDate
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_most_read",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					since_date = sinceDate
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<Article>> GetTopArticles(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_top",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		#endregion
+
 		#region core
 		public static IEnumerable<TimeZone> GetTimeZones(
 			this NpgsqlConnection conn
@@ -343,7 +422,7 @@ namespace api.DataAccess {
 		#region stats_api
 		public static async Task<IEnumerable<CurrentStreakLeaderboardRow>> GetCurrentStreakLeaderboard(
 			this NpgsqlConnection conn,
-			long? userAccountId,
+			long userAccountId,
 			int maxCount
 		) => await conn.QueryAsync<CurrentStreakLeaderboardRow>(
 			sql: "stats_api.get_current_streak_leaderboard",

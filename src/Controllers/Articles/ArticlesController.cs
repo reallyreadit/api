@@ -36,29 +36,95 @@ namespace api.Controllers.Articles {
 		) {
 			return await CommunityReads(verificationService, pageNumber, pageSize, CommunityReadSort.Hot);
 		}
-		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> CommunityReads(
 			[FromServices] ReadingVerificationService verificationService,
 			int pageNumber,
 			int pageSize,
-			CommunityReadSort sort
+			CommunityReadSort sort,
+			CommunityReadTimeWindow? timeWindow = null
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				if (this.User.Identity.IsAuthenticated) {
-					var userAccountId = this.User.GetUserAccountId();
-					return Json(new {
-						Aotd = verificationService.AssignProofToken(await db.GetAotd(userAccountId), userAccountId),
-						Articles = PageResult<Article>.Create(
-							await db.GetCommunityReads(userAccountId, pageNumber, pageSize, sort),
-							articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
-						),
-						UserStats = await db.GetUserStats(userAccountId)
-					});
+				var userAccountId = this.User.GetUserAccountId();
+				PageResult<Article> articles;
+				if (sort == CommunityReadSort.Hot || sort == CommunityReadSort.Top) {
+					switch (sort) {
+						case CommunityReadSort.Hot:
+							articles = await db.GetHotArticles(
+								userAccountId: userAccountId,
+								pageNumber: pageNumber,
+								pageSize: pageSize
+							);
+							break;
+						case CommunityReadSort.Top:
+							articles = await db.GetTopArticles(
+								userAccountId: userAccountId,
+								pageNumber: pageNumber,
+								pageSize: pageSize
+							);
+							break;
+						default:
+							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
+					}
+				} else {
+					DateTime? sinceDate;
+					if (timeWindow == CommunityReadTimeWindow.AllTime) {
+						sinceDate = null;
+					} else {
+						var now = DateTime.UtcNow;
+						switch (timeWindow) {
+							case CommunityReadTimeWindow.PastDay:
+								sinceDate = now.AddDays(-1);
+								break;
+							case CommunityReadTimeWindow.PastWeek:
+								sinceDate = now.AddDays(-7);
+								break;
+							case CommunityReadTimeWindow.PastMonth:
+								sinceDate = now.AddMonths(-1);
+								break;
+							case CommunityReadTimeWindow.PastYear:
+								sinceDate = now.AddYears(-1);
+								break;
+							default:
+								throw new ArgumentException($"Unexpected value for {nameof(timeWindow)}");
+						}
+					}
+					switch (sort) {
+						case CommunityReadSort.MostComments:
+							articles = await db.GetMostCommentedArticles(
+								userAccountId: userAccountId,
+								pageNumber: pageNumber,
+								pageSize: pageSize,
+								sinceDate: sinceDate
+							);
+							break;
+						case CommunityReadSort.MostRead:
+							articles = await db.GetMostReadArticles(
+								userAccountId: userAccountId,
+								pageNumber: pageNumber,
+								pageSize: pageSize,
+								sinceDate: sinceDate
+							);
+							break;
+						case CommunityReadSort.HighestRated:
+							articles = await db.GetHighestRatedArticles(
+								userAccountId: userAccountId,
+								pageNumber: pageNumber,
+								pageSize: pageSize,
+								sinceDate: sinceDate
+							);
+							break;
+						default:
+							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
+					}
 				}
 				return Json(new {
-					Aotd = await db.GetAotd(null),
-					Articles = await db.GetCommunityReads(null, pageNumber, pageSize, sort)
+					Aotd = verificationService.AssignProofToken(await db.GetAotd(userAccountId), userAccountId),
+					Articles = PageResult<Article>.Create(
+						articles,
+						items => items.Select(article => verificationService.AssignProofToken(article, userAccountId))
+					),
+					UserStats = await db.GetUserStats(userAccountId)
 				});
 			}
 		}
@@ -92,25 +158,19 @@ namespace api.Controllers.Articles {
 				);
 			}
 		}
-		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(
 			[FromServices] ReadingVerificationService verificationService,
 			string slug
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				if (this.User.Identity.IsAuthenticated) {
-					var userAccountId = this.User.GetUserAccountId();
-					return Json(verificationService.AssignProofToken(
-						article: db.FindArticle(slug, userAccountId),
-						userAccountId: userAccountId
-					));
-				} else {
-					return Json(db.FindArticle(slug, null));
-				}
+				var userAccountId = this.User.GetUserAccountId();
+				return Json(verificationService.AssignProofToken(
+					article: db.FindArticle(slug, userAccountId),
+					userAccountId: userAccountId
+				));
 			}
 		}
-		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ListComments(
 			[FromServices] ObfuscationService obfuscationService,
@@ -121,7 +181,7 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
 					.ListComments(
-						db.FindArticle(slug, null).Id
+						db.FindArticle(slug, User.GetUserAccountId()).Id
 					)
 					.Select(c => new CommentThread(c, obfuscationService))
 					.ToArray();
@@ -230,6 +290,7 @@ namespace api.Controllers.Articles {
 				});
 			}
 		}
+		[HttpPost]
 		public async Task<IActionResult> Rate([FromBody] ArticleRatingForm form) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(await db.RateArticle(
