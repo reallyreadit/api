@@ -1,9 +1,9 @@
 namespace api.Controllers.Articles {
 	public enum CommunityReadTimeWindow {
-		PastDay,
-		PastWeek,
-		PastMonth,
-		PastYear,
-		AllTime
+		AllTime = 0,
+		PastDay = 1,
+		PastWeek = 2,
+		PastMonth = 3,
+		PastYear = 4
 	}
 }
