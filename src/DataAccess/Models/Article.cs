@@ -16,6 +16,7 @@ namespace api.DataAccess.Models {
 		public int WordCount { get; set; }
 		public int CommentCount { get; set; }
 		public int ReadCount { get; set; }
+		public double? AverageRatingScore { get; set; }
 		public DateTime? DateCreated { get; set; }
 		public decimal PercentComplete { get; set; }
 		public bool IsRead { get; set; }
