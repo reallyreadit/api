@@ -158,19 +158,26 @@ namespace api.Controllers.Articles {
 				);
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult Details(
 			[FromServices] ReadingVerificationService verificationService,
 			string slug
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId();
-				return Json(verificationService.AssignProofToken(
-					article: db.FindArticle(slug, userAccountId),
-					userAccountId: userAccountId
-				));
+				var userAccountId = this.User.GetUserAccountIdOrDefault();
+				var article = db.FindArticle(slug, userAccountId);
+				return Json(
+					userAccountId.HasValue ?
+						verificationService.AssignProofToken(
+							article: article,
+							userAccountId: userAccountId.Value
+						) :
+						article
+				);
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public IActionResult ListComments(
 			[FromServices] ObfuscationService obfuscationService,
@@ -181,7 +188,7 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
 					.ListComments(
-						db.FindArticle(slug, User.GetUserAccountId()).Id
+						db.FindArticle(slug, User.GetUserAccountIdOrDefault()).Id
 					)
 					.Select(c => new CommentThread(c, obfuscationService))
 					.ToArray();

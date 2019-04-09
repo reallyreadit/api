@@ -82,7 +82,7 @@ namespace api.DataAccess {
 		public static Article FindArticle(
 			this NpgsqlConnection conn,
 			string slug,
-			long userAccountId
+			long? userAccountId
 		) => conn.QuerySingleOrDefault<Article>(
 			sql: "article_api.find_article",
 			param: new {
