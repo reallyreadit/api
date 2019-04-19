@@ -141,7 +141,7 @@ namespace api.Controllers.UserAccounts {
 				if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
 					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				var userAccount = await db.GetUserAccount(this.User.GetUserAccountId());
 				await emailService.SendConfirmationEmail(
 					recipient: userAccount,
 					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
@@ -150,12 +150,12 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpPost]
-		public IActionResult ChangePassword([FromBody] ChangePasswordBinder binder) {
+		public async Task<IActionResult> ChangePassword([FromBody] ChangePasswordBinder binder) {
 			if (!IsPasswordValid(binder.NewPassword)) {
 				return BadRequest();
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				var userAccount = await db.GetUserAccount(this.User.GetUserAccountId());
 				if (!IsCorrectPassword(userAccount, binder.CurrentPassword)) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
@@ -182,7 +182,7 @@ namespace api.Controllers.UserAccounts {
 					var salt = GenerateSalt();
 					db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
 					db.CompletePasswordResetRequest(request.Id);
-					var userAccount = db.GetUserAccount(request.UserAccountId);
+					var userAccount = await db.GetUserAccount(request.UserAccountId);
 					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
 					return Json(userAccount);
 				}
@@ -195,7 +195,7 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] EmailService emailService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				var userAccount = await db.GetUserAccount(this.User.GetUserAccountId());
 				if (userAccount.Email == binder.Email) {
 					return BadRequest();
 				}
@@ -218,7 +218,7 @@ namespace api.Controllers.UserAccounts {
 					if (isEmailAddressConfirmed) {
 						db.ConfirmEmailAddress(confirmation.Id);
 					}
-					var updatedUserAccount = db.GetUserAccount(userAccount.Id);
+					var updatedUserAccount = await db.GetUserAccount(userAccount.Id);
 					if (!isEmailAddressConfirmed) {
 						await emailService.SendConfirmationEmail(
 							recipient: updatedUserAccount,
@@ -255,15 +255,15 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpGet]
-		public IActionResult GetUserAccount() {
+		public async Task<IActionResult> GetUserAccount() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetUserAccount(this.User.GetUserAccountId()));
+				return Json(await db.GetUserAccount(this.User.GetUserAccountId()));
 			}
 		}
 		[HttpGet]
-		public IActionResult GetSessionState() {
+		public async Task<IActionResult> GetSessionState() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				var userAccount = await db.GetUserAccount(this.User.GetUserAccountId());
 				return Json(new {
 					UserAccount = userAccount,
 					NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestUnreadReply(userAccount.Id))
@@ -319,10 +319,10 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpGet]
-		public IActionResult CheckNewReplyNotification() {
+		public async Task<IActionResult> CheckNewReplyNotification() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(new NewReplyNotification(
-					userAccount: db.GetUserAccount(this.User.GetUserAccountId()),
+					userAccount: await db.GetUserAccount(this.User.GetUserAccountId()),
 					latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
 				));
 			}
@@ -335,11 +335,11 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		[HttpPost]
-		public IActionResult CreateDesktopNotification(
+		public async Task<IActionResult> CreateDesktopNotification(
 			[FromServices] IOptions<EmailOptions> emailOptions
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(this.User.GetUserAccountId());
+				var userAccount = await db.GetUserAccount(this.User.GetUserAccountId());
 				db.RecordNewReplyDesktopNotification(userAccount.Id);
 				if (userAccount.ReceiveReplyDesktopNotifications) {
 					var latestUnreadReply = db.GetLatestUnreadReply(userAccount.Id);
@@ -361,13 +361,13 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public JsonResult EmailSubscriptions(
+		public async Task<JsonResult> EmailSubscriptions(
 			string token,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				userAccount = db.GetUserAccount(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+				userAccount = await db.GetUserAccount(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
 			}
 			if (userAccount != null) {
 				return Json(new {
@@ -392,12 +392,12 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public IActionResult UpdateEmailSubscriptions(
+		public async Task<IActionResult> UpdateEmailSubscriptions(
 			[FromBody] UpdateEmailSubscriptionsBinder binder,
 			[FromServices] IOptions<EmailOptions> emailOpts
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = db.GetUserAccount(Int64.Parse(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
+				var userAccount = await db.GetUserAccount(Int64.Parse(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
 				if (userAccount != null) {
 					db.UpdateNotificationPreferences(
 						userAccountId: userAccount.Id,

@@ -566,7 +566,7 @@ namespace api.DataAccess {
 			param: new { password_reset_request_id = passwordResetRequestId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserAccount GetUserAccount(this NpgsqlConnection conn, long userAccountId) => conn.QuerySingleOrDefault<UserAccount>(
+		public static async Task<UserAccount> GetUserAccount(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserAccount>(
 			sql: "user_account_api.get_user_account",
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure

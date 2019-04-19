@@ -220,7 +220,7 @@ namespace api.Controllers.Articles {
 						if (parentCommentId != null) {
 							var parent = db.GetComment(parentCommentId.Value);
 							if (parent.UserAccountId != this.User.GetUserAccountId()) {
-								var parentUserAccount = db.GetUserAccount(parent.UserAccountId);
+								var parentUserAccount = await db.GetUserAccount(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
 									await emailService.SendCommentReplyNotificationEmail(
 										recipient: parentUserAccount,
@@ -280,7 +280,7 @@ namespace api.Controllers.Articles {
 		) {
 			var tokenData = verificationService.GetTokenData(token);
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var readerName = db.GetUserAccount(tokenData.UserAccountId).Name;
+				var readerName = (await db.GetUserAccount(tokenData.UserAccountId)).Name;
 				Article article;
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();

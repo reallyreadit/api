@@ -211,7 +211,8 @@ namespace api.Controllers.Extension {
 						await db.GetArticle(page.ArticleId, userAccountId),
 						userAccountId
 					),
-					UserPage = userPage
+					UserPage = userPage,
+					User = await db.GetUserAccount(userAccountId)
 				});
 			}
 		}
@@ -264,7 +265,7 @@ namespace api.Controllers.Extension {
 		public async Task<IActionResult> SendInstructions([FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				await emailService.SendExtensionInstructionsEmail(
-					recipient: db.GetUserAccount(this.User.GetUserAccountId())
+					recipient: await db.GetUserAccount(this.User.GetUserAccountId())
 				);
 			}
 			return Ok();
