@@ -151,7 +151,10 @@ namespace api.Messaging {
 		public async Task<bool> SendExtensionInstructionsEmail(UserAccount recipient) => await SendEmail(
 			recipient: recipient,
 			viewName: "ExtensionInstructionsEmail",
-			model: new EmailLayoutViewModel("Use stars to get any article on Readup", this.serviceOpts.WebServer),
+			model: new EmailLayoutViewModel(
+				title: "Add the Readup Chrome extension.",
+				webServerEndpoint: this.serviceOpts.WebServer
+			),
 			requireConfirmation: false
 		);
 	}
