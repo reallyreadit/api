@@ -17,6 +17,7 @@ using Microsoft.Extensions.Logging;
 using api.ReadingVerification;
 using api.Encryption;
 using api.ClientModels;
+using api.Versioning;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -209,17 +210,19 @@ namespace api.Controllers.Articles {
 		public async Task<IActionResult> PostComment(
 			[FromBody] PostCommentBinder binder,
 			[FromServices] EmailService emailService,
-			[FromServices] ObfuscationService obfuscationService
+			[FromServices] ObfuscationService obfuscationService,
+			[FromServices] ReadingVerificationService verificationService
 		) {
 			if (!String.IsNullOrWhiteSpace(binder.Text)) {
+				var userAccountId = this.User.GetUserAccountId();
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					var userArticle = await db.GetArticle(binder.ArticleId, this.User.GetUserAccountId());
+					var userArticle = await db.GetArticle(binder.ArticleId, userAccountId);
 					if (userArticle.IsRead) {
 						var parentCommentId = obfuscationService.Decode(binder.ParentCommentId);
-						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, parentCommentId, this.User.GetUserAccountId());
+						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, parentCommentId, userAccountId);
 						if (parentCommentId != null) {
 							var parent = db.GetComment(parentCommentId.Value);
-							if (parent.UserAccountId != this.User.GetUserAccountId()) {
+							if (parent.UserAccountId != userAccountId) {
 								var parentUserAccount = await db.GetUserAccount(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
 									await emailService.SendCommentReplyNotificationEmail(
@@ -228,6 +231,21 @@ namespace api.Controllers.Articles {
 									);
 								}
 							}
+						}
+						if (
+							this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
+								{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
+								{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
+								{ ClientType.IosApp, new SemanticVersion("3.1.1") }
+							})
+						) {
+							return Json(new {
+								Article = verificationService.AssignProofToken(
+									article: await db.GetArticle(binder.ArticleId, userAccountId),
+									userAccountId: userAccountId
+								),
+								Comment = new CommentThread(comment, obfuscationService)
+							});
 						}
 						return Json(new CommentThread(comment, obfuscationService));
 					}
@@ -259,18 +277,32 @@ namespace api.Controllers.Articles {
 			return BadRequest();
 		}
 		[HttpPost]
-		public IActionResult Star([FromBody] ArticleIdBinder binder) {
+		public async Task<IActionResult> Star(
+			[FromBody] ArticleIdBinder binder,
+			[FromServices] ReadingVerificationService verificationService
+		) {
+			var userAccountId = this.User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.StarArticle(this.User.GetUserAccountId(), binder.ArticleId);
+				db.StarArticle(userAccountId, binder.ArticleId);
+				return Json(verificationService.AssignProofToken(
+					article: await db.GetArticle(binder.ArticleId, userAccountId),
+					userAccountId: userAccountId
+				));
 			}
-			return Ok();
 		}
 		[HttpPost]
-		public IActionResult Unstar([FromBody] ArticleIdBinder binder) {
+		public async Task<IActionResult> Unstar(
+			[FromBody] ArticleIdBinder binder,
+			[FromServices] ReadingVerificationService verificationService
+		) {
+			var userAccountId = this.User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.UnstarArticle(this.User.GetUserAccountId(), binder.ArticleId);
+				db.UnstarArticle(userAccountId, binder.ArticleId);
+				return Json(verificationService.AssignProofToken(
+					article: await db.GetArticle(binder.ArticleId, userAccountId),
+					userAccountId: userAccountId
+				));
 			}
-			return Ok();
 		}
 		[AllowAnonymous]
 		[HttpGet]
@@ -298,13 +330,34 @@ namespace api.Controllers.Articles {
 			}
 		}
 		[HttpPost]
-		public async Task<IActionResult> Rate([FromBody] ArticleRatingForm form) {
+		public async Task<IActionResult> Rate(
+			[FromBody] ArticleRatingForm form,
+			[FromServices] ReadingVerificationService verificationService
+		) {
+			var userAccountId = User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.RateArticle(
+				var rating = await db.RateArticle(
 					articleId: form.ArticleId,
-					userAccountId: User.GetUserAccountId(),
+					userAccountId: userAccountId,
 					score: form.Score
-				));
+				);
+				if (
+					this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
+						{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
+						{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
+						{ ClientType.IosApp, new SemanticVersion("3.1.1") }
+					})
+				) {
+					return Json(new {
+						Article = verificationService.AssignProofToken(
+							article: await db.GetArticle(form.ArticleId, userAccountId),
+							userAccountId: userAccountId
+						),
+						Rating = rating
+					});
+				} else {
+					return Json(rating);
+				}
 			}
 		}
 	}
