@@ -13,6 +13,7 @@ using Npgsql;
 using System.Threading.Tasks;
 using api.Messaging;
 using api.ReadingVerification;
+using api.Analytics;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -116,7 +117,8 @@ namespace api.Controllers.Extension {
 						userPage = db.CreateUserPage(
 							pageId: page.Id,
 							userAccountId: userAccountId,
-							readableWordCount: userReadableWordCount
+							readableWordCount: userReadableWordCount,
+							analytics: this.GetRequestAnalytics()
 						);
 					} else if (
 						!userPage.DateCompleted.HasValue &&
@@ -200,7 +202,8 @@ namespace api.Controllers.Extension {
 					userPage = db.CreateUserPage(
 						pageId: page.Id,
 						userAccountId: userAccountId,
-						readableWordCount: binder.ReadableWordCount
+						readableWordCount: binder.ReadableWordCount,
+						analytics: this.GetRequestAnalytics()
 					);
 				}
 				if (binder.Star) {
@@ -224,7 +227,8 @@ namespace api.Controllers.Extension {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userPage = db.UpdateReadProgress(
 					userPageId: binder.UserPageId,
-					readState: binder.ReadState
+					readState: binder.ReadState,
+					analytics: this.GetRequestAnalytics()
 				);
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(

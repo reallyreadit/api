@@ -2,7 +2,7 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace api.Versioning {
+namespace api.Analytics {
 	public class SemanticVersion {
 		public SemanticVersion(string versionString) {
 			var match = Regex.Match(versionString, @"^(\d+)\.(\d+)\.(\d+)$");

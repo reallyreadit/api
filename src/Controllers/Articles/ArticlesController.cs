@@ -17,7 +17,7 @@ using Microsoft.Extensions.Logging;
 using api.ReadingVerification;
 using api.Encryption;
 using api.ClientModels;
-using api.Versioning;
+using api.Analytics;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -219,7 +219,13 @@ namespace api.Controllers.Articles {
 					var userArticle = await db.GetArticle(binder.ArticleId, userAccountId);
 					if (userArticle.IsRead) {
 						var parentCommentId = obfuscationService.Decode(binder.ParentCommentId);
-						var comment = db.CreateComment(WebUtility.HtmlEncode(binder.Text), binder.ArticleId, parentCommentId, userAccountId);
+						var comment = db.CreateComment(
+							text: WebUtility.HtmlEncode(binder.Text),
+							articleId: binder.ArticleId,
+							parentCommentId: parentCommentId,
+							userAccountId: userAccountId,
+							analytics: this.GetRequestAnalytics()
+						);
 						if (parentCommentId != null) {
 							var parent = db.GetComment(parentCommentId.Value);
 							if (parent.UserAccountId != userAccountId) {

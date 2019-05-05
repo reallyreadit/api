@@ -15,14 +15,6 @@ using Newtonsoft.Json.Serialization;
 namespace api.Controllers.Email {
 	public class EmailController : Controller {
 		private DatabaseOptions dbOpts;
-		private static string PostgresSerialize(object value) => JsonConvert.SerializeObject(
-			value: value,
-			settings: new JsonSerializerSettings() {
-				ContractResolver = new DefaultContractResolver() {
-					NamingStrategy = new SnakeCaseNamingStrategy()
-				}
-			}
-		);
 		public EmailController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
 		}
@@ -38,9 +30,9 @@ namespace api.Controllers.Email {
 								var notification = JsonConvert.DeserializeObject<SesNotification>(message.MessageText);
 								await db.CreateEmailNotification(
 									notificationType: notification.NotificationType,
-									jsonMail: PostgresSerialize(notification.Mail),
-									jsonBounce: PostgresSerialize(notification.Bounce),
-									jsonComplaint: PostgresSerialize(notification.Complaint)
+									mail: notification.Mail,
+									bounce: notification.Bounce,
+									complaint: notification.Complaint
 								);
 								return Ok();
 							}

@@ -25,6 +25,7 @@ using Npgsql;
 using System.IO;
 using api.Security;
 using api.ClientModels;
+using api.Analytics;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -97,7 +98,8 @@ namespace api.Controllers.UserAccounts {
 							email: binder.Email,
 							passwordHash: HashPassword(binder.Password, salt),
 							passwordSalt: salt,
-							timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName)
+							timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName),
+							analytics: this.GetRequestAnalytics()
 						);
 						await emailService.SendWelcomeEmail(
 							recipient: userAccount,

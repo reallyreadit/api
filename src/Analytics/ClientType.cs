@@ -1,4 +1,4 @@
-namespace api.Versioning {
+namespace api.Analytics {
 	public enum ClientType {
 		IosApp,
 		IosExtension,

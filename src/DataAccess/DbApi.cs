@@ -12,9 +12,46 @@ using NpgsqlTypes;
 using System.Data.Common;
 using api.Security;
 using SesNotification = api.Messaging.AmazonSesNotifications.Notification;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
+using api.Analytics;
 
 namespace api.DataAccess {
     public static class DbApi {
+		private static string SerializeToJson(object value) => JsonConvert.SerializeObject(
+			value: value,
+			settings: new JsonSerializerSettings() {
+				ContractResolver = new DefaultContractResolver() {
+					NamingStrategy = new SnakeCaseNamingStrategy()
+				}
+			}
+		);
+		private static string SerializeToJson(RequestAnalytics analytics) {
+			return SerializeToJson(
+				new {
+					Client = new {
+						Type = ClientTypeDictionary.EnumToString[analytics.Client.Type],
+						Version = analytics.Client.Version,
+						Mode = analytics.Client.Mode
+					},
+					Context = analytics.Context
+				}
+			);
+		}
+		#region analytics
+		public static Task<IEnumerable<KeyMetricsReportRow>> GetKeyMetrics(
+			this NpgsqlConnection conn,
+			DateTime startDate,
+			DateTime endDate
+		) => conn.QueryAsync<KeyMetricsReportRow>(
+			sql: "analytics.get_key_metrics",
+			param: new {
+				start_date = startDate,
+				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
 		#region article_api
 		public static long CreateArticle(
 			this NpgsqlConnection conn,
@@ -44,13 +81,21 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Comment CreateComment(this NpgsqlConnection conn, string text, long articleId, long? parentCommentId, long userAccountId) => conn.QuerySingleOrDefault<Comment>(
+		public static Comment CreateComment(
+			this NpgsqlConnection conn,
+			string text,
+			long articleId,
+			long? parentCommentId,
+			long userAccountId,
+			RequestAnalytics analytics
+		) => conn.QuerySingleOrDefault<Comment>(
 			sql: "article_api.create_comment",
 			param: new {
 				text,
 				article_id = articleId,
 				parent_comment_id = parentCommentId,
-				user_account_id = userAccountId
+				user_account_id = userAccountId,
+				analytics = SerializeToJson(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -70,12 +115,19 @@ namespace api.DataAccess {
 			param: new { name, url, hostname, slug },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage CreateUserPage(this NpgsqlConnection conn, long pageId, long userAccountId, int readableWordCount) => conn.QuerySingleOrDefault<UserPage>(
+		public static UserPage CreateUserPage(
+			this NpgsqlConnection conn,
+			long pageId,
+			long userAccountId,
+			int readableWordCount,
+			RequestAnalytics analytics
+		) => conn.QuerySingleOrDefault<UserPage>(
 			sql: "article_api.create_user_page",
 			param: new {
 				page_id = pageId,
 				user_account_id = userAccountId,
-				readable_word_count = readableWordCount
+				readable_word_count = readableWordCount,
+				analytics = SerializeToJson(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -233,11 +285,17 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage UpdateReadProgress(this NpgsqlConnection conn, long userPageId, int[] readState) => conn.QuerySingleOrDefault<UserPage>(
+		public static UserPage UpdateReadProgress(
+			this NpgsqlConnection conn,
+			long userPageId,
+			int[] readState,
+			RequestAnalytics analytics
+		) => conn.QuerySingleOrDefault<UserPage>(
 			sql: "article_api.update_read_progress",
 			param: new {
 				user_page_id = userPageId,
-				read_state = readState
+				read_state = readState,
+				analytics = SerializeToJson(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -274,16 +332,16 @@ namespace api.DataAccess {
 		public static Task CreateEmailNotification(
 			this NpgsqlConnection conn,
 			string notificationType,
-			string jsonMail,
-			string jsonBounce,
-			string jsonComplaint
+			Messaging.AmazonSesNotifications.Mail mail,
+			Messaging.AmazonSesNotifications.Bounce bounce,
+			Messaging.AmazonSesNotifications.Complaint complaint
 		) => conn.ExecuteAsync(
 			sql: "bulk_mailing_api.create_email_notification",
 			param: new {
 				notification_type = notificationType,
-				mail = jsonMail,
-				bounce = jsonBounce,
-				complaint = jsonComplaint
+				mail = SerializeToJson(mail),
+				bounce = SerializeToJson(bounce),
+				complaint = SerializeToJson(complaint)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -512,7 +570,8 @@ namespace api.DataAccess {
 			string email,
 			byte[] passwordHash,
 			byte[] passwordSalt,
-			long timeZoneId
+			long timeZoneId,
+			RequestAnalytics analytics
 		) {
 			try {
 				return conn.QuerySingleOrDefault<UserAccount>(
@@ -522,7 +581,8 @@ namespace api.DataAccess {
 						email = email,
 						password_hash = passwordHash,
 						password_salt = passwordSalt,
-						time_zone_id = timeZoneId
+						time_zone_id = timeZoneId,
+						analytics = SerializeToJson(analytics)
 					},
 					commandType: CommandType.StoredProcedure
 				);
