@@ -169,14 +169,18 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long userAccountId,
 			int pageNumber,
-			int pageSize
+			int pageSize,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: conn.Query<ArticlePageResult>(
 				sql: "article_api.get_article_history",
 				param: new {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
-					page_size = pageSize
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -201,14 +205,18 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long userAccountId,
 			int pageNumber,
-			int pageSize
+			int pageSize,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: conn.Query<ArticlePageResult>(
 				sql: "article_api.get_starred_articles",
 				param: new {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
-					page_size = pageSize
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -375,7 +383,9 @@ namespace api.DataAccess {
 			long userAccountId,
 			int pageNumber,
 			int pageSize,
-			DateTime? sinceDate
+			DateTime? sinceDate,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: await conn.QueryAsync<ArticlePageResult>(
 				sql: "community_reads.get_highest_rated",
@@ -383,7 +393,9 @@ namespace api.DataAccess {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
 					page_size = pageSize,
-					since_date = sinceDate
+					since_date = sinceDate,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -394,14 +406,18 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long userAccountId,
 			int pageNumber,
-			int pageSize
+			int pageSize,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: await conn.QueryAsync<ArticlePageResult>(
 				sql: "community_reads.get_hot",
 				param: new {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
-					page_size = pageSize
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -413,7 +429,9 @@ namespace api.DataAccess {
 			long userAccountId,
 			int pageNumber,
 			int pageSize,
-			DateTime? sinceDate
+			DateTime? sinceDate,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: await conn.QueryAsync<ArticlePageResult>(
 				sql: "community_reads.get_most_commented",
@@ -421,7 +439,9 @@ namespace api.DataAccess {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
 					page_size = pageSize,
-					since_date = sinceDate
+					since_date = sinceDate,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -433,7 +453,9 @@ namespace api.DataAccess {
 			long userAccountId,
 			int pageNumber,
 			int pageSize,
-			DateTime? sinceDate
+			DateTime? sinceDate,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: await conn.QueryAsync<ArticlePageResult>(
 				sql: "community_reads.get_most_read",
@@ -441,7 +463,9 @@ namespace api.DataAccess {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
 					page_size = pageSize,
-					since_date = sinceDate
+					since_date = sinceDate,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),
@@ -452,14 +476,18 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long userAccountId,
 			int pageNumber,
-			int pageSize
+			int pageSize,
+			int? minLength,
+			int? maxLength
 		) => PageResult<Article>.Create(
 			items: await conn.QueryAsync<ArticlePageResult>(
 				sql: "community_reads.get_top",
 				param: new {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
-					page_size = pageSize
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
 				},
 				commandType: CommandType.StoredProcedure
 			),

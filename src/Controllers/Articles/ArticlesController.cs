@@ -43,7 +43,9 @@ namespace api.Controllers.Articles {
 			int pageNumber,
 			int pageSize,
 			CommunityReadSort sort,
-			CommunityReadTimeWindow? timeWindow = null
+			CommunityReadTimeWindow? timeWindow = null,
+			int? minLength = null,
+			int? maxLength = null
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
@@ -54,14 +56,18 @@ namespace api.Controllers.Articles {
 							articles = await db.GetHotArticles(
 								userAccountId: userAccountId,
 								pageNumber: pageNumber,
-								pageSize: pageSize
+								pageSize: pageSize,
+								minLength: minLength,
+								maxLength: maxLength
 							);
 							break;
 						case CommunityReadSort.Top:
 							articles = await db.GetTopArticles(
 								userAccountId: userAccountId,
 								pageNumber: pageNumber,
-								pageSize: pageSize
+								pageSize: pageSize,
+								minLength: minLength,
+								maxLength: maxLength
 							);
 							break;
 						default:
@@ -96,7 +102,9 @@ namespace api.Controllers.Articles {
 								userAccountId: userAccountId,
 								pageNumber: pageNumber,
 								pageSize: pageSize,
-								sinceDate: sinceDate
+								sinceDate: sinceDate,
+								minLength: minLength,
+								maxLength: maxLength
 							);
 							break;
 						case CommunityReadSort.MostRead:
@@ -104,7 +112,9 @@ namespace api.Controllers.Articles {
 								userAccountId: userAccountId,
 								pageNumber: pageNumber,
 								pageSize: pageSize,
-								sinceDate: sinceDate
+								sinceDate: sinceDate,
+								minLength: minLength,
+								maxLength: maxLength
 							);
 							break;
 						case CommunityReadSort.HighestRated:
@@ -112,7 +122,9 @@ namespace api.Controllers.Articles {
 								userAccountId: userAccountId,
 								pageNumber: pageNumber,
 								pageSize: pageSize,
-								sinceDate: sinceDate
+								sinceDate: sinceDate,
+								minLength: minLength,
+								maxLength: maxLength
 							);
 							break;
 						default:
@@ -132,13 +144,21 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult ListStarred(
 			[FromServices] ReadingVerificationService verificationService,
-			int pageNumber
+			int pageNumber,
+			int? minLength = null,
+			int? maxLength = null
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					PageResult<Article>.Create(
-						db.GetStarredArticles(userAccountId, pageNumber, 40),
+						db.GetStarredArticles(
+							userAccountId: userAccountId,
+							pageNumber: pageNumber,
+							pageSize: 40,
+							minLength: minLength,
+							maxLength: maxLength
+						),
 						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
 					)
 				);
@@ -147,13 +167,21 @@ namespace api.Controllers.Articles {
 		[HttpGet]
 		public IActionResult ListHistory(
 			[FromServices] ReadingVerificationService verificationService,
-			int pageNumber
+			int pageNumber,
+			int? minLength = null,
+			int? maxLength = null
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					PageResult<Article>.Create(
-						db.GetArticleHistory(userAccountId, pageNumber, 40),
+						db.GetArticleHistory(
+							userAccountId: userAccountId,
+							pageNumber: pageNumber,
+							pageSize: 40,
+							minLength: minLength,
+							maxLength: maxLength
+						),
 						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
 					)
 				);
