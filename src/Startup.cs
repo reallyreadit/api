@@ -123,11 +123,14 @@ namespace api {
 				RequireHeaderSymmetry = false
 			});
 			// configure cors
-			app.UseCors(cors => cors
-				.WithOrigins(corsOpts.Value.Origins)
-				.AllowCredentials()
-				.AllowAnyHeader()
-				.AllowAnyMethod());
+			app.UseCors(
+				cors => cors
+					.WithOrigins(corsOpts.Value.Origins)
+					.AllowCredentials()
+					.AllowAnyHeader()
+					.AllowAnyMethod()
+					.SetPreflightMaxAge(TimeSpan.FromDays(1))
+				);
 			// configure cookie authentication
 			app.UseCookieAuthentication(new CookieAuthenticationOptions() {
 				AuthenticationScheme = authOpts.Value.Scheme,
