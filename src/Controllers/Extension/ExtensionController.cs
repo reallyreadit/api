@@ -85,7 +85,7 @@ namespace api.Controllers.Extension {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				var page = db.FindPage(binder.Url);
-				UserPage userPage;
+				UserArticle userArticle;
 				if (page != null) {
 					// update the page if either the wordCount or readableWordCount has increased.
 					// we're assuming that the article has been updated with additional text
@@ -110,25 +110,25 @@ namespace api.Controllers.Extension {
 					} else {
 						userReadableWordCount = page.ReadableWordCount;
 					}
-					// either create the user page if it doesn't exist or update it
+					// either create the user article if it doesn't exist or update it
 					// as long as it won't erase any read words from the existing read state
-					userPage = db.GetUserPage(page.Id, userAccountId);
-					if (userPage == null) {
-						userPage = db.CreateUserPage(
-							pageId: page.Id,
+					userArticle = db.GetUserArticle(page.ArticleId, userAccountId);
+					if (userArticle == null) {
+						userArticle = db.CreateUserArticle(
+							articleId: page.ArticleId,
 							userAccountId: userAccountId,
 							readableWordCount: userReadableWordCount,
 							analytics: this.GetRequestAnalytics()
 						);
 					} else if (
-						!userPage.DateCompleted.HasValue &&
-						userPage.ReadableWordCount != userReadableWordCount
+						!userArticle.DateCompleted.HasValue &&
+						userArticle.ReadableWordCount != userReadableWordCount
 					) {
-						var readClusters = userPage.ReadState.Last() > 0 ?
-							userPage.ReadState :
-							userPage.ReadState.Length > 1 ?
-								userPage.ReadState
-									.Take(userPage.ReadState.Length - 1)
+						var readClusters = userArticle.ReadState.Last() > 0 ?
+							userArticle.ReadState :
+							userArticle.ReadState.Length > 1 ?
+								userArticle.ReadState
+									.Take(userArticle.ReadState.Length - 1)
 									.ToArray() :
 								new int[0];
 						var readClustersWordCount = readClusters.Sum(cluster => Math.Abs(cluster));
@@ -143,8 +143,8 @@ namespace api.Controllers.Extension {
 							} else {
 								newReadState = readClusters;
 							}
-							userPage = db.UpdateUserPage(
-								userPageId: userPage.Id,
+							userArticle = db.UpdateUserArticle(
+								userArticleId: userArticle.Id,
 								readableWordCount: userReadableWordCount,
 								readState: newReadState
 							);
@@ -198,9 +198,9 @@ namespace api.Controllers.Extension {
 							url: pageLink.Url
 						);
 					}
-					// create user page
-					userPage = db.CreateUserPage(
-						pageId: page.Id,
+					// create user article
+					userArticle = db.CreateUserArticle(
+						articleId: page.ArticleId,
 						userAccountId: userAccountId,
 						readableWordCount: binder.ReadableWordCount,
 						analytics: this.GetRequestAnalytics()
@@ -214,7 +214,19 @@ namespace api.Controllers.Extension {
 						await db.GetArticle(page.ArticleId, userAccountId),
 						userAccountId
 					),
-					UserPage = userPage,
+					// temporarily maintain compatibility with existing clients
+					// PageId is an unused property anyway so just set it to 0
+					UserPage = new {
+						Id = userArticle.Id,
+						PageId = 0,
+						UserAccountId = userArticle.UserAccountId,
+						DateCreated = userArticle.DateCreated,
+						LastModified = userArticle.LastModified,
+						ReadableWordCount = userArticle.ReadableWordCount,
+						ReadState = userArticle.ReadState,
+						WordsRead = userArticle.WordsRead,
+						DateCompleted = userArticle.DateCompleted
+					},
 					User = await db.GetUserAccount(userAccountId)
 				});
 			}
@@ -225,19 +237,25 @@ namespace api.Controllers.Extension {
 			[FromBody] CommitReadStateBinder binder
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userPage = db.UpdateReadProgress(
-					userPageId: binder.UserPageId,
-					readState: binder.ReadState,
-					analytics: this.GetRequestAnalytics()
-				);
+				// prevent users from update articles that don't belong to them
 				var userAccountId = this.User.GetUserAccountId();
-				return Json(
-					verificationService.AssignProofToken(
-						await db.GetArticle(db.GetPage(userPage.PageId).ArticleId, userAccountId),
-						userAccountId
-					)
-				);
+				// also temporarily maintaining compatibility here
+				var userArticle = db.GetUserArticle(binder.UserPageId);
+				if (userArticle.UserAccountId == userAccountId) {
+					db.UpdateReadProgress(	
+						userArticleId: binder.UserPageId,
+						readState: binder.ReadState,
+						analytics: this.GetRequestAnalytics()
+					);
+					return Json(
+						verificationService.AssignProofToken(
+							await db.GetArticle(userArticle.ArticleId, userAccountId),
+							userAccountId
+						)
+					);
+				}
 			}
+			return BadRequest();
 		}
 		[HttpGet]
 		public IActionResult GetSourceRules() {

@@ -1,9 +1,9 @@
 using System;
 
 namespace api.DataAccess.Models {
-	public class UserPage {
+	public class UserArticle {
 		public long Id { get; set; }
-		public long PageId { get; set; }
+		public long ArticleId { get; set; }
 		public long UserAccountId { get; set; }
 		public DateTime DateCreated { get; set; }
 		public DateTime? LastModified { get; set; }

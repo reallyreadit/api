@@ -115,16 +115,16 @@ namespace api.DataAccess {
 			param: new { name, url, hostname, slug },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage CreateUserPage(
+		public static UserArticle CreateUserArticle(
 			this NpgsqlConnection conn,
-			long pageId,
+			long articleId,
 			long userAccountId,
 			int readableWordCount,
 			RequestAnalytics analytics
-		) => conn.QuerySingleOrDefault<UserPage>(
-			sql: "article_api.create_user_page",
+		) => conn.QuerySingleOrDefault<UserArticle>(
+			sql: "article_api.create_user_article",
 			param: new {
-				page_id = pageId,
+				article_id = articleId,
 				user_account_id = userAccountId,
 				readable_word_count = readableWordCount,
 				analytics = SerializeToJson(analytics)
@@ -165,7 +165,7 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static PageResult<Article> GetArticleHistory(
+		public static async Task<PageResult<Article>> GetArticleHistory(
 			this NpgsqlConnection conn,
 			long userAccountId,
 			int pageNumber,
@@ -173,7 +173,7 @@ namespace api.DataAccess {
 			int? minLength,
 			int? maxLength
 		) => PageResult<Article>.Create(
-			items: conn.Query<ArticlePageResult>(
+			items: await conn.QueryAsync<ArticlePageResult>(
 				sql: "article_api.get_article_history",
 				param: new {
 					user_account_id = userAccountId,
@@ -223,10 +223,17 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public static UserPage GetUserPage(this NpgsqlConnection conn, long pageId, long userAccountId) => conn.QuerySingleOrDefault<UserPage>(
-			sql: "article_api.get_user_page",
+		public static UserArticle GetUserArticle(this NpgsqlConnection conn, long userArticleId) => conn.QuerySingleOrDefault<UserArticle>(
+			sql: "article_api.get_user_article",
 			param: new {
-				page_id = pageId,
+				user_article_id = userArticleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static UserArticle GetUserArticle(this NpgsqlConnection conn, long articleId, long userAccountId) => conn.QuerySingleOrDefault<UserArticle>(
+			sql: "article_api.get_user_article",
+			param: new {
+				article_id = articleId,
 				user_account_id = userAccountId
 			},
 			commandType: CommandType.StoredProcedure
@@ -293,24 +300,24 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage UpdateReadProgress(
+		public static UserArticle UpdateReadProgress(
 			this NpgsqlConnection conn,
-			long userPageId,
+			long userArticleId,
 			int[] readState,
 			RequestAnalytics analytics
-		) => conn.QuerySingleOrDefault<UserPage>(
+		) => conn.QuerySingleOrDefault<UserArticle>(
 			sql: "article_api.update_read_progress",
 			param: new {
-				user_page_id = userPageId,
+				user_article_id = userArticleId,
 				read_state = readState,
 				analytics = SerializeToJson(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserPage UpdateUserPage(this NpgsqlConnection conn, long userPageId, int readableWordCount, int[] readState) => conn.QuerySingleOrDefault<UserPage>(
-			sql: "article_api.update_user_page",
+		public static UserArticle UpdateUserArticle(this NpgsqlConnection conn, long userArticleId, int readableWordCount, int[] readState) => conn.QuerySingleOrDefault<UserArticle>(
+			sql: "article_api.update_user_article",
 			param: new {
-				user_page_id = userPageId,
+				user_article_id = userArticleId,
 				readable_word_count = readableWordCount,
 				read_state = readState
 			},
@@ -515,6 +522,30 @@ namespace api.DataAccess {
 			param: new {
 				user_account_id = userAccountId,
 				max_count = maxCount
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<ReadingTimeTotalsRow>> GetDailyReadingTimeTotals(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int numberOfDays
+		) => await conn.QueryAsync<ReadingTimeTotalsRow>(
+			sql: "stats_api.get_daily_reading_time_totals",
+			param: new {
+				user_account_id = userAccountId,
+				number_of_days = numberOfDays
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<ReadingTimeTotalsRow>> GetMonthlyReadingTimeTotals(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int? numberOfMonths
+		) => await conn.QueryAsync<ReadingTimeTotalsRow>(
+			sql: "stats_api.get_monthly_reading_time_totals",
+			param: new {
+				user_account_id = userAccountId,
+				number_of_months = numberOfMonths
 			},
 			commandType: CommandType.StoredProcedure
 		);
