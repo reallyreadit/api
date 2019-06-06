@@ -165,7 +165,7 @@ namespace api.Controllers.Articles {
 			}
 		}
 		[HttpGet]
-		public IActionResult ListHistory(
+		public async Task<IActionResult> ListHistory(
 			[FromServices] ReadingVerificationService verificationService,
 			int pageNumber,
 			int? minLength = null,
@@ -175,7 +175,7 @@ namespace api.Controllers.Articles {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					PageResult<Article>.Create(
-						db.GetArticleHistory(
+						await db.GetArticleHistory(
 							userAccountId: userAccountId,
 							pageNumber: pageNumber,
 							pageSize: 40,
