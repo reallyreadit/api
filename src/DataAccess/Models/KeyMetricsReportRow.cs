@@ -3,14 +3,16 @@ using System;
 namespace api.DataAccess.Models {
 	public class KeyMetricsReportRow {
 		public DateTime Day { get; set; }
-		public int UserAccountsAppCount { get; set; }
-		public int UserAccountsBrowserCount { get; set; }
-		public int UserAccountsUnknownCount { get; set; }
-		public int ReadsAppCount { get; set; }
-		public int ReadsBrowserCount { get; set; }
-		public int ReadsUnknownCount { get; set; }
-		public int CommentsAppCount { get; set; }
-		public int CommentsBrowserCount { get; set; }
-		public int CommentsUnknownCount { get; set; }
+		public int UserAccountAppCount { get; set; }
+		public int UserAccountBrowserCount { get; set; }
+		public int UserAccountUnknownCount { get; set; }
+		public int ReadAppCount { get; set; }
+		public int ReadBrowserCount { get; set; }
+		public int ReadUnknownCount { get; set; }
+		public int CommentAppCount { get; set; }
+		public int CommentBrowserCount { get; set; }
+		public int CommentUnknownCount { get; set; }
+		public int ExtensionInstallationCount { get; set; }
+		public int ExtensionRemovalCount { get; set; }
 	}
 }

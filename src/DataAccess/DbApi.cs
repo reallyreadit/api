@@ -51,6 +51,44 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task LogExtensionInstallation(
+			this NpgsqlConnection conn,
+			Guid installationId,
+			long? userAccountId,
+			string platform
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_extension_installation",
+			param: new {
+				installation_id = installationId,
+				user_account_id = userAccountId,
+				platform
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task LogExtensionRemoval(
+			this NpgsqlConnection conn,
+			Guid installationId,
+			long? userAccountId
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_extension_removal",
+			param: new {
+				installation_id = installationId,
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task LogExtensionRemovalFeedback(
+			this NpgsqlConnection conn,
+			Guid installationId,
+			string reason
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_extension_removal_feedback",
+			param: new {
+				installation_id = installationId,
+				reason
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		#endregion
 		#region article_api
 		public static long CreateArticle(

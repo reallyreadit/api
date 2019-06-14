@@ -14,6 +14,8 @@ using System.Threading.Tasks;
 using api.Messaging;
 using api.ReadingVerification;
 using api.Analytics;
+using Microsoft.AspNetCore.Authorization;
+using api.Encryption;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -291,6 +293,68 @@ namespace api.Controllers.Extension {
 				);
 			}
 			return Ok();
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> Install(
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromBody] InstallationForm form
+		) {
+			using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
+				var installationId = Guid.NewGuid();
+				await db.LogExtensionInstallation(
+					installationId: installationId,
+					userAccountId: this.User.GetUserAccountIdOrDefault(),
+					platform: form.Os + "/" + form.Arch
+				);
+				return Json(new {
+					installationId = StringEncryption.Encrypt(
+						text: installationId.ToString(),
+						key: emailOpts.Value.EncryptionKey
+					)
+				});
+			}
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> Uninstall(
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromBody] RemovalForm form
+		) {
+			using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
+				await db.LogExtensionRemoval(
+					installationId: Guid.Parse(
+						StringEncryption.Decrypt(
+							text: form.InstallationId,
+							key: emailOpts.Value.EncryptionKey
+						)
+					),
+					userAccountId: this.User.GetUserAccountIdOrDefault()
+				);
+				return Ok();
+			}
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> UninstallFeedback(
+			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromBody] RemovalFeedbackForm form
+		) {
+			if (!String.IsNullOrWhiteSpace(form.Reason)) {
+				using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
+					await db.LogExtensionRemovalFeedback(
+						installationId: Guid.Parse(
+							StringEncryption.Decrypt(
+								text: form.InstallationId,
+								key: emailOpts.Value.EncryptionKey
+							)
+						),
+						reason: form.Reason.Trim()
+					);
+					return Ok();
+				}
+			}
+			return BadRequest();
 		}
 	}
 }
