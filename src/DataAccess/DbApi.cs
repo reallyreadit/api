@@ -575,6 +575,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<LongestReadLeaderboardRow>> GetLongestReadLeaderboard(
+			this NpgsqlConnection conn,
+			int maxCount,
+			DateTime? sinceDate
+		) => await conn.QueryAsync<LongestReadLeaderboardRow>(
+			sql: "stats_api.get_longest_read_leaderboard",
+			param: new {
+				max_count = maxCount,
+				since_date = sinceDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<ReadingTimeTotalsRow>> GetMonthlyReadingTimeTotals(
 			this NpgsqlConnection conn,
 			long userAccountId,
@@ -587,14 +599,72 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<IEnumerable<ReadCountLeaderboardRow>> GetReadCountLeaderboard(this NpgsqlConnection conn, int maxCount) => await conn.QueryAsync<ReadCountLeaderboardRow>(
+		public static async Task<IEnumerable<ReadCountLeaderboardRow>> GetReadCountLeaderboard(
+			this NpgsqlConnection conn,
+			int maxCount,
+			DateTime? sinceDate
+		) => await conn.QueryAsync<ReadCountLeaderboardRow>(
 			sql: "stats_api.get_read_count_leaderboard",
-			param: new { max_count = maxCount },
+			param: new {
+				max_count = maxCount,
+				since_date = sinceDate
+			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<UserStats> GetUserStats(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserStats>(
-			sql: "stats_api.get_user_stats",
-			param: new { user_account_id = userAccountId },
+		public static async Task<IEnumerable<ScoutLeaderboardRow>> GetScoutLeaderboard(
+			this NpgsqlConnection conn,
+			int maxCount,
+			DateTime? sinceDate
+		) => await conn.QueryAsync<ScoutLeaderboardRow>(
+			sql: "stats_api.get_scout_leaderboard",
+			param: new {
+				max_count = maxCount,
+				since_date = sinceDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<ScribeLeaderboardRow>> GetScribeLeaderboard(
+			this NpgsqlConnection conn,
+			int maxCount,
+			DateTime? sinceDate
+		) => await conn.QueryAsync<ScribeLeaderboardRow>(
+			sql: "stats_api.get_scribe_leaderboard",
+			param: new {
+				max_count = maxCount,
+				since_date = sinceDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<int> GetUserCount(
+			this NpgsqlConnection conn
+		) => await conn.QuerySingleOrDefaultAsync<int>(
+			sql: "stats_api.get_user_count",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<UserLeaderboardRankings> GetUserLeaderboardRankings(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			DateTime? longestReadSinceDate,
+			DateTime? scoutSinceDate,
+			DateTime? scribeSinceDate
+		) => await conn.QuerySingleOrDefaultAsync<UserLeaderboardRankings>(
+			sql: "stats_api.get_user_leaderboard_rankings",
+			param: new {
+				user_account_id = userAccountId,
+				longest_read_since_date = longestReadSinceDate,
+				scout_since_date = scoutSinceDate,
+				scribe_since_date = scribeSinceDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<int> GetUserReadCount(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<int>(
+			sql: "stats_api.get_user_read_count",
+			param: new {
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		#endregion

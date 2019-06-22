@@ -157,6 +157,7 @@ namespace api {
 			// configure Npgsql
 			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
 			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
+			NpgsqlConnection.MapCompositeGlobally<Ranking>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 		}

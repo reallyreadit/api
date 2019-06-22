@@ -12,7 +12,6 @@ using System.Threading.Tasks;
 using api.DataAccess.Models;
 using Npgsql;
 using System.Collections.Generic;
-using api.Security;
 using Microsoft.Extensions.Logging;
 using api.ReadingVerification;
 using api.Encryption;
@@ -131,14 +130,36 @@ namespace api.Controllers.Articles {
 							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
 					}
 				}
-				return Json(new {
-					Aotd = verificationService.AssignProofToken(await db.GetAotd(userAccountId), userAccountId),
-					Articles = PageResult<Article>.Create(
-						articles,
-						items => items.Select(article => verificationService.AssignProofToken(article, userAccountId))
-					),
-					UserStats = await db.GetUserStats(userAccountId)
-				});
+				var aotd = verificationService.AssignProofToken(await db.GetAotd(userAccountId), userAccountId);
+				var articlePageResult = PageResult<Article>.Create(
+					articles,
+					items => items.Select(article => verificationService.AssignProofToken(article, userAccountId))
+				);
+				var userReadCount = await db.GetUserReadCount(userAccountId: userAccountId);
+				if (this.ClientVersionIsGreaterThanOrEqualTo(
+					new Dictionary<ClientType, SemanticVersion>() {
+						{ ClientType.WebAppServer, new SemanticVersion("1.4.0") },
+						{ ClientType.WebAppClient, new SemanticVersion("1.4.0") }
+					}
+				)) {
+					return Json(
+						new {
+							Aotd = aotd,
+							Articles = articlePageResult,
+							UserReadCount = userReadCount
+						}
+					);
+				} else {
+					return Json(
+						new {
+							Aotd = aotd,
+							Articles = articlePageResult,
+							UserStats = new {
+								ReadCount = userReadCount
+							}
+						}
+					);
+				}
 			}
 		}
 		[HttpGet]
