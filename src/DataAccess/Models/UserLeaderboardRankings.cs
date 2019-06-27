@@ -4,7 +4,7 @@ namespace api.DataAccess.Models {
 		public Ranking ReadCount { get; set; }
 		public Ranking ScoutCount { get; set; }
 		public Ranking ScribeCount { get; set; }
-		public Ranking Streak { get; set; }
+		public StreakRanking Streak { get; set; }
 		public Ranking WeeklyReadCount { get; set; }
 	}
 }

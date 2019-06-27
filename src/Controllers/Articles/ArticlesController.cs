@@ -17,6 +17,7 @@ using api.ReadingVerification;
 using api.Encryption;
 using api.ClientModels;
 using api.Analytics;
+using api.DataAccess.Stats;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -25,6 +26,23 @@ namespace api.Controllers.Articles {
 		public ArticlesController(IOptions<DatabaseOptions> dbOpts, ILogger<ArticlesController> log) {
 			this.dbOpts = dbOpts.Value;
 			this.log = log;
+		}
+		private IEnumerable<CommentThread> AssignBadges(IEnumerable<CommentThread> comments, Leaderboards leaderboards) {
+			foreach (var kvp in new Dictionary<LeaderboardBadge, IEnumerable<LeaderboardRanking>>() {
+					{ LeaderboardBadge.LongestRead, leaderboards.LongestRead },
+					{ LeaderboardBadge.ReadCount, leaderboards.ReadCount },
+					{ LeaderboardBadge.Scout, leaderboards.Scout },
+					{ LeaderboardBadge.Scribe, leaderboards.Scribe },
+					{ LeaderboardBadge.Streak, leaderboards.Streak },
+					{ LeaderboardBadge.WeeklyReadCount, leaderboards.WeeklyReadCount }
+				}) {
+				foreach (var ranking in kvp.Value) {
+					foreach (var comment in comments.Where(comment => comment.UserAccount == ranking.UserName)) {
+						comment.Badge |= kvp.Key;
+					}
+				}
+			}
+			return comments;
 		}
 		// Deprecated 2018-12-18
 		[AllowAnonymous]
@@ -229,19 +247,27 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult ListComments(
+		public async Task<IActionResult> ListComments(
 			[FromServices] ObfuscationService obfuscationService,
 			[FromServices] ReadingVerificationService verificationService,
 			string slug
 		) {
+			var userAccountId = User.GetUserAccountIdOrDefault();
 			CommentThread[] comments;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				comments = db
 					.ListComments(
-						db.FindArticle(slug, User.GetUserAccountIdOrDefault()).Id
+						db.FindArticle(slug, userAccountId).Id
 					)
 					.Select(c => new CommentThread(c, obfuscationService))
 					.ToArray();
+				AssignBadges(
+					comments: comments,
+					leaderboards: await db.GetLeaderboards(
+						userAccountId: userAccountId ?? 0,
+						now: DateTime.UtcNow
+					)
+				);
 			}
 			foreach (var comment in comments.Where(c => c.ParentCommentId != null)) {
 				comments.Single(c => c.Id == comment.ParentCommentId).Children.Add(comment);
@@ -287,6 +313,15 @@ namespace api.Controllers.Articles {
 								}
 							}
 						}
+						var commentThread = AssignBadges(
+							comments: new [] {
+								new CommentThread(comment, obfuscationService)
+							},
+							leaderboards: await db.GetLeaderboards(
+								userAccountId: userAccountId,
+								now: DateTime.UtcNow
+							)
+						);
 						if (
 							this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
 								{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
@@ -299,10 +334,10 @@ namespace api.Controllers.Articles {
 									article: await db.GetArticle(binder.ArticleId, userAccountId),
 									userAccountId: userAccountId
 								),
-								Comment = new CommentThread(comment, obfuscationService)
+								Comment = commentThread.Single()
 							});
 						}
-						return Json(new CommentThread(comment, obfuscationService));
+						return Json(commentThread.Single());
 					}
 				}
 			}

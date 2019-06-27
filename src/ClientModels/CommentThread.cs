@@ -14,6 +14,7 @@ namespace api.ClientModels {
             ArticleSlug = comment.ArticleSlug;
             ArticleTitle = comment.ArticleTitle;
             UserAccount = comment.UserAccount;
+            Badge = LeaderboardBadge.None;
             ParentCommentId = (
                 comment.ParentCommentId.HasValue ?
                 obfuscationService.Encode(comment.ParentCommentId.Value) :
@@ -29,6 +30,7 @@ namespace api.ClientModels {
 		public string ArticleTitle { get; set; }
 		public string ArticleSlug { get; set; }
 		public string UserAccount { get; set; }
+        public LeaderboardBadge Badge { get; set; }
 		public string ParentCommentId { get; set; }
 		public DateTime? DateRead { get; set; }
         public List<CommentThread> Children { get; }

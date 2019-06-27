@@ -9,6 +9,8 @@ using api.DataAccess.Models;
 using System.Collections.Generic;
 using System;
 using api.Analytics;
+using api.DataAccess.Stats;
+using System.Linq;
 
 namespace api.Controllers.Stats {
 	public class StatsController : Controller {
@@ -18,45 +20,87 @@ namespace api.Controllers.Stats {
 		}
 		[HttpGet]
 		public async Task<IActionResult> Leaderboards() {
-			var userAccountId = User.GetUserAccountId();
-			DateTime
-				now = DateTime.UtcNow,
-				longestReadSinceDate = now.AddDays(-7),
-				scoutSinceDate = now.AddDays(-7),
-				scribeSinceDate = now.AddDays(-7);
+			using (var db = new NpgsqlConnection(
+				connectionString: dbOpts.ConnectionString
+			)) {
+				var now = DateTime.UtcNow;
+				var userAccountId = User.GetUserAccountId();
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId,
+					now: now
+				);
+				if (this.ClientVersionIsGreaterThanOrEqualTo(
+					new Dictionary<ClientType, SemanticVersion>() {
+						{ ClientType.WebAppServer, new SemanticVersion("1.4.0") },
+						{ ClientType.WebAppClient, new SemanticVersion("1.4.0") }
+					}
+				)) {
+					return Json(
+						data: new {
+							LongestRead = leaderboards.LongestRead,
+							ReadCount = leaderboards.ReadCount,
+							Scout = leaderboards.Scout,
+							Scribe = leaderboards.Scribe,
+							Streak = leaderboards.Streak,
+							UserRankings = await db.GetUserLeaderboardRankings(
+								userAccountId: userAccountId,
+								longestReadSinceDate: now.Subtract(StatsQueries.LongestReadOffset),
+								scoutSinceDate: now.Subtract(StatsQueries.ScoutOffset),
+								scribeSinceDate: now.Subtract(StatsQueries.ScribeOffset)
+							),
+							WeeklyReadCount = leaderboards.WeeklyReadCount
+						}
+					);
+				} else {
+					return Json(
+						data: new {
+							CurrentStreak = leaderboards.Streak
+								.OrderBy(ranking => ranking.Rank)
+								.ThenBy(ranking => ranking.UserName)
+								.Take(10)
+								.Select(ranking => new {
+									Name = ranking.UserName,
+									Streak = ranking.Score
+								}),
+							ReadCount = leaderboards.ReadCount
+								.OrderBy(ranking => ranking.Rank)
+								.ThenBy(ranking => ranking.UserName)
+								.Take(10)
+								.Select(ranking => new {
+									Name = ranking.UserName,
+									ReadCount = ranking.Score
+								})
+						}
+					);
+				}
+			}
+		}
+		// deprecated as of WebApp 1.4.0
+		[HttpGet]
+		public async Task<IActionResult> UserStats() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var now = DateTime.UtcNow;
+				var userRankings = await db.GetUserLeaderboardRankings(
+					userAccountId: User.GetUserAccountId(),
+					longestReadSinceDate: now.Subtract(StatsQueries.LongestReadOffset),
+					scoutSinceDate: now.Subtract(StatsQueries.ScoutOffset),
+					scribeSinceDate: now.Subtract(StatsQueries.ScribeOffset)
+				);
 				return Json(
-					new {
-						LongestRead = await db.GetLongestReadLeaderboard(
-							maxCount: 10,
-							sinceDate: longestReadSinceDate
+					data: new {
+						ReadCount = userRankings.ReadCount.Score,
+						ReadCountRank = userRankings.ReadCount.Rank,
+						Streak = (
+							userRankings.Streak.DayCount > 0 ?
+								new Nullable<int>(userRankings.Streak.DayCount + (!userRankings.Streak.IncludesToday ? 1 : 0)) :
+								null
 						),
-						ReadCount = await db.GetReadCountLeaderboard(
-							maxCount: 10,
-							sinceDate: null
+						StreakRank = (
+							userRankings.Streak.DayCount > 0 ?
+								new Nullable<int>(userRankings.Streak.Rank) :
+								null
 						),
-						Scout = await db.GetScoutLeaderboard(
-							maxCount: 10,
-							sinceDate: scoutSinceDate
-						),
-						Scribe = await db.GetScribeLeaderboard(
-							maxCount: 10,
-							sinceDate: scribeSinceDate
-						),
-						Streak = await db.GetCurrentStreakLeaderboard(
-							userAccountId: userAccountId,
-							maxCount: 10
-						),
-						UserRankings = await db.GetUserLeaderboardRankings(
-							userAccountId: userAccountId,
-							longestReadSinceDate: longestReadSinceDate,
-							scoutSinceDate: scoutSinceDate,
-							scribeSinceDate: scribeSinceDate
-						),
-						WeeklyReadCount = await db.GetReadCountLeaderboard(
-							maxCount: 10,
-							sinceDate: now.AddDays(-7)
-						)
+						UserCount = await db.GetUserCount()
 					}
 				);
 			}
@@ -123,7 +167,7 @@ namespace api.Controllers.Stats {
 		public async Task<IActionResult> UserCount() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(
-					new {
+					data: new {
 						UserCount = await db.GetUserCount()
 					}
 				);
