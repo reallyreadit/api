@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using api.DataAccess.Models;
 using Npgsql;
 
 namespace api.DataAccess.Stats {
@@ -13,10 +14,11 @@ namespace api.DataAccess.Stats {
 			DateTime now
 		) {
 			return new Leaderboards() {
-				LongestRead = await db.GetLongestReadLeaderboard(
+				/*LongestRead = await db.GetLongestReadLeaderboard(
 					maxRank: 5,
 					sinceDate: now.Subtract(LongestReadOffset)
-				),
+				), */
+				LongestRead = new LeaderboardRanking[0],
 				ReadCount = await db.GetReadCountLeaderboard(
 					maxRank: 5,
 					sinceDate: null
