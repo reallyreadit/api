@@ -51,6 +51,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task<IEnumerable<UserAccountCreation>> GetUserAccountCreations(
+			this NpgsqlConnection conn,
+			DateTime startDate,
+			DateTime endDate
+		) => conn.QueryAsync<UserAccountCreation>(
+			sql: "analytics.get_user_account_creations",
+			param: new {
+				start_date = startDate,
+				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Task LogExtensionInstallation(
 			this NpgsqlConnection conn,
 			Guid installationId,
@@ -738,7 +750,7 @@ namespace api.DataAccess {
 			byte[] passwordHash,
 			byte[] passwordSalt,
 			long timeZoneId,
-			RequestAnalytics analytics
+			UserAccountCreationAnalytics analytics
 		) {
 			try {
 				return conn.QuerySingleOrDefault<UserAccount>(

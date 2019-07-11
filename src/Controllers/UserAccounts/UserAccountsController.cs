@@ -91,20 +91,24 @@ namespace api.Controllers.UserAccounts {
 					db.CreateCaptchaResponse("createUserAccount", captchaResponse);
 				}
 				try {
-					UserAccount userAccount;
 					var salt = GenerateSalt();
-						userAccount = db.CreateUserAccount(
-							name: binder.Name,
-							email: binder.Email,
-							passwordHash: HashPassword(binder.Password, salt),
-							passwordSalt: salt,
-							timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName),
-							analytics: this.GetRequestAnalytics()
-						);
-						await emailService.SendWelcomeEmail(
-							recipient: userAccount,
-							emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-						);
+					var userAccount = db.CreateUserAccount(
+						name: binder.Name,
+						email: binder.Email,
+						passwordHash: HashPassword(binder.Password, salt),
+						passwordSalt: salt,
+						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName),
+						analytics: new UserAccountCreationAnalytics() {
+							Client = this.GetRequestAnalytics().Client,
+							MarketingScreenVariant = binder.MarketingScreenVariant,
+							ReferrerUrl = binder.ReferrerUrl,
+							InitialPath = binder.InitialPath
+						}
+					);
+					await emailService.SendWelcomeEmail(
+						recipient: userAccount,
+						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+					);
 					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
 					return Json(userAccount);
 				} catch (Exception ex) {

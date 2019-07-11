@@ -20,5 +20,10 @@ namespace api.Controllers.Analytics {
 				return Json(await db.GetKeyMetrics(startDate, endDate));
 			}
 		}
+		public async Task<JsonResult> UserAccountCreations(DateTime startDate, DateTime endDate) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.GetUserAccountCreations(startDate, endDate));
+			}
+		}
 	}
 }
