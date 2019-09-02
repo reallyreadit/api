@@ -44,9 +44,7 @@ namespace api.Controllers.Stats {
 							Streak = leaderboards.Streak,
 							UserRankings = await db.GetUserLeaderboardRankings(
 								userAccountId: userAccountId,
-								longestReadSinceDate: now.Subtract(StatsQueries.LongestReadOffset),
-								scoutSinceDate: now.Subtract(StatsQueries.ScoutOffset),
-								scribeSinceDate: now.Subtract(StatsQueries.ScribeOffset)
+								now: now
 							),
 							WeeklyReadCount = leaderboards.WeeklyReadCount
 						}
@@ -79,12 +77,8 @@ namespace api.Controllers.Stats {
 		[HttpGet]
 		public async Task<IActionResult> UserStats() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var now = DateTime.UtcNow;
 				var userRankings = await db.GetUserLeaderboardRankings(
-					userAccountId: User.GetUserAccountId(),
-					longestReadSinceDate: now.Subtract(StatsQueries.LongestReadOffset),
-					scoutSinceDate: now.Subtract(StatsQueries.ScoutOffset),
-					scribeSinceDate: now.Subtract(StatsQueries.ScribeOffset)
+					userAccountId: User.GetUserAccountId()
 				);
 				return Json(
 					data: new {

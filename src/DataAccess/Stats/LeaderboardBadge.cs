@@ -1,4 +1,4 @@
-namespace api.ClientModels {
+namespace api.DataAccess.Stats {
 	public enum LeaderboardBadge {
 		None = 0,
 		LongestRead = 1 << 0,

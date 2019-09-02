@@ -22,6 +22,7 @@ namespace api.DataAccess.Models {
 		public bool IsRead { get; set; }
 		public DateTime? DateStarred { get; set; }
 		public int? RatingScore { get; set; }
+		public DateTime? DatePosted { get; set; }
 		public string ProofToken { get; set; }
 	}
 }

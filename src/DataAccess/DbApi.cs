@@ -4,40 +4,14 @@ using Dapper;
 using api.DataAccess.Models;
 using System;
 using System.Collections.Generic;
-using Microsoft.Extensions.Options;
-using api.Configuration;
-using System.Linq;
 using System.Threading.Tasks;
-using NpgsqlTypes;
-using System.Data.Common;
 using api.Security;
-using SesNotification = api.Messaging.AmazonSesNotifications.Notification;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 using api.Analytics;
+using api.DataAccess.Serialization;
+using api.DataAccess.Stats;
 
 namespace api.DataAccess {
     public static class DbApi {
-		private static string SerializeToJson(object value) => JsonConvert.SerializeObject(
-			value: value,
-			settings: new JsonSerializerSettings() {
-				ContractResolver = new DefaultContractResolver() {
-					NamingStrategy = new SnakeCaseNamingStrategy()
-				}
-			}
-		);
-		private static string SerializeToJson(RequestAnalytics analytics) {
-			return SerializeToJson(
-				new {
-					Client = new {
-						Type = ClientTypeDictionary.EnumToString[analytics.Client.Type],
-						Version = analytics.Client.Version,
-						Mode = analytics.Client.Mode
-					},
-					Context = analytics.Context
-				}
-			);
-		}
 		#region analytics
 		public static Task<IEnumerable<KeyMetricsReportRow>> GetKeyMetrics(
 			this NpgsqlConnection conn,
@@ -145,7 +119,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				parent_comment_id = parentCommentId,
 				user_account_id = userAccountId,
-				analytics = SerializeToJson(analytics)
+				analytics = PostgresJsonSerialization.Serialize(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -177,7 +151,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				user_account_id = userAccountId,
 				readable_word_count = readableWordCount,
-				analytics = SerializeToJson(analytics)
+				analytics = PostgresJsonSerialization.Serialize(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -360,7 +334,7 @@ namespace api.DataAccess {
 			param: new {
 				user_article_id = userArticleId,
 				read_state = readState,
-				analytics = SerializeToJson(analytics)
+				analytics = PostgresJsonSerialization.Serialize(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -404,9 +378,9 @@ namespace api.DataAccess {
 			sql: "bulk_mailing_api.create_email_notification",
 			param: new {
 				notification_type = notificationType,
-				mail = SerializeToJson(mail),
-				bounce = SerializeToJson(bounce),
-				complaint = SerializeToJson(complaint)
+				mail = PostgresJsonSerialization.Serialize(mail),
+				bounce = PostgresJsonSerialization.Serialize(bounce),
+				complaint = PostgresJsonSerialization.Serialize(complaint)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -562,6 +536,131 @@ namespace api.DataAccess {
 		);
 		#endregion
 
+		#region social
+		public static async Task CreateFollowing(
+			this NpgsqlConnection conn,
+			long followerUserId,
+			string followeeUserName,
+			RequestAnalytics analytics
+		) => await conn.ExecuteAsync(
+			sql: "social.create_following",
+			param: new {
+				follower_user_id = followerUserId,
+				followee_user_name = followeeUserName,
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SilentPost> CreateSilentPost(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			long articleId,
+			RequestAnalytics analytics
+		) => await conn.QuerySingleAsync<SilentPost>(
+			sql: "social.create_silent_post",
+			param: new {
+				user_account_id = userAccountId,
+				article_id = articleId,
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<string>> GetFollowees(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QueryAsync<string>(
+			sql: "social.get_followees",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<Following>> GetFollowers(
+			this NpgsqlConnection conn,
+			long? viewerUserId,
+			string subjectUserName
+		) => await conn.QueryAsync<Following>(
+			sql: "social.get_followers",
+			param: new {
+				viewer_user_id = viewerUserId,
+				subject_user_name = subjectUserName
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PageResult<ArticlePostMultiMap>> GetPostsFromFollowees(
+			this NpgsqlConnection conn,
+			long userId,
+			int pageNumber,
+			int pageSize,
+			int? minLength,
+			int? maxLength
+		) => PageResult<ArticlePostMultiMap>.Create(
+			items: await conn.QueryAsync<Article, Post, long, ArticlePostMultiMapPageResult>(
+				sql: "social.get_posts_from_followees",
+				map: (article, post, totalCount) => new ArticlePostMultiMapPageResult(article, post, totalCount),
+				param: new {
+					user_id = userId,
+					page_size = pageSize,
+					page_number = pageNumber,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				splitOn: "post_date_created,total_count",
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<ArticlePostMultiMap>> GetPostsFromUser(
+			this NpgsqlConnection conn,
+			long? viewerUserId,
+			string subjectUserName,
+			int pageNumber,
+			int pageSize
+		) => PageResult<ArticlePostMultiMap>.Create(
+			items: await conn.QueryAsync<Article, Post, long, ArticlePostMultiMapPageResult>(
+				sql: "social.get_posts_from_user",
+				map: (article, post, totalCount) => new ArticlePostMultiMapPageResult(article, post, totalCount),
+				param: new {
+					viewer_user_id = viewerUserId,
+					subject_user_name = subjectUserName,
+					page_size = pageSize,
+					page_number = pageNumber
+				},
+				splitOn: "post_date_created,total_count",
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<Profile> GetProfile(
+			this NpgsqlConnection conn,
+			long? viewerUserId,
+			string subjectUserName
+		) => await conn.QuerySingleAsync<Profile>(
+			sql: "social.get_profile",
+			param: new {
+				viewer_user_id = viewerUserId,
+				subject_user_name = subjectUserName
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task Unfollow(
+			this NpgsqlConnection conn,
+			long followerUserId,
+			string followeeUserName,
+			RequestAnalytics analytics
+		) => await conn.ExecuteAsync(
+			sql: "social.unfollow",
+			param: new {
+				follower_user_id = followerUserId,
+				followee_user_name = followeeUserName,
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
+
 		#region stats
 		public static async Task<IEnumerable<LeaderboardRanking>> GetCurrentStreakLeaderboard(
 			this NpgsqlConnection conn,
@@ -656,19 +755,22 @@ namespace api.DataAccess {
 		public static async Task<UserLeaderboardRankings> GetUserLeaderboardRankings(
 			this NpgsqlConnection conn,
 			long userAccountId,
-			DateTime? longestReadSinceDate,
-			DateTime? scoutSinceDate,
-			DateTime? scribeSinceDate
-		) => await conn.QuerySingleOrDefaultAsync<UserLeaderboardRankings>(
-			sql: "stats.get_user_leaderboard_rankings",
-			param: new {
-				user_account_id = userAccountId,
-				longest_read_since_date = longestReadSinceDate,
-				scout_since_date = scoutSinceDate,
-				scribe_since_date = scribeSinceDate
-			},
-			commandType: CommandType.StoredProcedure
-		);
+			DateTime? now = null
+		) {
+			if (!now.HasValue) {
+				now = DateTime.UtcNow;
+			}
+			return await conn.QuerySingleOrDefaultAsync<UserLeaderboardRankings>(
+				sql: "stats.get_user_leaderboard_rankings",
+				param: new {
+					user_account_id = userAccountId,
+					longest_read_since_date = now.Value.Subtract(Leaderboards.LongestReadOffset),
+					scout_since_date = now.Value.Subtract(Leaderboards.ScoutOffset),
+					scribe_since_date = now.Value.Subtract(Leaderboards.ScribeOffset)
+				},
+				commandType: CommandType.StoredProcedure
+			);
+		}
 		public static async Task<int> GetUserReadCount(
 			this NpgsqlConnection conn,
 			long userAccountId
@@ -761,7 +863,7 @@ namespace api.DataAccess {
 						password_hash = passwordHash,
 						password_salt = passwordSalt,
 						time_zone_id = timeZoneId,
-						analytics = SerializeToJson(analytics)
+						analytics = PostgresJsonSerialization.Serialize(analytics)
 					},
 					commandType: CommandType.StoredProcedure
 				);
@@ -775,11 +877,6 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
-		public static UserAccount FindUserAccount(this NpgsqlConnection conn, string email) => conn.QuerySingleOrDefault<UserAccount>(
-			sql: "user_account_api.find_user_account",
-			param: new { email },
-			commandType: CommandType.StoredProcedure
-		);
 		public static EmailConfirmation GetEmailConfirmation(this NpgsqlConnection conn, long emailConfirmationId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.get_email_confirmation",
 			param: new { email_confirmation_id = emailConfirmationId },
@@ -805,9 +902,34 @@ namespace api.DataAccess {
 			param: new { password_reset_request_id = passwordResetRequestId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<UserAccount> GetUserAccount(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserAccount>(
-			sql: "user_account_api.get_user_account",
+		public static UserAccount GetUserAccountByEmail(this NpgsqlConnection conn, string email) => conn.QuerySingleOrDefault<UserAccount>(
+			sql: "user_account_api.get_user_account_by_email",
+			param: new { email },
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<UserAccount> GetUserAccountById(this NpgsqlConnection conn, long userAccountId) => await conn.QuerySingleOrDefaultAsync<UserAccount>(
+			sql: "user_account_api.get_user_account_by_id",
 			param: new { user_account_id = userAccountId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<UserAccount> GetUserAccountByName(
+			this NpgsqlConnection conn,
+			string userName
+		) => await conn.QuerySingleAsync<UserAccount>(
+			sql: "user_account_api.get_user_account_by_name",
+			param: new {
+				user_name = userName
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<long> GetUserAccountIdByName(
+			this NpgsqlConnection conn,
+			string userName
+		) => await conn.QuerySingleAsync<long>(
+			sql: "user_account_api.get_user_account_id_by_name",
+			param: new {
+				user_name = userName
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static void RecordNewReplyDesktopNotification(this NpgsqlConnection conn, long userAccountId) => conn.Execute(

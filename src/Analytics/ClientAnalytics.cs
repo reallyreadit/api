@@ -1,8 +1,6 @@
-using api.Analytics;
-
 namespace api.Analytics {
-	public class Client {
-		public Client(ClientType type, SemanticVersion version, string mode = null) {
+	public class ClientAnalytics {
+		public ClientAnalytics(ClientType type, SemanticVersion version, string mode = null) {
 			Type = type;
 			Version = version;
 			Mode = mode;

@@ -20,17 +20,14 @@ namespace api.Analytics {
 					pattern: @"([a-z\-/]+)(#\w+)?@(\d+\.\d+\.\d+)$"
 				);
 				if (match.Success && ClientTypeDictionary.StringToEnum.ContainsKey(match.Groups[1].Value)) {
-					StringValues context;
-					controller.Request.Headers.TryGetValue("X-Readup-Context", out context);
 					return new RequestAnalytics(
-						client: new Client(
+						client: new ClientAnalytics(
 							type: ClientTypeDictionary.StringToEnum[match.Groups[1].Value],
 							version: new SemanticVersion(match.Groups[3].Value),
 							mode: match.Groups[2].Success ?
 								match.Groups[2].Value.TrimStart('#') :
 								null
-						),
-						context: context
+						)
 					);
 				}
 			}

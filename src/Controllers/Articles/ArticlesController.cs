@@ -27,23 +27,6 @@ namespace api.Controllers.Articles {
 			this.dbOpts = dbOpts.Value;
 			this.log = log;
 		}
-		private IEnumerable<CommentThread> AssignBadges(IEnumerable<CommentThread> comments, Leaderboards leaderboards) {
-			foreach (var kvp in new Dictionary<LeaderboardBadge, IEnumerable<LeaderboardRanking>>() {
-					{ LeaderboardBadge.LongestRead, leaderboards.LongestRead },
-					{ LeaderboardBadge.ReadCount, leaderboards.ReadCount },
-					{ LeaderboardBadge.Scout, leaderboards.Scout },
-					{ LeaderboardBadge.Scribe, leaderboards.Scribe },
-					{ LeaderboardBadge.Streak, leaderboards.Streak },
-					{ LeaderboardBadge.WeeklyReadCount, leaderboards.WeeklyReadCount }
-				}) {
-				foreach (var ranking in kvp.Value) {
-					foreach (var comment in comments.Where(comment => comment.UserAccount == ranking.UserName)) {
-						comment.Badge |= kvp.Key;
-					}
-				}
-			}
-			return comments;
-		}
 		// Deprecated 2018-12-18
 		[AllowAnonymous]
 		[HttpGet]
@@ -255,19 +238,22 @@ namespace api.Controllers.Articles {
 			var userAccountId = User.GetUserAccountIdOrDefault();
 			CommentThread[] comments;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId ?? 0,
+					now: DateTime.UtcNow
+				);
 				comments = db
 					.ListComments(
 						db.FindArticle(slug, userAccountId).Id
 					)
-					.Select(c => new CommentThread(c, obfuscationService))
-					.ToArray();
-				AssignBadges(
-					comments: comments,
-					leaderboards: await db.GetLeaderboards(
-						userAccountId: userAccountId ?? 0,
-						now: DateTime.UtcNow
+					.Select(
+						comment => new CommentThread(
+							comment: comment,
+							badge: leaderboards.GetBadge(comment.UserAccount),
+							obfuscationService: obfuscationService
+						)
 					)
-				);
+					.ToArray();
 			}
 			foreach (var comment in comments.Where(c => c.ParentCommentId != null)) {
 				comments.Single(c => c.Id == comment.ParentCommentId).Children.Add(comment);
@@ -304,7 +290,7 @@ namespace api.Controllers.Articles {
 						if (parentCommentId != null) {
 							var parent = db.GetComment(parentCommentId.Value);
 							if (parent.UserAccountId != userAccountId) {
-								var parentUserAccount = await db.GetUserAccount(parent.UserAccountId);
+								var parentUserAccount = await db.GetUserAccountById(parent.UserAccountId);
 								if (parentUserAccount.ReceiveReplyEmailNotifications) {
 									await emailService.SendCommentReplyNotificationEmail(
 										recipient: parentUserAccount,
@@ -313,14 +299,15 @@ namespace api.Controllers.Articles {
 								}
 							}
 						}
-						var commentThread = AssignBadges(
-							comments: new [] {
-								new CommentThread(comment, obfuscationService)
-							},
-							leaderboards: await db.GetLeaderboards(
-								userAccountId: userAccountId,
-								now: DateTime.UtcNow
-							)
+						var commentThread = new CommentThread(
+							comment: comment,
+							badge: (
+									await db.GetUserLeaderboardRankings(
+										userAccountId: comment.UserAccountId
+									)
+								)
+								.GetBadge(),
+							obfuscationService: obfuscationService
 						);
 						if (
 							this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
@@ -334,21 +321,32 @@ namespace api.Controllers.Articles {
 									article: await db.GetArticle(binder.ArticleId, userAccountId),
 									userAccountId: userAccountId
 								),
-								Comment = commentThread.Single()
+								Comment = commentThread
 							});
 						}
-						return Json(commentThread.Single());
+						return Json(commentThread);
 					}
 				}
 			}
 			return BadRequest();
 		}
 		[HttpGet]
-		public IActionResult ListReplies(int pageNumber, [FromServices] ObfuscationService obfuscationService) {
+		public async Task<IActionResult> ListReplies(int pageNumber, [FromServices] ObfuscationService obfuscationService) {
+			var userAccountId = this.User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId,
+					now: DateTime.UtcNow
+				);
 				return Json(PageResult<CommentThread>.Create(
 					source: db.ListReplies(this.User.GetUserAccountId(), pageNumber, 40),
-					map: comments => comments.Select(c => new CommentThread(c, obfuscationService))
+					map: comments => comments.Select(c => new CommentThread(
+						comment: c,
+						badge: leaderboards.GetBadge(
+							userName: c.UserAccount
+						),
+						obfuscationService: obfuscationService
+					))
 				));
 			}
 		}
@@ -402,7 +400,7 @@ namespace api.Controllers.Articles {
 		) {
 			var tokenData = verificationService.GetTokenData(token);
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var readerName = (await db.GetUserAccount(tokenData.UserAccountId)).Name;
+				var readerName = (await db.GetUserAccountById(tokenData.UserAccountId)).Name;
 				Article article;
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
