@@ -10,18 +10,24 @@ namespace api.Controllers.Social {
 			string userName,
 			LeaderboardBadge badge,
 			Article article,
-			PostComment comment = null
+			PostComment comment,
+			string silentPostId,
+			bool hasAlert
 		) {
 			Date = date;
 			UserName = userName;
 			Badge = badge;
 			Article = article;
 			Comment = comment;
+			SilentPostId = silentPostId;
+			HasAlert = hasAlert;
 		}
 		public DateTime Date { get; }
 		public string UserName { get; }
 		public LeaderboardBadge Badge { get; }
 		public Article Article { get; }
 		public PostComment Comment { get; }
+		public string SilentPostId { get; set; }
+		public bool HasAlert { get; set; }
 	}
 }

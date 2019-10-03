@@ -4,6 +4,7 @@ namespace api.Analytics {
 		IosExtension,
 		WebAppClient,
 		WebAppServer,
-		WebExtension
+		WebExtension,
+		Mail
 	}
 }

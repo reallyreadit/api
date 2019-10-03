@@ -21,7 +21,8 @@ namespace api.Messaging {
 		private RazorViewToStringRenderer viewRenderer;
 		private EmailOptions emailOpts;
 		private ServiceEndpointsOptions serviceOpts;
-		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), emailOpts.EncryptionKey));
+		private readonly TokenizationOptions tokenizationOptions;
+		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), tokenizationOptions.EncryptionKey));
 		private async Task<bool> SendEmail(IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) => await SendEmail(
 			null,
 			recipient,
@@ -54,19 +55,20 @@ namespace api.Messaging {
 				String.Empty :
 				address.ToLower().Trim()
 		);
-		public EmailService(IOptions<DatabaseOptions> dbOpts, RazorViewToStringRenderer viewRenderer, IOptions<EmailOptions> emailOpts, IOptions<ServiceEndpointsOptions> serviceOpts) {
+		public EmailService(
+			IOptions<DatabaseOptions> dbOpts,
+			RazorViewToStringRenderer viewRenderer,
+			IOptions<EmailOptions> emailOpts,
+			IOptions<ServiceEndpointsOptions> serviceOpts,
+			IOptions<TokenizationOptions> tokenizationOptions
+		) {
 			this.bouncedAddresses = new Lazy<IEnumerable<string>>(
 				() => {
 					using (var db = new NpgsqlConnection(dbOpts.Value.ConnectionString)) {
 						return db
 							.GetBlockedEmailAddresses()
-							.Select(address => {
-								var match = Regex.Match(address, "<([^>]+)>");
-								if (match.Success) {
-									return match.Groups[1].Value;
-								}
-								return address;
-							})
+							.Select(EmailFormatting.ExtractEmailAddress)
+							.Where(address => address != null)
 							.ToArray();
 					}
 				}
@@ -74,6 +76,7 @@ namespace api.Messaging {
 			this.viewRenderer = viewRenderer;
 			this.emailOpts = emailOpts.Value;
 			this.serviceOpts = serviceOpts.Value;
+			this.tokenizationOptions = tokenizationOptions.Value;
 		}
 		public bool HasEmailAddressBounced(string emailAddress) => (
 			this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(emailAddress))
@@ -111,16 +114,29 @@ namespace api.Messaging {
 			),
 			requireConfirmation: false
 		);
-		public async Task<bool> SendCommentReplyNotificationEmail(UserAccount recipient, Comment reply) => await SendEmail(
-			recipient,
+		public async Task<bool> SendCommentReplyNotificationEmail(
+			EmailMailbox replyTo,
+			NotificationDispatch dispatch,
+			string openToken,
+			string viewCommentToken,
+			Comment reply
+		) => await SendEmail(
+			replyTo: replyTo,
+			recipient: new EmailRecipient(
+				emailAddress: dispatch.EmailAddress
+			),
 			viewName: "ReplyNotificationEmail",
-			model: new ReplyNotificationEmailViewModel(
-				title: $"{reply.UserAccount} replied to your comment!",
+			model: new ReplyNotificationEmail(
+				apiServerEndpoint: this.serviceOpts.ApiServer,
 				webServerEndpoint: this.serviceOpts.WebServer,
-				subscriptionsToken: CreateToken(recipient.Id),
+				openToken: openToken,
+				viewCommentToken: viewCommentToken,
+				subscriptionsToken: CreateToken(
+					value: dispatch.UserAccountId
+				),
+				title: $"{reply.UserAccount} replied to your comment on {reply.ArticleTitle}",
 				respondent: reply.UserAccount,
-				articleTitle: reply.ArticleTitle,
-				replyToken: CreateToken(reply.Id)
+				commentText: reply.Text
 			),
 			requireConfirmation: false
 		);

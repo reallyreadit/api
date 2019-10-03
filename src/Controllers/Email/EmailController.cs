@@ -17,8 +17,10 @@ using api.Messaging;
 using MimeKit;
 using System.Text;
 using MimeKit.Text;
-using System.Net;
-using api.Encryption;
+using api.Notifications;
+using api.Commenting;
+using api.Analytics;
+using api.DataAccess.Models;
 
 namespace api.Controllers.Email {
 	public class EmailController : Controller {
@@ -56,24 +58,28 @@ namespace api.Controllers.Email {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> Reply() {
+		public async Task<IActionResult> Reply(
+			[FromServices] NotificationService notificationService,
+			[FromServices] CommentingService commentingService
+		) {
 			using (var body = new StreamReader(Request.Body)) {
 				var message = SnsMessage.ParseMessage(body.ReadToEnd());
 				if (message.IsMessageSignatureValid()) {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
-							var notification = JsonConvert.DeserializeObject<SesReceiptNotification>(message.MessageText);
+							var sesNotification = JsonConvert.DeserializeObject<SesReceiptNotification>(message.MessageText);
 							var mailContent = MimeMessage
 								.Load(
 									stream: new MemoryStream(
-										buffer: Encoding.UTF8.GetBytes(notification.Content)
+										buffer: Encoding.UTF8.GetBytes(sesNotification.Content)
 									)
 								)
 								.GetTextBody(
 									format: TextFormat.Plain
 								);
-							if (!String.IsNullOrWhiteSpace(mailContent)) {
-								var addressMatch = notification.Mail.CommonHeaders.To
+							// TODO: trim quoted text
+							if (commentingService.IsCommentTextValid(mailContent)) {
+								var addressMatch = sesNotification.Mail.CommonHeaders.To
 									.Select(
 										toString => Regex.Match(
 											input: EmailFormatting.ExtractEmailAddress(toString),
@@ -84,15 +90,38 @@ namespace api.Controllers.Email {
 										match => match.Success
 									);
 								if (addressMatch != null) {
-									var token = StringEncryption.Decrypt(
-										text: UrlSafeBase64.Decode(addressMatch.Groups[1].Value),
-										key: "UqlX9jyFSdvBe5/WYgGYUA=="
-									);
-									System.IO.File.WriteAllText(
-										path: "logs/mail-dump.txt",
-										contents: token + "\n\n" + mailContent
-									);
-									return Ok();
+									var receiptId = notificationService
+										.DecryptTokenString(
+											tokenString: addressMatch.Groups[1].Value
+										)
+										.ReceiptId;
+									using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+										var notification = await db.GetNotification(receiptId);
+										var parent = await db.GetComment(notification.CommentIds.Single());
+										var reply = await commentingService.PostComment(
+											dbConnection: db,
+											text: mailContent,
+											articleId: parent.ArticleId,
+											parentCommentId: parent.Id,
+											userAccountId: notification.UserAccountId,
+											analytics: new RequestAnalytics(
+												client: new ClientAnalytics(
+													type: ClientType.Mail,
+													version: new SemanticVersion(0, 0, 0)
+												)
+											)
+										);
+										await db.CreateNotificationInteraction(
+											receiptId: receiptId,
+											channel: NotificationChannel.Email,
+											action: NotificationAction.Reply,
+											replyId: reply.Id
+										);
+										await db.ClearAlert(
+											receiptId: receiptId
+										);
+										return Ok();
+									}
 								}
 							}
 							break;

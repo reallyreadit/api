@@ -29,6 +29,8 @@ using System.Linq;
 using System.Security.Claims;
 using api.ReadingVerification;
 using api.Encryption;
+using api.Notifications;
+using api.Commenting;
 
 namespace api {
 	public class Startup {
@@ -78,11 +80,14 @@ namespace api {
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ReadingVerificationOptions>(config.GetSection("ReadingVerification"))
-				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"));
+				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
+				.Configure<TokenizationOptions>(config.GetSection("Tokenization"));
 			// configure services
 			services
 				.AddScoped<CaptchaService>()
+				.AddScoped<CommentingService>()
 				.AddScoped<EmailService>()
+				.AddScoped<NotificationService>()
 				.AddScoped<ObfuscationService>()
 				.AddTransient<RazorViewToStringRenderer>()
 				.AddScoped<ReadingVerificationService>();
@@ -153,10 +158,30 @@ namespace api {
 				SlidingExpiration = true
 			});
 			// configure routes
-			app.UseMvcWithDefaultRoute();
+			app.UseMvc(
+				configureRoutes: routes => {
+					routes
+						.MapRoute(
+							name: "notifications",
+							template: "Notifications/{tokenString}",
+							defaults: new {
+								Controller = "Notifications",
+								Action = "Index"
+							}
+						)
+						.MapRoute(
+							name: "default",
+							template: "{controller=Home}/{action=Index}/{id?}"
+						);
+				}
+			);
 			// configure Npgsql
 			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
 			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
+			NpgsqlConnection.MapEnumGlobally<NotificationChannel>();
+			NpgsqlConnection.MapEnumGlobally<NotificationAction>();
+			NpgsqlConnection.MapEnumGlobally<NotificationEventFrequency>();
+			NpgsqlConnection.MapEnumGlobally<NotificationEventType>();
 			NpgsqlConnection.MapCompositeGlobally<Ranking>();
 			NpgsqlConnection.MapCompositeGlobally<StreakRanking>();
 			// configure Dapper

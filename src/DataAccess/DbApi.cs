@@ -9,9 +9,23 @@ using api.Security;
 using api.Analytics;
 using api.DataAccess.Serialization;
 using api.DataAccess.Stats;
+using System.Text.RegularExpressions;
 
 namespace api.DataAccess {
     public static class DbApi {
+		private static string ConvertEnumToString(Enum value) => (
+			Regex
+				.Replace(
+					input: value.ToString(),
+					pattern: "([a-z])?([A-Z])",
+					evaluator: match => (
+							match.Groups[1].Success ?
+								match.Groups[1].Value + "_" :
+								String.Empty
+						) +
+						match.Groups[2].Value.ToLower()
+				)
+		);
 		#region analytics
 		public static Task<IEnumerable<KeyMetricsReportRow>> GetKeyMetrics(
 			this NpgsqlConnection conn,
@@ -105,14 +119,14 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Comment CreateComment(
+		public static async Task<Comment> CreateComment(
 			this NpgsqlConnection conn,
 			string text,
 			long articleId,
 			long? parentCommentId,
 			long userAccountId,
 			RequestAnalytics analytics
-		) => conn.QuerySingleOrDefault<Comment>(
+		) => await conn.QuerySingleOrDefaultAsync<Comment>(
 			sql: "article_api.create_comment",
 			param: new {
 				text,
@@ -180,7 +194,7 @@ namespace api.DataAccess {
 		public static async Task<Article> GetArticle(
 			this NpgsqlConnection conn,
 			long articleId,
-			long? userAccountId
+			long? userAccountId = null
 		) => await conn.QuerySingleOrDefaultAsync<Article>(
 			sql: "article_api.get_article",
 			param: new {
@@ -211,7 +225,7 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public static Comment GetComment(this NpgsqlConnection conn, long commentId) => conn.QuerySingleOrDefault<Comment>(
+		public static async Task<Comment> GetComment(this NpgsqlConnection conn, long commentId) => await conn.QuerySingleOrDefaultAsync<Comment>(
 			sql: "article_api.get_comment",
 			param: new { comment_id = commentId },
 			commandType: CommandType.StoredProcedure
@@ -349,22 +363,62 @@ namespace api.DataAccess {
 		);
 		#endregion
 
-		#region bulk_mailing_api
+		#region notifications
+		public static async Task<IEnumerable<NotificationReceipt>> ClearAllAlerts(
+			this NpgsqlConnection conn,
+			NotificationEventType type,
+			long userAccountId
+		) => await conn.QueryAsync<NotificationReceipt>(
+			sql: "notifications.clear_all_alerts",
+			param: new {
+				type = ConvertEnumToString(type),
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<NotificationReceipt> ClearAotdAlert(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<NotificationReceipt>(
+			sql: "notifications.clear_aotd_alert",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<NotificationReceipt> ClearAlert(
+			this NpgsqlConnection conn,
+			long receiptId
+		) => await conn.QuerySingleOrDefaultAsync<NotificationReceipt>(
+			sql: "notifications.clear_alert",
+			param: new {
+				receipt_id = receiptId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<NotificationDispatch>> CreateAotdNotifications(
+			this NpgsqlConnection conn,
+			long articleId
+		) => await conn.QueryAsync<NotificationDispatch>(
+			sql: "notifications.create_aotd_notifications",
+			param: new {
+				article_id = articleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static long CreateBulkMailing(
 			this NpgsqlConnection conn,
 			string subject,
 			string body,
-			string list,
+			string type,
 			long userAccountId,
-			long[] recipientIds,
-			bool[] recipientResults
+			long[] recipientIds
 		) => conn.QuerySingleOrDefault<long>(
-			sql: "bulk_mailing_api.create_bulk_mailing",
+			sql: "notifications.create_bulk_mailing",
 			param: new {
-				subject, body, list,
+				subject, body, type,
 				user_account_id = userAccountId,
-				recipient_ids = recipientIds,
-				recipient_results = recipientResults
+				recipient_ids = recipientIds
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -375,7 +429,7 @@ namespace api.DataAccess {
 			Messaging.AmazonSesNotifications.Bounce bounce,
 			Messaging.AmazonSesNotifications.Complaint complaint
 		) => conn.ExecuteAsync(
-			sql: "bulk_mailing_api.create_email_notification",
+			sql: "notifications.create_email_notification",
 			param: new {
 				notification_type = notificationType,
 				mail = PostgresJsonSerialization.Serialize(mail),
@@ -384,16 +438,140 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task<NotificationDispatch> CreateFollowerNotification(
+			this NpgsqlConnection conn,
+			long followingId,
+			long followeeId
+		) => conn.QuerySingleOrDefaultAsync<NotificationDispatch>(
+			sql: "notifications.create_follower_notification",
+			param: new {
+				following_id = followingId,
+				followee_id = followeeId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task<NotificationInteraction> CreateNotificationInteraction(
+			this NpgsqlConnection conn,
+			long receiptId,
+			NotificationChannel channel,
+			NotificationAction action,
+			string url = null,
+			long? replyId = null
+		) => conn.QuerySingleOrDefaultAsync<NotificationInteraction>(
+			sql: "notifications.create_interaction",
+			param: new {
+				receipt_id = receiptId,
+				channel = ConvertEnumToString(channel),
+				action = ConvertEnumToString(action),
+				url,
+				reply_id = replyId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task<IEnumerable<NotificationDispatch>> CreateLoopbackNotifications(
+			this NpgsqlConnection conn,
+			long articleId,
+			long commentId,
+			long commentAuthorId
+		) => conn.QueryAsync<NotificationDispatch>(
+			sql: "notifications.create_loopback_notifications",
+			param: new {
+				article_id = articleId,
+				comment_id = commentId,
+				comment_author_id = commentAuthorId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task<IEnumerable<NotificationDispatch>> CreatePostNotifications(
+			this NpgsqlConnection conn,
+			long posterId,
+			long? commentId,
+			long? silentPostId
+		) => conn.QueryAsync<NotificationDispatch>(
+			sql: "notifications.create_post_notifications",
+			param: new {
+				poster_id = posterId,
+				comment_id = commentId,
+				silent_post_id = silentPostId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task<NotificationDispatch> CreateReplyNotification(
+			this NpgsqlConnection conn,
+			long replyId,
+			long replyAuthorId,
+			long parentId
+		) => conn.QuerySingleOrDefaultAsync<NotificationDispatch>(
+			sql: "notifications.create_reply_notification",
+			param: new {
+				reply_id = replyId,
+				reply_author_id = replyAuthorId,
+				parent_id = parentId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static IEnumerable<string> GetBlockedEmailAddresses(this NpgsqlConnection conn) => conn.Query<string>(
-			sql: "bulk_mailing_api.get_blocked_email_addresses",
+			sql: "notifications.get_blocked_email_addresses",
 			commandType: CommandType.StoredProcedure
 		);
-		public static IEnumerable<UserAccount> ListConfirmationReminderRecipients(this NpgsqlConnection conn) => conn.Query<UserAccount>(
-			sql: "bulk_mailing_api.list_confirmation_reminder_recipients",
+		public static IEnumerable<UserAccount> GetConfirmationReminderRecipients(this NpgsqlConnection conn) => conn.Query<UserAccount>(
+			sql: "notifications.get_confirmation_reminder_recipients",
 			commandType: CommandType.StoredProcedure
 		);
-		public static IEnumerable<BulkMailing> ListBulkMailings(this NpgsqlConnection conn) => conn.Query<BulkMailing>(
-			sql: "bulk_mailing_api.list_bulk_mailings",
+		public static IEnumerable<BulkMailing> GetBulkMailings(this NpgsqlConnection conn) => conn.Query<BulkMailing>(
+			sql: "notifications.get_bulk_mailings",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<UserNotification> GetNotification(
+			this NpgsqlConnection conn,
+			long receiptId
+		) => await conn.QuerySingleOrDefaultAsync<UserNotification>(
+			sql: "notifications.get_notification",
+			param: new {
+				receipt_id = receiptId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<NotificationPreference> GetNotificationPreference(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<NotificationPreference>(
+			sql: "notifications.get_preference",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<NotificationPreference> SetNotificationPreference(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			NotificationPreferenceOptions options
+		) => await conn.QuerySingleOrDefaultAsync<NotificationPreference>(
+			sql: "notifications.set_preference",
+			param: new {
+				user_account_id = userAccountId,
+				company_update_via_email = options.CompanyUpdateViaEmail,
+				suggested_reading_via_email = options.SuggestedReadingViaEmail,
+				aotd_via_email = options.AotdViaEmail,
+				aotd_via_extension = options.AotdViaExtension,
+				aotd_via_push = options.AotdViaPush,
+				reply_via_email = options.ReplyViaEmail,
+				reply_via_extension = options.ReplyViaExtension,
+				reply_via_push = options.ReplyViaPush,
+				reply_digest_via_email = ConvertEnumToString(options.ReplyDigestViaEmail),
+				loopback_via_email = options.LoopbackViaEmail,
+				loopback_via_extension = options.LoopbackViaExtension,
+				loopback_via_push = options.LoopbackViaPush,
+				loopback_digest_via_email = ConvertEnumToString(options.LoopbackDigestViaEmail),
+				post_via_email = options.PostViaEmail,
+				post_via_extension = options.PostViaExtension,
+				post_via_push = options.PostViaPush,
+				post_digest_via_email = ConvertEnumToString(options.PostDigestViaEmail),
+				follower_via_email = options.FollowerViaEmail,
+				follower_via_extension = options.FollowerViaExtension,
+				follower_via_push = options.FollowerViaPush,
+				follower_digest_via_email = ConvertEnumToString(options.FollowerDigestViaEmail)
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		#endregion
@@ -525,24 +703,40 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
+		public static async Task<Article> SetAotd(
+			this NpgsqlConnection conn
+		) => await conn.QuerySingleOrDefaultAsync<Article>(
+			sql: "community_reads.set_aotd",
+			commandType: CommandType.StoredProcedure
+		);
 		#endregion
 
 		#region core
+		public static async Task<TimeZone> GetTimeZoneById(
+			this NpgsqlConnection conn,
+			long id
+		) => await conn.QuerySingleOrDefaultAsync<TimeZone>(
+			sql: "core.get_time_zone_by_id",
+			param: new {
+				id
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static IEnumerable<TimeZone> GetTimeZones(
 			this NpgsqlConnection conn
 		) => conn.Query<TimeZone>(
-			sql: "get_time_zones",
+			sql: "core.get_time_zones",
 			commandType: CommandType.StoredProcedure
 		);
 		#endregion
 
 		#region social
-		public static async Task CreateFollowing(
+		public static async Task<Following> CreateFollowing(
 			this NpgsqlConnection conn,
 			long followerUserId,
 			string followeeUserName,
 			RequestAnalytics analytics
-		) => await conn.ExecuteAsync(
+		) => await conn.QuerySingleAsync<Following>(
 			sql: "social.create_following",
 			param: new {
 				follower_user_id = followerUserId,
@@ -575,15 +769,25 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<IEnumerable<Following>> GetFollowers(
+		public static async Task<IEnumerable<Follower>> GetFollowers(
 			this NpgsqlConnection conn,
 			long? viewerUserId,
 			string subjectUserName
-		) => await conn.QueryAsync<Following>(
+		) => await conn.QueryAsync<Follower>(
 			sql: "social.get_followers",
 			param: new {
 				viewer_user_id = viewerUserId,
 				subject_user_name = subjectUserName
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Following> GetFollowing(
+			this NpgsqlConnection conn,
+			long? followingId
+		) => await conn.QuerySingleOrDefaultAsync<Following>(
+			sql: "social.get_following",
+			param: new {
+				following_id = followingId
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -604,6 +808,26 @@ namespace api.DataAccess {
 					page_number = pageNumber,
 					min_length = minLength,
 					max_length = maxLength
+				},
+				splitOn: "post_date_created,total_count",
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<ArticlePostMultiMap>> GetPostsFromInbox(
+			this NpgsqlConnection conn,
+			long userId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<ArticlePostMultiMap>.Create(
+			items: await conn.QueryAsync<Article, Post, long, ArticlePostMultiMapPageResult>(
+				sql: "social.get_posts_from_inbox",
+				map: (article, post, totalCount) => new ArticlePostMultiMapPageResult(article, post, totalCount),
+				param: new {
+					user_id = userId,
+					page_size = pageSize,
+					page_number = pageNumber
 				},
 				splitOn: "post_date_created,total_count",
 				commandType: CommandType.StoredProcedure
@@ -784,11 +1008,6 @@ namespace api.DataAccess {
 		#endregion
 
 		#region user_account_api
-		public static void AckNewReply(this NpgsqlConnection conn, long userAccountId) => conn.Execute(
-			sql: "user_account_api.ack_new_reply",
-			param: new { user_account_id = userAccountId },
-			commandType: CommandType.StoredProcedure
-		);
 		public static void ChangeEmailAddress(this NpgsqlConnection conn, long userAccountId, string email) {
 			try {
 				conn.Execute(
@@ -892,11 +1111,6 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static Comment GetLatestUnreadReply(this NpgsqlConnection conn, long userAccountId) => conn.QuerySingleOrDefault<Comment>(
-			sql: "user_account_api.get_latest_unread_reply",
-			param: new { user_account_id = userAccountId },
-			commandType: CommandType.StoredProcedure
-		);
 		public static PasswordResetRequest GetPasswordResetRequest(this NpgsqlConnection conn, long passwordResetRequestId) => conn.QuerySingleOrDefault<PasswordResetRequest>(
 			sql: "user_account_api.get_password_reset_request",
 			param: new { password_reset_request_id = passwordResetRequestId },
@@ -932,11 +1146,6 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static void RecordNewReplyDesktopNotification(this NpgsqlConnection conn, long userAccountId) => conn.Execute(
-			sql: "user_account_api.record_new_reply_desktop_notification",
-			param: new { user_account_id = userAccountId },
-			commandType: CommandType.StoredProcedure
-		);
 		public static bool IsEmailAddressConfirmed(this NpgsqlConnection conn, long userAccountId, string email) => conn.QuerySingleOrDefault<bool>(
 			sql: "user_account_api.is_email_address_confirmed",
 			param: new { user_account_id = userAccountId, email },
@@ -949,36 +1158,8 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static IEnumerable<UserAccount> ListUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
-			sql: "user_account_api.list_user_accounts",
-			commandType: CommandType.StoredProcedure
-		);
-		public static UserAccount UpdateContactPreferences(
-			this NpgsqlConnection conn,
-			long userAccountId,
-			bool receiveWebsiteUpdates,
-			bool receiveSuggestedReadings
-		) => conn.QuerySingleOrDefault<UserAccount>(
-			sql: "user_account_api.update_contact_preferences",
-			param: new {
-				user_account_id = userAccountId,
-				receive_website_updates = receiveWebsiteUpdates,
-				receive_suggested_readings = receiveSuggestedReadings
-			},
-			commandType: CommandType.StoredProcedure
-		);
-		public static UserAccount UpdateNotificationPreferences(
-			this NpgsqlConnection conn,
-			long userAccountId,
-			bool receiveReplyEmailNotifications,
-			bool receiveReplyDesktopNotifications
-		) => conn.QuerySingleOrDefault<UserAccount>(
-			sql: "user_account_api.update_notification_preferences",
-			param: new {
-				user_account_id = userAccountId,
-				receive_reply_email_notifications = receiveReplyEmailNotifications,
-				receive_reply_desktop_notifications = receiveReplyDesktopNotifications
-			},
+		public static IEnumerable<UserAccount> GetUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
+			sql: "user_account_api.get_user_accounts",
 			commandType: CommandType.StoredProcedure
 		);
 		public static UserAccount UpdateTimeZone(

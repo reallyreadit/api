@@ -6,5 +6,7 @@ namespace api.DataAccess.Models {
 		public string UserName { get; set; }
 		public long? CommentId { get; set; }
 		public string CommentText { get; set; }
+		public long? SilentPostId { get; set; }
+		public bool HasAlert { get; set; }
 	}
 }

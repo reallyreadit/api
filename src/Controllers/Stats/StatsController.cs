@@ -46,7 +46,15 @@ namespace api.Controllers.Stats {
 								userAccountId: userAccountId,
 								now: now
 							),
-							WeeklyReadCount = leaderboards.WeeklyReadCount
+							WeeklyReadCount = leaderboards.WeeklyReadCount,
+							TimeZoneName = (await db.GetTimeZoneById(
+									id: (await db.GetUserAccountById(
+										userAccountId: userAccountId
+									))
+									.TimeZoneId
+									.Value
+								))
+								.Name
 						}
 					);
 				} else {

@@ -16,6 +16,8 @@ using api.ReadingVerification;
 using api.Analytics;
 using Microsoft.AspNetCore.Authorization;
 using api.Encryption;
+using System.Collections.Generic;
+using api.BackwardsCompatibility;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -229,7 +231,23 @@ namespace api.Controllers.Extension {
 						WordsRead = userArticle.WordsRead,
 						DateCompleted = userArticle.DateCompleted
 					},
-					User = await db.GetUserAccountById(userAccountId)
+					User = (
+						this.ClientVersionIsGreaterThanOrEqualTo(
+							versions: new Dictionary<ClientType, SemanticVersion>() {
+								{ ClientType.IosApp, new SemanticVersion(4, 3, 1) },
+								{ ClientType.IosExtension, new SemanticVersion(4, 3, 1) },
+								{ ClientType.WebExtension, new SemanticVersion(0, 0, 0) }
+							}
+						) ?
+							await db.GetUserAccountById(
+								userAccountId: userAccountId
+							) :
+							new UserAccount_1_2_0(
+								user: await db.GetUserAccountById(
+									userAccountId: userAccountId
+								)
+							) as Object
+					)
 				});
 			}
 		}
@@ -297,7 +315,7 @@ namespace api.Controllers.Extension {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> Install(
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromBody] InstallationForm form
 		) {
 			using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
@@ -310,7 +328,7 @@ namespace api.Controllers.Extension {
 				return Json(new {
 					installationId = StringEncryption.Encrypt(
 						text: installationId.ToString(),
-						key: emailOpts.Value.EncryptionKey
+						key: tokenizationOptions.Value.EncryptionKey
 					)
 				});
 			}
@@ -318,7 +336,7 @@ namespace api.Controllers.Extension {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> Uninstall(
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromBody] RemovalForm form
 		) {
 			using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
@@ -326,7 +344,7 @@ namespace api.Controllers.Extension {
 					installationId: Guid.Parse(
 						StringEncryption.Decrypt(
 							text: form.InstallationId,
-							key: emailOpts.Value.EncryptionKey
+							key: tokenizationOptions.Value.EncryptionKey
 						)
 					),
 					userAccountId: this.User.GetUserAccountIdOrDefault()
@@ -337,7 +355,7 @@ namespace api.Controllers.Extension {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> UninstallFeedback(
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromBody] RemovalFeedbackForm form
 		) {
 			if (!String.IsNullOrWhiteSpace(form.Reason)) {
@@ -346,7 +364,7 @@ namespace api.Controllers.Extension {
 						installationId: Guid.Parse(
 							StringEncryption.Decrypt(
 								text: form.InstallationId,
-								key: emailOpts.Value.EncryptionKey
+								key: tokenizationOptions.Value.EncryptionKey
 							)
 						),
 						reason: form.Reason.Trim()

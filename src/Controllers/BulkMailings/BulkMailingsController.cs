@@ -38,29 +38,29 @@ namespace api.Controllers.BulkMailings {
 		}
 		private IEnumerable<UserAccount> GetWebsiteUpdateListUsers(NpgsqlConnection db) => (
 			db
-				.ListUserAccounts()
+				.GetUserAccounts()
 				.Where(user =>
-					user.ReceiveWebsiteUpdates &&
+					//user.ReceiveWebsiteUpdates &&
 					!emailService.HasEmailAddressBounced(user.Email)
 				)
 				.ToArray()
 		);
 		private IEnumerable<UserAccount> GetSuggestedReadingListUsers(NpgsqlConnection db) => (
 			db
-				.ListUserAccounts()
+				.GetUserAccounts()
 				.Where(user =>
-					user.ReceiveSuggestedReadings &&
+					//user.ReceiveSuggestedReadings &&
 					!emailService.HasEmailAddressBounced(user.Email)
 				)
 				.ToArray()
 		);
 		private IEnumerable<UserAccount> GetConfirmationReminderListUsers(NpgsqlConnection db) {
 			var reminderRecipientAddresses = db
-				.ListConfirmationReminderRecipients()
+				.GetConfirmationReminderRecipients()
 				.Select(user => EmailService.NormalizeEmailAddress(user.Email))
 				.ToArray();
 			return db
-				.ListUserAccounts()
+				.GetUserAccounts()
 				.Where(user =>
 					!user.IsEmailConfirmed &&
 					!reminderRecipientAddresses.Contains(EmailService.NormalizeEmailAddress(user.Email)) &&
@@ -71,7 +71,7 @@ namespace api.Controllers.BulkMailings {
 		[HttpGet]
 		public JsonResult List() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.ListBulkMailings().OrderByDescending(m => m.DateSent));
+				return Json(db.GetBulkMailings().OrderByDescending(m => m.DateSent));
 			}
 		}
 		[HttpGet]
@@ -165,14 +165,12 @@ namespace api.Controllers.BulkMailings {
 					}
 					bulkMailingRecipients.Add(bulkMailingRecipient);
 				}
-				// temp workaround to circumvent npgsql type mapping bug
 				db.CreateBulkMailing(
 					subject: binder.Subject,
 					body: binder.Body,
-					list: binder.List,
+					type: binder.List,
 					userAccountId: User.GetUserAccountId(),
-					recipientIds: bulkMailingRecipients.Select(recipient => recipient.UserAccountId).ToArray(),
-					recipientResults: bulkMailingRecipients.Select(recipient => recipient.IsSuccessful).ToArray()
+					recipientIds: bulkMailingRecipients.Select(recipient => recipient.UserAccountId).ToArray()
 				);
 			}
 			return Ok();

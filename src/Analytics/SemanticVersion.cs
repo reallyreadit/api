@@ -4,6 +4,15 @@ using System.Text.RegularExpressions;
 
 namespace api.Analytics {
 	public class SemanticVersion {
+		public SemanticVersion(
+			int major,
+			int minor,
+			int patch
+		) {
+			Major = major;
+			Minor = minor;
+			Patch = patch;
+		}
 		public SemanticVersion(string versionString) {
 			var match = Regex.Match(versionString, @"^(\d+)\.(\d+)\.(\d+)$");
 			if (!match.Success) {

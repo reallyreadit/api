@@ -14,6 +14,8 @@ using api.DataAccess.Stats;
 using api.Encryption;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq;
+using api.Notifications;
+using api.Commenting;
 
 namespace api.Controllers.Social {
 	public class SocialController : Controller {
@@ -23,13 +25,16 @@ namespace api.Controllers.Social {
 		}
 		[HttpPost]
 		public async Task<IActionResult> Follow(
+			[FromServices] NotificationService notificationService,
 			[FromBody] UserNameForm form
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				await db.CreateFollowing(
-					followerUserId: User.GetUserAccountId(),
-					followeeUserName: form.UserName,
-					analytics: this.GetRequestAnalytics()
+				await notificationService.CreateFollowerNotification(
+					following: await db.CreateFollowing(
+						followerUserId: User.GetUserAccountId(),
+						followeeUserName: form.UserName,
+						analytics: this.GetRequestAnalytics()
+					)
 				);
 				return Ok();
 			}
@@ -43,9 +48,10 @@ namespace api.Controllers.Social {
 							userAccountId: User.GetUserAccountId()
 						))
 						.Select(
-							followeeUserName => new Following {
+							followeeUserName => new Follower {
 								UserName = followeeUserName,
-								IsFollowed = true
+								IsFollowed = true,
+								HasAlert = false
 							}
 						)
 				);
@@ -85,7 +91,13 @@ namespace api.Controllers.Social {
 											obfuscationService: obfuscationService
 										) :
 										null
-								)
+								),
+								silentPostId: (
+									multimap.Post.SilentPostId.HasValue ?
+										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+										null
+								),
+								hasAlert: multimap.Post.HasAlert
 							)
 						)
 					)
@@ -106,9 +118,56 @@ namespace api.Controllers.Social {
 				);
 			}
 		}
+		[HttpGet]
+		public async Task<JsonResult> InboxPosts(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromQuery] InboxPostsQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccountId = User.GetUserAccountId();
+				var postPageResult = await db.GetPostsFromInbox(
+					userId: userAccountId,
+					pageNumber: query.PageNumber,
+					pageSize: 40
+				);
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId,
+					now: DateTime.UtcNow
+				);
+				return Json(
+					data: PageResult<Post>.Create(
+						source: postPageResult,
+						map: results => results.Select(
+							multimap => new Post(
+								article: multimap.Article,
+								date: multimap.Post.PostDateCreated,
+								userName: multimap.Post.UserName,
+								badge: leaderboards.GetBadge(multimap.Post.UserName),
+								comment: (
+									multimap.Post.CommentId.HasValue ?
+										new PostComment(
+											post: multimap.Post,
+											obfuscationService: obfuscationService
+										) :
+										null
+								),
+								silentPostId: (
+									multimap.Post.SilentPostId.HasValue ?
+										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+										null
+								),
+								hasAlert: multimap.Post.HasAlert
+							)
+						)
+					)
+				);
+			}
+		}
 		[HttpPost]
 		public async Task<IActionResult> Post(
 			[FromServices] ObfuscationService obfuscationService,
+			[FromServices] NotificationService notificationService,
+			[FromServices] CommentingService commentingService,
 			[FromBody] PostForm form
 		) {
 			var userAccountId = User.GetUserAccountId();
@@ -122,9 +181,10 @@ namespace api.Controllers.Social {
 				);
 				if (article.IsRead) {
 					try {
-						if (!String.IsNullOrWhiteSpace(form.CommentText)) {
-							comment = db.CreateComment(
-								text: WebUtility.HtmlEncode(form.CommentText),
+						if (commentingService.IsCommentTextValid(form.CommentText)) {
+							comment = await commentingService.PostComment(
+								dbConnection: db,
+								text: form.CommentText,
 								articleId: form.ArticleId,
 								parentCommentId: null,
 								userAccountId: userAccountId,
@@ -138,6 +198,11 @@ namespace api.Controllers.Social {
 								analytics: analytics
 							);
 							comment = null;
+							await notificationService.CreatePostNotifications(
+								userAccountId: userAccountId,
+								commentId: null,
+								silentPostId: silentPost.Id
+							);
 						}
 					} catch {
 						return BadRequest();
@@ -170,13 +235,18 @@ namespace api.Controllers.Social {
 									comment: new PostComment(
 										comment: comment,
 										obfuscationService: obfuscationService
-									)
+									),
+									silentPostId: null,
+									hasAlert: false
 								) :
 								new Post(
 									article: article,
 									date: silentPost.DateCreated,
 									userName: (await db.GetUserAccountById(userAccountId)).Name,
-									badge: badge
+									badge: badge,
+									comment: null,
+									silentPostId: obfuscationService.Encode(silentPost.Id),
+									hasAlert: false
 								)
 						)
 					);
@@ -250,6 +320,7 @@ namespace api.Controllers.Social {
 								article: multimap.Article,
 								date: multimap.Post.PostDateCreated,
 								userName: multimap.Post.UserName,
+								hasAlert: multimap.Post.HasAlert,
 								badge: selectedUserBadge,
 								comment: (
 									multimap.Post.CommentId.HasValue ?
@@ -257,6 +328,11 @@ namespace api.Controllers.Social {
 											post: multimap.Post,
 											obfuscationService: obfuscationService
 										) :
+										null
+								),
+								silentPostId: (
+									multimap.Post.SilentPostId.HasValue ?
+										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
 										null
 								)
 							)

@@ -27,6 +27,7 @@ using api.Security;
 using api.ClientModels;
 using api.Analytics;
 using api.DataAccess.Stats;
+using api.BackwardsCompatibility;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -76,6 +77,43 @@ namespace api.Controllers.UserAccounts {
 				request != null &&
 				!request.DateCompleted.HasValue &&
 				DateTime.UtcNow.Subtract(request.DateCreated).TotalHours < 24;
+		private async Task<Object> GetUserForClient(
+			UserAccount user,
+			NpgsqlConnection db
+		) => (
+			this.ClientVersionIsGreaterThanOrEqualTo(
+				versions: new Dictionary<ClientType, SemanticVersion>() {
+					{ ClientType.IosApp, new SemanticVersion(4, 3, 1) },
+					{ ClientType.WebAppClient, new SemanticVersion(1, 8, 0) },
+					{ ClientType.WebAppServer, new SemanticVersion(1, 8, 0) }
+				}
+			) ?
+				user :
+				new UserAccount_1_2_0(
+					user: user,
+					preference: await db.GetNotificationPreference(
+						userAccountId: user.Id
+					),
+					timeZone: (
+						user.TimeZoneId.HasValue ?
+							await db.GetTimeZoneById(
+								id: user.TimeZoneId.Value
+							) :
+							null
+					)
+				) as Object
+		);
+		private async Task<JsonResult> JsonUser(
+			UserAccount user,
+			NpgsqlConnection db
+		) => (
+			Json(
+				data: await GetUserForClient(
+					user: user,
+					db: db
+				)
+			)
+		);
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -111,7 +149,10 @@ namespace api.Controllers.UserAccounts {
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
 					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
-					return Json(userAccount);
+					return await JsonUser(
+						user: userAccount,
+						db: db
+					);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
 				}
@@ -122,10 +163,10 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult ConfirmEmail(
 			string token,
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
-			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey));
+			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey));
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var confirmation = db.GetEmailConfirmation(emailConfirmationId);
 				var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/confirm");
@@ -175,10 +216,10 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> ResetPassword(
 			[FromBody] ResetPasswordBinder binder,
-			[FromServices] IOptions<EmailOptions> emailOpts
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
+				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenizationOptions.Value.EncryptionKey)));
 				if (request == null) {
 					return BadRequest(new[] { "RequestNotFound" });
 				}
@@ -191,7 +232,10 @@ namespace api.Controllers.UserAccounts {
 					db.CompletePasswordResetRequest(request.Id);
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
 					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
-					return Json(userAccount);
+					return await JsonUser(
+						user: userAccount,
+						db: db
+					);
 				}
 			}
 			return BadRequest(new[] { "RequestExpired" });
@@ -232,7 +276,10 @@ namespace api.Controllers.UserAccounts {
 							emailConfirmationId: confirmation.Id
 						);
 					}
-					return Json(updatedUserAccount);
+					return await JsonUser(
+						user: updatedUserAccount,
+						db: db
+					);
 				}
 			}
 			return BadRequest(new[] { "ResendLimitExceeded" });
@@ -264,16 +311,27 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public async Task<IActionResult> GetUserAccount() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.GetUserAccountById(this.User.GetUserAccountId()));
+				return await JsonUser(
+					user: await db.GetUserAccountById(this.User.GetUserAccountId()),
+					db: db
+				);
 			}
 		}
+		// deprecated
 		[HttpGet]
 		public async Task<IActionResult> GetSessionState() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
 				return Json(new {
-					UserAccount = userAccount,
-					NewReplyNotification = new NewReplyNotification(userAccount, db.GetLatestUnreadReply(userAccount.Id))
+					UserAccount = await GetUserForClient(
+						user: await db.GetUserAccountById(this.User.GetUserAccountId()),
+						db: db
+					),
+					NewReplyNotification = new {
+						LastReply = 0,
+						LastNewReplyAck = 0,
+						LastNewReplyDesktopNotification = 0,
+						Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+					}
 				});
 			}
 		}
@@ -285,15 +343,18 @@ namespace api.Controllers.UserAccounts {
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				userAccount = db.GetUserAccountByEmail(binder.Email);
+				if (userAccount == null) {
+					return BadRequest(new[] { "UserAccountNotFound" });
+				}
+				if (!IsCorrectPassword(userAccount, binder.Password)) {
+					return BadRequest(new[] { "IncorrectPassword" });
+				}
+				await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
+				return await JsonUser(
+					user: userAccount,
+					db: db
+				);
 			}
-			if (userAccount == null) {
-				return BadRequest(new[] { "UserAccountNotFound" });
-			}
-			if (!IsCorrectPassword(userAccount, binder.Password)) {
-				return BadRequest(new[] { "IncorrectPassword" });
-			}
-			await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
-			return Json(userAccount);
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -301,91 +362,99 @@ namespace api.Controllers.UserAccounts {
 			await this.HttpContext.Authentication.SignOutAsync(authOpts.Scheme);
 			return Ok();
 		}
+		// deprecated
 		[HttpPost]
-		public IActionResult UpdateNotificationPreferences(
+		public async Task<IActionResult> UpdateNotificationPreferences(
 			[FromBody] UpdateNotificationPreferencesBinder binder
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.UpdateNotificationPreferences(
-					this.User.GetUserAccountId(),
-					binder.ReceiveEmailNotifications,
-					binder.ReceiveDesktopNotifications
-				));
+				var preference = await db.GetNotificationPreference(
+					userAccountId: User.GetUserAccountId()
+				);
+				preference.ReplyViaEmail = binder.ReceiveEmailNotifications;
+				preference.ReplyViaExtension = binder.ReceiveDesktopNotifications;
+				preference = await db.SetNotificationPreference(
+					userAccountId: preference.UserAccountId,
+					options: preference
+				);
+				var user = await db.GetUserAccountById(
+					userAccountId: preference.UserAccountId
+				);
+				return await JsonUser(
+					user: user,
+					db: db
+				);
 			}
 		}
+		// deprecated
 		[HttpPost]
-		public IActionResult UpdateContactPreferences(
+		public async Task<IActionResult> UpdateContactPreferences(
 			[FromBody] UpdateContactPreferencesBinder binder
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.UpdateContactPreferences(
-					this.User.GetUserAccountId(),
-					binder.ReceiveWebsiteUpdates,
-					binder.ReceiveSuggestedReadings
-				));
+				var preference = await db.GetNotificationPreference(
+					userAccountId: User.GetUserAccountId()
+				);
+				preference.CompanyUpdateViaEmail = binder.ReceiveWebsiteUpdates;
+				preference.SuggestedReadingViaEmail = binder.ReceiveSuggestedReadings;
+				preference = await db.SetNotificationPreference(
+					userAccountId: preference.UserAccountId,
+					options: preference
+				);
+				var user = await db.GetUserAccountById(
+					userAccountId: preference.UserAccountId
+				);
+				return await JsonUser(
+					user: user,
+					db: db
+				);
 			}
 		}
+		// deprecated
 		[HttpGet]
-		public async Task<IActionResult> CheckNewReplyNotification() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(new NewReplyNotification(
-					userAccount: await db.GetUserAccountById(this.User.GetUserAccountId()),
-					latestUnreadReply: db.GetLatestUnreadReply(this.User.GetUserAccountId())
-				));
-			}
+		public IActionResult CheckNewReplyNotification() {
+			return Json(
+				data: new {
+					LastReply = 0,
+					LastNewReplyAck = 0,
+					LastNewReplyDesktopNotification = 0,
+					Timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds()
+				}
+			);
 		}
+		// deprecated
 		[HttpPost]
 		public IActionResult AckNewReply() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.AckNewReply(this.User.GetUserAccountId());
-			}
 			return Ok();
 		}
+		// deprecated
 		[HttpPost]
-		public async Task<IActionResult> CreateDesktopNotification(
-			[FromServices] IOptions<EmailOptions> emailOptions
-		) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
-				db.RecordNewReplyDesktopNotification(userAccount.Id);
-				if (userAccount.ReceiveReplyDesktopNotifications) {
-					var latestUnreadReply = db.GetLatestUnreadReply(userAccount.Id);
-					if (
-						latestUnreadReply.DateCreated > userAccount.LastNewReplyAck &&
-						latestUnreadReply.DateCreated > userAccount.LastNewReplyDesktopNotification
-					) {
-						return Json(
-							new {
-								ArticleTitle = latestUnreadReply.ArticleTitle,
-								Token = StringEncryption.Encrypt(latestUnreadReply.Id.ToString(), emailOptions.Value.EncryptionKey),
-								UserName = latestUnreadReply.UserAccount
-							}
-						);
-					}
-				}
-			}
+		public IActionResult CreateDesktopNotification() {
 			return BadRequest();
 		}
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<JsonResult> EmailSubscriptions(
 			string token,
-			[FromServices] IOptions<EmailOptions> emailOpts
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
 		) {
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
-			}
-			if (userAccount != null) {
-				return Json(new {
-					IsValid = true,
-					EmailAddress = userAccount.Email,
-					Subscriptions = new {
-						CommentReplyNotifications = userAccount.ReceiveReplyEmailNotifications,
-						WebsiteUpdates = userAccount.ReceiveWebsiteUpdates,
-						SuggestedReadings = userAccount.ReceiveSuggestedReadings
-					}
-				});
+				userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
+				if (userAccount != null) {
+					var preference = await db.GetNotificationPreference(
+						userAccountId: userAccount.Id
+					);
+					return Json(new {
+						IsValid = true,
+						EmailAddress = userAccount.Email,
+						Subscriptions = new {
+							CommentReplyNotifications = preference.ReplyViaEmail,
+							WebsiteUpdates = preference.CompanyUpdateViaEmail,
+							SuggestedReadings = preference.SuggestedReadingViaEmail
+						}
+					});
+				}
 			}
 			return Json(new {
 				IsValid = false,
@@ -401,20 +470,19 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> UpdateEmailSubscriptions(
 			[FromBody] UpdateEmailSubscriptionsBinder binder,
-			[FromServices] IOptions<EmailOptions> emailOpts
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(binder.Token, emailOpts.Value.EncryptionKey)));
-				if (userAccount != null) {
-					db.UpdateNotificationPreferences(
-						userAccountId: userAccount.Id,
-						receiveReplyEmailNotifications: binder.CommentReplyNotifications,
-						receiveReplyDesktopNotifications: userAccount.ReceiveReplyDesktopNotifications
-					);
-					db.UpdateContactPreferences(
-						userAccountId: userAccount.Id,
-						receiveWebsiteUpdates: binder.WebsiteUpdates,
-						receiveSuggestedReadings: binder.SuggestedReadings
+				var preference = await db.GetNotificationPreference(
+					userAccountId: Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenizationOptions.Value.EncryptionKey))
+				);
+				if (preference != null) {
+					preference.CompanyUpdateViaEmail = binder.WebsiteUpdates;
+					preference.SuggestedReadingViaEmail = binder.SuggestedReadings;
+					preference.ReplyViaEmail = binder.CommentReplyNotifications;
+					await db.SetNotificationPreference(
+						userAccountId: preference.UserAccountId,
+						options: preference
 					);
 					return Ok();
 				}
@@ -426,12 +494,12 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult PasswordResetRequest(
 			string token,
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			PasswordResetRequest request;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
 			}
 			if (request == null) {
 				return Redirect(serviceOpts.Value.WebServer.CreateUrl("/password/reset/not-found"));
@@ -444,27 +512,27 @@ namespace api.Controllers.UserAccounts {
 		// deprecated
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult ViewReply(
+		public async Task<IActionResult> ViewReply(
 			string token,
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return ReadReplyAndRedirectToArticle(
-					reply: db.GetComment(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey))),
+					reply: await db.GetComment(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey))),
 					serviceOpts: serviceOpts
 				);
 			}
 		}
 		// deprecated
 		[HttpGet]
-		public IActionResult ViewReplyFromDesktopNotification(
+		public async Task<IActionResult> ViewReplyFromDesktopNotification(
 			long id,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return ReadReplyAndRedirectToArticle(
-					reply: db.GetComment(id),
+					reply: await db.GetComment(id),
 					serviceOpts: serviceOpts
 				);
 			}
@@ -494,7 +562,7 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpPost]
-		public JsonResult ChangeTimeZone([FromBody] ChangeTimeZoneBinder binder) {
+		public async Task<JsonResult> ChangeTimeZone([FromBody] ChangeTimeZoneBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				long timeZoneId;
 				if (binder.Id.HasValue) {
@@ -502,18 +570,95 @@ namespace api.Controllers.UserAccounts {
 				} else {
 					timeZoneId = GetTimeZoneIdFromName(db.GetTimeZones(), binder.Name);
 				}
-				return Json(db.UpdateTimeZone(this.User.GetUserAccountId(), timeZoneId));
+				return await JsonUser(
+					user: db.UpdateTimeZone(this.User.GetUserAccountId(), timeZoneId),
+					db: db
+				);
 			}
 		}
 		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
 		[HttpGet]
 		public JsonResult Stats() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var users = db.ListUserAccounts();
+				var users = db.GetUserAccounts();
 				return Json(new {
 					TotalCount = users.Count(),
 					ConfirmedCount = users.Count(user => user.IsEmailConfirmed)
 				});
+			}
+		}
+		[HttpGet]
+		public async Task<JsonResult> Settings() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var user = await db.GetUserAccountById(
+					userAccountId: User.GetUserAccountId()
+				);
+				return Json(
+					data: new {
+						UserCount = await db.GetUserCount(),
+						NotificationPreference = new NotificationPreference(
+							options: await db.GetNotificationPreference(
+								userAccountId: user.Id
+							)
+						),
+						TimeZoneDisplayName = (
+							user.TimeZoneId.HasValue ?
+								(
+									await db.GetTimeZoneById(
+										id: user.TimeZoneId.Value
+									)
+								)
+								.DisplayName :
+								null
+						)
+					}
+				);
+			}
+		}
+		[HttpPost]
+		public async Task<JsonResult> NotificationPreference(
+			[FromBody] NotificationPreference form
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var options = new NotificationPreferenceOptions() {
+					CompanyUpdateViaEmail = form.CompanyUpdate == NotificationChannel.Email,
+					SuggestedReadingViaEmail = form.SuggestedReading == NotificationEventFrequency.Weekly,
+					AotdViaEmail = form.Aotd.HasFlag(NotificationChannel.Email),
+					AotdViaExtension = form.Aotd.HasFlag(NotificationChannel.Extension),
+					AotdViaPush = form.Aotd.HasFlag(NotificationChannel.Push),
+					ReplyDigestViaEmail = form.ReplyDigest,
+					LoopbackDigestViaEmail = form.LoopbackDigest,
+					PostDigestViaEmail = form.PostDigest,
+					FollowerDigestViaEmail = form.FollowerDigest
+				};
+				if (options.ReplyDigestViaEmail == NotificationEventFrequency.Never) {
+					options.ReplyViaEmail = form.Reply.HasFlag(NotificationChannel.Email);
+					options.ReplyViaExtension = form.Reply.HasFlag(NotificationChannel.Extension);
+					options.ReplyViaPush = form.Reply.HasFlag(NotificationChannel.Push);
+				}
+				if (options.LoopbackDigestViaEmail == NotificationEventFrequency.Never) {
+					options.LoopbackViaEmail = form.Loopback.HasFlag(NotificationChannel.Email);
+					options.LoopbackViaExtension = form.Loopback.HasFlag(NotificationChannel.Extension);
+					options.LoopbackViaPush = form.Loopback.HasFlag(NotificationChannel.Push);
+				}
+				if (options.PostDigestViaEmail == NotificationEventFrequency.Never) {
+					options.PostViaEmail = form.Post.HasFlag(NotificationChannel.Email);
+					options.PostViaExtension = form.Post.HasFlag(NotificationChannel.Extension);
+					options.PostViaPush = form.Post.HasFlag(NotificationChannel.Push);
+				}
+				if (options.FollowerDigestViaEmail == NotificationEventFrequency.Never) {
+					options.FollowerViaEmail = form.Follower.HasFlag(NotificationChannel.Email);
+					options.FollowerViaExtension = form.Follower.HasFlag(NotificationChannel.Extension);
+					options.FollowerViaPush = form.Follower.HasFlag(NotificationChannel.Push);
+				}
+				return Json(
+					data: new NotificationPreference(
+						options: await db.SetNotificationPreference(
+							userAccountId: User.GetUserAccountId(),
+							options: options
+						)
+					)
+				);
 			}
 		}
 
@@ -522,10 +667,10 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public IActionResult ConfirmEmail2(
 			[FromBody] ConfirmEmailForm form,
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
-			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(form.Token, emailOpts.Value.EncryptionKey));
+			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey));
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var confirmation = db.GetEmailConfirmation(emailConfirmationId);
 				if (confirmation == null) {
@@ -545,12 +690,12 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult PasswordResetRequest2(
 			string token,
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			PasswordResetRequest request;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, emailOpts.Value.EncryptionKey)));
+				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
 			}
 			if (request == null) {
 				return BadRequest("NotFound");
@@ -564,7 +709,7 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> ViewReply2(
 			[FromBody] ViewReplyForm form,
-			[FromServices] IOptions<EmailOptions> emailOpts,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts,
 			[FromServices] ObfuscationService obfuscationService
 		) {
@@ -576,11 +721,11 @@ namespace api.Controllers.UserAccounts {
 					return BadRequest();
 				}
 			} else {
-				commentId = Int64.Parse(StringEncryption.Decrypt(form.Token, emailOpts.Value.EncryptionKey));
+				commentId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey));
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.ReadComment(commentId);
-				var comment = db.GetComment(commentId);
+				var comment = await db.GetComment(commentId);
 				return Json(new CommentThread(
 					comment: comment,
 					badge: (
