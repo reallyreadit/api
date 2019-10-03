@@ -7,10 +7,7 @@ namespace api.Messaging.AmazonSesNotifications {
 		public Header[] Headers { get; set; } = new Header[0];
 		public bool HeadersTruncated { get; set; }
 		public string MessageId { get; set; }
-		public string SendingAccountId { get; set; }
 		public string Source { get; set; }
-		public string SourceArn { get; set; }
-		public string SourceIp { get; set; }
 		public DateTime Timestamp { get; set; }
 	}
 }
