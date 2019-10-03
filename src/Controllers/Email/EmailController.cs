@@ -90,7 +90,7 @@ namespace api.Controllers.Email {
 									);
 									var content = WebUtility.HtmlEncode(mailContent);
 									System.IO.File.WriteAllText(
-										path: "mail-dump.txt",
+										path: "logs/mail-dump.txt",
 										contents: token + @"\n\n" + content
 									);
 									return Ok();
