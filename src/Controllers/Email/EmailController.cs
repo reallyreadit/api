@@ -88,10 +88,9 @@ namespace api.Controllers.Email {
 										text: UrlSafeBase64.Decode(addressMatch.Groups[1].Value),
 										key: "UqlX9jyFSdvBe5/WYgGYUA=="
 									);
-									var content = WebUtility.HtmlEncode(mailContent);
 									System.IO.File.WriteAllText(
 										path: "logs/mail-dump.txt",
-										contents: token + @"\n\n" + content
+										contents: token + "\n\n" + mailContent
 									);
 									return Ok();
 								}
