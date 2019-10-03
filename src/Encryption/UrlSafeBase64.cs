@@ -5,18 +5,18 @@ namespace api.Encryption {
 				return base64String;
 			}
 			return base64String
-				.Replace('+', '.')
+				.Replace('+', '-')
 				.Replace('/', '_')
-				.Replace('=', '-');
+				.Replace('=', '~');
 		}
 		public static string Decode(string urlSafeBase64String) {
 			if (urlSafeBase64String == null) {
 				return urlSafeBase64String;
 			}
 			return urlSafeBase64String
-				.Replace('.', '+')
+				.Replace('-', '+')
 				.Replace('_', '/')
-				.Replace('-', '=');
+				.Replace('~', '=');
 		}
 	}
 }
