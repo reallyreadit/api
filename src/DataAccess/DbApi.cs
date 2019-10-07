@@ -522,13 +522,37 @@ namespace api.DataAccess {
 			sql: "notifications.get_bulk_mailings",
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<UserNotification> GetNotification(
+		public static async Task<IEnumerable<Notification>> GetExtensionNotifications(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			DateTime sinceDate,
+			long[] excludedReceiptIds
+		) => await conn.QueryAsync<Notification>(
+			sql: "notifications.get_extension_notifications",
+			param: new {
+				user_account_id = userAccountId,
+				since_date = sinceDate,
+				excluded_receipt_ids = excludedReceiptIds
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Notification> GetNotification(
 			this NpgsqlConnection conn,
 			long receiptId
-		) => await conn.QuerySingleOrDefaultAsync<UserNotification>(
+		) => await conn.QuerySingleOrDefaultAsync<Notification>(
 			sql: "notifications.get_notification",
 			param: new {
 				receipt_id = receiptId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<Notification>> GetNotifications(
+			this NpgsqlConnection conn,
+			params long[] receiptIds
+		) => await conn.QueryAsync<Notification>(
+			sql: "notifications.get_notifications",
+			param: new {
+				receipt_ids = receiptIds
 			},
 			commandType: CommandType.StoredProcedure
 		);

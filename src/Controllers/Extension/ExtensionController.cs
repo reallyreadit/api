@@ -18,6 +18,7 @@ using Microsoft.AspNetCore.Authorization;
 using api.Encryption;
 using System.Collections.Generic;
 using api.BackwardsCompatibility;
+using api.Notifications;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -311,6 +312,109 @@ namespace api.Controllers.Extension {
 				);
 			}
 			return Ok();
+		}
+		[HttpGet]
+		public async Task<IActionResult> Notifications(
+			[FromServices] ObfuscationService obfuscation,
+			string[] ids
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var clientReceiptIds = ids
+					.Select(id => obfuscation.Decode(id))
+					.OfType<long>()
+					.ToArray();
+				var userAccountId = User.GetUserAccountId();
+				var cleared = (
+					ids.Any() ?
+						(await db.GetNotifications(clientReceiptIds))
+							.Where(notification => notification.DateAlertCleared.HasValue)
+							.ToArray() :
+						new Notification[0]
+				);
+				if (!cleared.Any() || cleared.All(notification => notification.UserAccountId == userAccountId)) {
+					var created = new List<object>();
+					var newNotifications = await db.GetExtensionNotifications(
+						userAccountId: userAccountId,
+						sinceDate: DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(2)),
+						excludedReceiptIds: clientReceiptIds
+					);
+					foreach (var notification in newNotifications) {
+						string title, message;
+						switch (notification.EventType) {
+							case NotificationEventType.Reply:
+								var comment = await db.GetComment(notification.CommentIds.Single());
+								title = $"{comment.UserAccount} replied to your comment on {comment.ArticleTitle}";
+								message = "Click here to view the reply in the comment thread.";
+								break;
+							default:
+								throw new NotSupportedException("Unsupported EventType");
+						}
+						created.Add(
+							new {
+								Id = obfuscation.Encode(notification.ReceiptId),
+								Title = title,
+								Message = message
+							}
+						);
+					}
+					return Json(
+						data: new {
+							Cleared = cleared.Select(notification => obfuscation.Encode(notification.ReceiptId)),
+							Created = created,
+							User = await db.GetUserAccountById(userAccountId)
+						}
+					);
+				}
+				return BadRequest();
+			}
+		}
+		[HttpGet]
+		public async Task<IActionResult> Notification(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromServices] NotificationService notificationService,
+			string id
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var receiptId = obfuscationService.Decode(id).Value;
+				var notification = await db.GetNotification(receiptId);
+				ViewActionResource resource;
+				long resourceId;
+				switch (notification.EventType) {
+					case NotificationEventType.Aotd:
+						resource = ViewActionResource.Article;
+						resourceId = notification.ArticleIds.Single();
+						break;
+					case NotificationEventType.Reply:
+					case NotificationEventType.Loopback:
+						resource = ViewActionResource.Comment;
+						resourceId = notification.CommentIds.Single();
+						break;
+					case NotificationEventType.Post:
+						if (notification.CommentIds.Any()) {
+							resource = ViewActionResource.CommentPost;
+							resourceId = notification.CommentIds.Single();
+						} else {
+							resource = ViewActionResource.SilentPost;
+							resourceId = notification.SilentPostIds.Single();
+						}
+						break;
+					case NotificationEventType.Follower:
+						resource = ViewActionResource.Follower;
+						resourceId = notification.FollowingIds.Single();
+						break;
+					default:
+						throw new InvalidOperationException($"Unexpected value for {nameof(notification.EventType)}");
+				}
+				return Redirect(
+					url: await notificationService.CreateViewInteraction(
+						db: db,
+						notification: notification,
+						channel: NotificationChannel.Extension,
+						resource: resource,
+						resourceId: resourceId
+					)
+				);
+			}
 		}
 		[AllowAnonymous]
 		[HttpPost]

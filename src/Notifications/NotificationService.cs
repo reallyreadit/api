@@ -6,6 +6,7 @@ using api.DataAccess;
 using api.DataAccess.Models;
 using api.Encryption;
 using api.Messaging;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
@@ -13,15 +14,21 @@ namespace api.Notifications {
 	public class NotificationService {
 		private readonly DatabaseOptions databaseOptions;
 		private readonly TokenizationOptions tokenizationOptions;
+		IOptions<ServiceEndpointsOptions> endpoints;
 		private readonly EmailService emailService;
+		private readonly ObfuscationService obfuscation;
 		public NotificationService(
 			IOptions<DatabaseOptions> databaseOptions,
 			IOptions<TokenizationOptions> tokenizationOptions,
-			EmailService emailService
+			IOptions<ServiceEndpointsOptions> endpoints,
+			EmailService emailService,
+			ObfuscationService obfuscation
 		) {
 			this.databaseOptions = databaseOptions.Value;
 			this.tokenizationOptions = tokenizationOptions.Value;
+			this.endpoints = endpoints;
 			this.emailService = emailService;
+			this.obfuscation = obfuscation;
 		}
 		public async Task CreateAotdNotifications(
 			long articleId
@@ -163,5 +170,135 @@ namespace api.Notifications {
 			tokenString: tokenString,
 			key: tokenizationOptions.EncryptionKey
 		);
+		private async Task ClearAlertIfNeeded(
+			NpgsqlConnection db,
+			Notification notification,
+			NotificationAction action
+		) {
+			switch (notification.EventType) {
+				case NotificationEventType.Aotd:
+				case NotificationEventType.Follower:
+				case NotificationEventType.Loopback:
+				case NotificationEventType.Post:
+				case NotificationEventType.Reply:
+					if (
+						(
+							action == NotificationAction.View ||
+							action == NotificationAction.Reply
+						) &&
+						!notification.DateAlertCleared.HasValue
+					) {
+						await db.ClearAlert(
+							receiptId: notification.ReceiptId
+						);
+					}
+					break;
+			}
+		}
+		public async Task CreateOpenInteraction(
+			NpgsqlConnection db,
+			long receiptId
+		) {
+			try {
+				await db.CreateNotificationInteraction(
+					receiptId: receiptId,
+					channel: NotificationChannel.Email,
+					action: NotificationAction.Open
+				);
+			} catch (NpgsqlException ex) when (
+				String.Equals(ex.Data["ConstraintName"], "notification_interaction_unique_open")
+			) {
+				// swallow duplicate open exception
+			}
+		}
+		public async Task<string> CreateViewInteraction(
+			NpgsqlConnection db,
+			Notification notification,
+			NotificationChannel channel,
+			ViewActionResource resource,
+			long resourceId
+		) {
+			string path;
+			switch (resource) {
+				case ViewActionResource.Article:
+				case ViewActionResource.Comments:
+				case ViewActionResource.Comment:
+					long articleId;
+					long? commentId;
+					string pathRoot;
+					if (resource == ViewActionResource.Comment) {
+						articleId = (
+								await db.GetComment(
+									commentId: resourceId
+								)
+							)
+							.ArticleId;
+						commentId = resourceId;
+						pathRoot = "comments";
+					} else {
+						articleId = resourceId;
+						commentId = null;
+						pathRoot = (
+							resource == ViewActionResource.Article ?
+								"read" :
+								"comments"
+						);
+					}
+					var slugParts = (
+							await db.GetArticle(
+								articleId: articleId
+							)
+						)
+						.Slug.Split('_');
+					path = $"/{pathRoot}/{slugParts[0]}/{slugParts[1]}";
+					if (commentId.HasValue) {
+						path += "/" + obfuscation.Encode(
+							number: commentId.Value
+						);
+					}
+					break;
+				case ViewActionResource.CommentPost:
+					path = $"/following/comment/{obfuscation.Encode(resourceId)}";
+					break;
+				case ViewActionResource.SilentPost:
+					path = $"/following/post/{obfuscation.Encode(resourceId)}";
+					break;
+				case ViewActionResource.Follower:
+					var userName = (
+							await db.GetUserAccountById(
+								userAccountId: (
+									await db.GetFollowing(
+										followingId: resourceId
+									)
+								)
+								.FollowerUserAccountId
+							)
+						)
+						.Name;
+					path = $"/profile?followers&userName={userName}";
+					break;
+				default:
+					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
+			}
+			var url = endpoints.Value.WebServer.CreateUrl(path);
+			try {
+				await db.CreateNotificationInteraction(
+					receiptId: notification.ReceiptId,
+					channel: channel,
+					action: NotificationAction.View,
+					url: url
+				);
+			} catch (NpgsqlException ex) when (
+				String.Equals(ex.Data["ConstraintName"], "notification_interaction_unique_view")
+			) {
+				// swallow duplicate view exception
+			}
+			await ClearAlertIfNeeded(
+				db: db,
+				notification: notification,
+				action: NotificationAction.View
+			);
+			return url;
+		}
 	}
 }
