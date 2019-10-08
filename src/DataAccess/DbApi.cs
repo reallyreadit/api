@@ -528,9 +528,9 @@ namespace api.DataAccess {
 		#endregion
 
 		#region core
-		public static IEnumerable<TimeZone> GetTimeZones(
+		public static IEnumerable<api.DataAccess.Models.TimeZone> GetTimeZones(
 			this NpgsqlConnection conn
-		) => conn.Query<TimeZone>(
+		) => conn.Query<api.DataAccess.Models.TimeZone>(
 			sql: "get_time_zones",
 			commandType: CommandType.StoredProcedure
 		);
