@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using api.ActionFilters;
 using Npgsql;
 using api.DataAccess.Models;
-using Microsoft.AspNetCore.Mvc.Filters;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Mvc.Authorization;
@@ -20,8 +19,6 @@ using Mvc.RenderViewToString;
 using Microsoft.AspNetCore.Mvc.Razor;
 using System;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Logging;
-using Serilog;
 using api.Security;
 using api.ReadingVerification;
 using api.Encryption;
@@ -44,25 +41,6 @@ namespace api {
 				config.AddJsonFile(envConfigFile);
 			}
 			this.config = config.Build();
-			// create logger
-			if (env.IsDevelopment()) {
-				Log.Logger = new LoggerConfiguration()
-					.WriteTo
-					.Console()
-					.CreateLogger();
-			} else if (env.IsProduction()) {
-				Log.Logger = new LoggerConfiguration()
-					.MinimumLevel
-					.Error()
-					.WriteTo
-					.File(
-						path: Path.Combine("logs", "app.txt"),
-						rollingInterval: RollingInterval.Day
-					)
-					.CreateLogger();
-			} else {
-				throw new ArgumentException("Unexpected environment");
-			}
 		}
 		public void ConfigureServices(IServiceCollection services) {
 			// configure options
@@ -131,13 +109,10 @@ namespace api {
 		}
 		public void Configure(
 			IApplicationBuilder app,
-			IOptions<CorsOptions> corsOpts,
-			ILoggerFactory loggerFactory
+			IOptions<CorsOptions> corsOpts
 		) {
 			// use dev exception page until the db connection leak issue is solved and we have reliable logging
 			app.UseDeveloperExceptionPage();
-			// configure ILoggerFactory
-			loggerFactory.AddSerilog();
 			// configure forwarded headers
 			app.UseForwardedHeaders(new ForwardedHeadersOptions() {
 				RequireHeaderSymmetry = false
