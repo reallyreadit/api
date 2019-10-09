@@ -5,8 +5,6 @@ using Npgsql;
 using api.DataAccess.Models;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.AspNetCore.Authorization;
 using api.Configuration;
 using Microsoft.Extensions.Configuration;
 using System.IO;
@@ -24,6 +22,7 @@ using api.ReadingVerification;
 using api.Encryption;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
 
 namespace api {
 	public class Startup {
@@ -57,6 +56,12 @@ namespace api {
 				.AddScoped<ObfuscationService>()
 				.AddTransient<RazorViewToStringRenderer>()
 				.AddScoped<ReadingVerificationService>();
+			// configure headers
+			services.Configure<ForwardedHeadersOptions>(
+				options => {
+					options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+				}
+			);
 			// configure authentication
 			services
 				.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
@@ -131,10 +136,10 @@ namespace api {
 				}
 			);
 			// configure Npgsql
-			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
-			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
-			NpgsqlConnection.MapCompositeGlobally<Ranking>();
-			NpgsqlConnection.MapCompositeGlobally<StreakRanking>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SourceRuleAction>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<UserAccountRole>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 		}

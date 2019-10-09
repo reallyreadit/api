@@ -64,7 +64,7 @@ namespace api {
 									.Build()
 							)
 							.UseKestrel()
-							.UseIISIntegration()
+							.UseIIS()
 							.UseStartup<Startup>();
 					}
 				)
