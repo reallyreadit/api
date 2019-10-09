@@ -3,6 +3,7 @@ using System.IO;
 using System.Net.Http;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Hosting;
 using Serilog;
 
 namespace api {
@@ -10,7 +11,23 @@ namespace api {
 		private static readonly HttpClient httpClient = new HttpClient();
 		public static HttpClient HttpClient => httpClient;
 		public static void Main(string[] args) {
-			new WebHostBuilder()
+			new HostBuilder()
+				.UseContentRoot(Directory.GetCurrentDirectory())
+				.ConfigureAppConfiguration(
+					(context, config) => {
+						config
+							.AddJsonFile(
+								path: "appsettings.json",
+								optional: false,
+								reloadOnChange: true
+							)
+							.AddJsonFile(
+								path: $"appsettings.{context.HostingEnvironment.EnvironmentName}.json",
+								optional: false,
+								reloadOnChange: true
+							);
+					}
+				)
 				.ConfigureLogging(
 					(context, logging) => {
 						if (context.HostingEnvironment.IsDevelopment()) {
@@ -37,14 +54,20 @@ namespace api {
 						}
 					}
 				)
-				.UseKestrel()
-				.UseContentRoot(Directory.GetCurrentDirectory())
-				.UseConfiguration(new ConfigurationBuilder()
-					.SetBasePath(Directory.GetCurrentDirectory())
-					.AddJsonFile("hosting.json")
-					.Build())
-				.UseIISIntegration()
-				.UseStartup<Startup>()
+				.ConfigureWebHostDefaults(
+					webBuilder => {
+						webBuilder
+							.UseConfiguration(
+								new ConfigurationBuilder()
+									.SetBasePath(Directory.GetCurrentDirectory())
+									.AddJsonFile("hostsettings.json")
+									.Build()
+							)
+							.UseKestrel()
+							.UseIISIntegration()
+							.UseStartup<Startup>();
+					}
+				)
 				.Build()
 				.Run();
 		}

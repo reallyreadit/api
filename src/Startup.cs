@@ -23,24 +23,18 @@ using api.Security;
 using api.ReadingVerification;
 using api.Encryption;
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
 
 namespace api {
 	public class Startup {
-		private IHostingEnvironment env;
+		private IHostEnvironment env;
 		private IConfiguration config;
-		public Startup(IHostingEnvironment env) {
-			// set the IHostingEnvironment
+		public Startup(
+			IHostEnvironment env,
+			IConfiguration config
+		) {
 			this.env = env;
-			// read configuration
-			var currentDirectory = Directory.GetCurrentDirectory();
-			var config = new ConfigurationBuilder()
-				.SetBasePath(currentDirectory)
-				.AddJsonFile("appsettings.json");
-			var envConfigFile = $"appsettings.{env.EnvironmentName}.json";
-			if (File.Exists(Path.Combine(currentDirectory, envConfigFile))) {
-				config.AddJsonFile(envConfigFile);
-			}
-			this.config = config.Build();
+			this.config = config;
 		}
 		public void ConfigureServices(IServiceCollection services) {
 			// configure options
@@ -71,7 +65,6 @@ namespace api {
 						options.Cookie.Domain = authOpts.CookieDomain;
 						options.Cookie.Name = authOpts.CookieName;
 						options.Cookie.SecurePolicy = authOpts.CookieSecure;
-						options.Cookie.Expiration = TimeSpan.FromDays(180);
 						options.Cookie.HttpOnly = true;
 						options.Cookie.SameSite = SameSiteMode.None;
 						options.ExpireTimeSpan = TimeSpan.FromDays(180);
@@ -96,16 +89,13 @@ namespace api {
 					.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath));
 			}
 			// configure MVC and global filters
-			services.AddMvc(options => {
-				options.Filters.Add(new AuthorizeFilter(
-					policy: new AuthorizationPolicyBuilder()
-						.RequireAuthenticatedUser()
-						.Build()
-				));
-				if (env.IsDevelopment()) {
-					options.Filters.Add(new DelayActionFilter(500));
-				}
-			});
+			if (env.IsDevelopment()) {
+				services.AddMvc(
+					options => {
+							options.Filters.Add(new DelayActionFilter(500));
+					}
+				);
+			}
 		}
 		public void Configure(
 			IApplicationBuilder app,
@@ -117,6 +107,8 @@ namespace api {
 			app.UseForwardedHeaders(new ForwardedHeadersOptions() {
 				RequireHeaderSymmetry = false
 			});
+			// configure routing
+			app.UseRouting();
 			// configure cors
 			app.UseCors(
 				cors => cors
@@ -125,11 +117,19 @@ namespace api {
 					.AllowAnyHeader()
 					.AllowAnyMethod()
 					.SetPreflightMaxAge(TimeSpan.FromDays(1))
-				);
-			// configure cookie authentication
+			);
+			// configure cookie authentication & authorization
 			app.UseAuthentication();
-			// configure routes
-			app.UseMvcWithDefaultRoute();
+			app.UseAuthorization();
+			// configure mvc
+			app.UseEndpoints(
+				endpoints => {
+					endpoints.MapControllerRoute(
+						name: "default",
+						pattern: "{controller=Home}/{action=Index}/{id?}"
+					);
+				}
+			);
 			// configure Npgsql
 			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
 			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
