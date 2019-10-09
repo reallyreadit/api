@@ -3,7 +3,6 @@ using Microsoft.Extensions.DependencyInjection;
 using api.ActionFilters;
 using Npgsql;
 using api.DataAccess.Models;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Threading.Tasks;
 using api.Configuration;
 using Microsoft.Extensions.Configuration;
@@ -23,6 +22,7 @@ using api.Encryption;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api {
 	public class Startup {
@@ -62,11 +62,12 @@ namespace api {
 					options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
 				}
 			);
-			// configure authentication
+			// configure authentication and authorization
 			services
-				.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+				.AddAuthentication(defaultScheme: authOpts.Scheme)
 				.AddCookie(
-					options => {
+					authenticationScheme: authOpts.Scheme,
+					configureOptions: options => {
 						options.Cookie.Domain = authOpts.CookieDomain;
 						options.Cookie.Name = authOpts.CookieName;
 						options.Cookie.SecurePolicy = authOpts.CookieSecure;
@@ -84,23 +85,34 @@ namespace api {
 						};
 					}
 				);
+			services.AddAuthorization(
+				options => {
+					var legacyCookiePolicy = new AuthorizationPolicyBuilder(authenticationSchemes: authOpts.Scheme)
+						.RequireAuthenticatedUser()
+						.Build();
+					options.DefaultPolicy = legacyCookiePolicy;
+					options.FallbackPolicy = legacyCookiePolicy;
+				}
+			);
 			// configure shared key ring in production
 			if (env.IsProduction()) {
-				var dataProtectionOptions = new MyDataProtectionOptions();
-				config.GetSection("DataProtection").Bind(dataProtectionOptions);
+				var dataProtectionOptions = config
+					.GetSection("DataProtection")
+					.Get<MyDataProtectionOptions>();
 				services
 					.AddDataProtection()
 					.SetApplicationName(dataProtectionOptions.ApplicationName)
 					.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath));
 			}
-			// configure MVC and global filters
-			if (env.IsDevelopment()) {
-				services.AddMvc(
-					options => {
-							options.Filters.Add(new DelayActionFilter(500));
+			// configure MVC
+			services.AddControllersWithViews(
+				options => {
+					// configure delay in production to simulate network delay
+					if (env.IsDevelopment()) {
+						options.Filters.Add(new DelayActionFilter(500));
 					}
-				);
-			}
+				}
+			);
 		}
 		public void Configure(
 			IApplicationBuilder app,
