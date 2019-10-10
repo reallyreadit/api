@@ -6,7 +6,7 @@ namespace api.BackwardsCompatibility {
 		public UserAccount_1_2_0(
 			UserAccount user,
 			NotificationPreferenceOptions preference = null,
-			TimeZone timeZone = null
+			api.DataAccess.Models.TimeZone timeZone = null
 		) {
 			Id = user.Id;
 			Name = user.Name;
