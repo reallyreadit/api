@@ -1,12 +1,15 @@
 using System.Security.Claims;
 using System.Threading.Tasks;
 using api.DataAccess.Models;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Http.Authentication;
 
 namespace api.Authentication {
-	public static class AuthenticationManagerExtensions {
-		public static async Task SignInAsync(this AuthenticationManager authManager, string authenticationScheme, UserAccount userAccount) {
+	public static class HttpContextExtensions {
+		public static async Task SignInAsync(
+			this HttpContext httpContext,
+			UserAccount userAccount
+		) {
 			var principal = new ClaimsPrincipal(new[] {
 				new ClaimsIdentity(
 					claims: new[] {
@@ -16,14 +19,13 @@ namespace api.Authentication {
 					authenticationType: "ApplicationCookie"
 				)
 			});
-			await authManager.SignInAsync(
-				authenticationScheme: authenticationScheme,
+			await httpContext.SignInAsync(
 				principal: principal,
 				properties: new AuthenticationProperties() {
 					IsPersistent = true
 				}
 			);
-			authManager.HttpContext.User = principal;
+			httpContext.User = principal;
 		}
 	}
 }

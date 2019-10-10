@@ -736,20 +736,20 @@ namespace api.DataAccess {
 		#endregion
 
 		#region core
-		public static async Task<TimeZone> GetTimeZoneById(
+		public static async Task<api.DataAccess.Models.TimeZone> GetTimeZoneById(
 			this NpgsqlConnection conn,
 			long id
-		) => await conn.QuerySingleOrDefaultAsync<TimeZone>(
+		) => await conn.QuerySingleOrDefaultAsync<api.DataAccess.Models.TimeZone>(
 			sql: "core.get_time_zone_by_id",
 			param: new {
 				id
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static IEnumerable<TimeZone> GetTimeZones(
+		public static IEnumerable<api.DataAccess.Models.TimeZone> GetTimeZones(
 			this NpgsqlConnection conn
-		) => conn.Query<TimeZone>(
-			sql: "core.get_time_zones",
+		) => conn.Query<api.DataAccess.Models.TimeZone>(
+			sql: "get_time_zones",
 			commandType: CommandType.StoredProcedure
 		);
 		#endregion

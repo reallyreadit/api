@@ -3,11 +3,7 @@ using Microsoft.Extensions.DependencyInjection;
 using api.ActionFilters;
 using Npgsql;
 using api.DataAccess.Models;
-using Microsoft.AspNetCore.Mvc.Filters;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using System.Threading.Tasks;
-using Microsoft.AspNetCore.Mvc.Authorization;
-using Microsoft.AspNetCore.Authorization;
 using api.Configuration;
 using Microsoft.Extensions.Configuration;
 using System.IO;
@@ -16,63 +12,37 @@ using MyAuthenticationOptions = api.Configuration.AuthenticationOptions;
 using MyDataProtectionOptions = api.Configuration.DataProtectionOptions;
 using Microsoft.Extensions.Options;
 using api.Messaging;
-using api.DataAccess;
 using Mvc.RenderViewToString;
 using Microsoft.AspNetCore.Mvc.Razor;
 using System;
 using Microsoft.AspNetCore.DataProtection;
-using Microsoft.Extensions.Logging;
-using Serilog;
 using api.Security;
-using api.Authentication;
-using System.Linq;
-using System.Security.Claims;
 using api.ReadingVerification;
 using api.Encryption;
 using api.Notifications;
 using api.Commenting;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Hosting;
+using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api {
 	public class Startup {
-		private IHostingEnvironment env;
-		private IConfigurationRoot config;
-		public Startup(IHostingEnvironment env) {
-			// set the IHostingEnvironment
+		private IHostEnvironment env;
+		private IConfiguration config;
+		public Startup(
+			IHostEnvironment env,
+			IConfiguration config
+		) {
 			this.env = env;
-			// read configuration
-			var currentDirectory = Directory.GetCurrentDirectory();
-			var config = new ConfigurationBuilder()
-				.SetBasePath(currentDirectory)
-				.AddJsonFile("appsettings.json");
-			var envConfigFile = $"appsettings.{env.EnvironmentName}.json";
-			if (File.Exists(Path.Combine(currentDirectory, envConfigFile))) {
-				config.AddJsonFile(envConfigFile);
-			}
-			this.config = config.Build();
-			// create logger
-			if (env.IsDevelopment()) {
-				Log.Logger = new LoggerConfiguration()
-					.WriteTo
-					.Console()
-					.CreateLogger();
-			} else if (env.IsProduction()) {
-				Log.Logger = new LoggerConfiguration()
-					.MinimumLevel
-					.Error()
-					.WriteTo
-					.File(
-						path: Path.Combine("logs", "app.txt"),
-						rollingInterval: RollingInterval.Day
-					)
-					.CreateLogger();
-			} else {
-				throw new ArgumentException("Unexpected environment");
-			}
+			this.config = config;
 		}
 		public void ConfigureServices(IServiceCollection services) {
 			// configure options
+			var authOptsConfigSection = config.GetSection("Authentication");
+			var authOpts = authOptsConfigSection.Get<MyAuthenticationOptions>();
 			services
-				.Configure<MyAuthenticationOptions>(config.GetSection("Authentication"))
+				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
 				.Configure<CorsOptions>(config.GetSection("Cors"))
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
@@ -91,42 +61,76 @@ namespace api {
 				.AddScoped<ObfuscationService>()
 				.AddTransient<RazorViewToStringRenderer>()
 				.AddScoped<ReadingVerificationService>();
+			// configure headers
+			services.Configure<ForwardedHeadersOptions>(
+				options => {
+					options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+				}
+			);
+			// configure authentication and authorization
+			services
+				.AddAuthentication(defaultScheme: authOpts.Scheme)
+				.AddCookie(
+					authenticationScheme: authOpts.Scheme,
+					configureOptions: options => {
+						options.Cookie.Domain = authOpts.CookieDomain;
+						options.Cookie.Name = authOpts.CookieName;
+						options.Cookie.SecurePolicy = authOpts.CookieSecure;
+						options.Cookie.HttpOnly = true;
+						options.Cookie.SameSite = SameSiteMode.None;
+						options.ExpireTimeSpan = TimeSpan.FromDays(180);
+						options.SlidingExpiration = true;
+						options.Events.OnRedirectToLogin = context => {
+							context.Response.StatusCode = 401;
+							return Task.CompletedTask;
+						};
+						options.Events.OnRedirectToAccessDenied = context => {
+							context.Response.StatusCode = 403;
+							return Task.CompletedTask;
+						};
+					}
+				);
+			services.AddAuthorization(
+				options => {
+					var legacyCookiePolicy = new AuthorizationPolicyBuilder(authenticationSchemes: authOpts.Scheme)
+						.RequireAuthenticatedUser()
+						.Build();
+					options.DefaultPolicy = legacyCookiePolicy;
+					options.FallbackPolicy = legacyCookiePolicy;
+				}
+			);
 			// configure shared key ring in production
 			if (env.IsProduction()) {
-				var dataProtectionOptions = new MyDataProtectionOptions();
-				config.GetSection("DataProtection").Bind(dataProtectionOptions);
+				var dataProtectionOptions = config
+					.GetSection("DataProtection")
+					.Get<MyDataProtectionOptions>();
 				services
 					.AddDataProtection()
 					.SetApplicationName(dataProtectionOptions.ApplicationName)
 					.PersistKeysToFileSystem(new DirectoryInfo(dataProtectionOptions.KeyPath));
 			}
-			// configure MVC and global filters
-			services.AddMvc(options => {
-				options.Filters.Add(new AuthorizeFilter(
-					policy: new AuthorizationPolicyBuilder()
-						.RequireAuthenticatedUser()
-						.Build()
-				));
-				if (env.IsDevelopment()) {
-					options.Filters.Add(new DelayActionFilter(500));
+			// configure MVC
+			services.AddControllersWithViews(
+				options => {
+					// configure delay in production to simulate network delay
+					if (env.IsDevelopment()) {
+						options.Filters.Add(new DelayActionFilter(500));
+					}
 				}
-			});
+			);
 		}
 		public void Configure(
 			IApplicationBuilder app,
-			IOptions<MyAuthenticationOptions> authOpts,
-			IOptions<CorsOptions> corsOpts,
-			IOptions<DatabaseOptions> databaseOpts,
-			ILoggerFactory loggerFactory
+			IOptions<CorsOptions> corsOpts
 		) {
 			// use dev exception page until the db connection leak issue is solved and we have reliable logging
 			app.UseDeveloperExceptionPage();
-			// configure ILoggerFactory
-			loggerFactory.AddSerilog();
 			// configure forwarded headers
 			app.UseForwardedHeaders(new ForwardedHeadersOptions() {
 				RequireHeaderSymmetry = false
 			});
+			// configure routing
+			app.UseRouting();
 			// configure cors
 			app.UseCors(
 				cors => cors
@@ -135,55 +139,36 @@ namespace api {
 					.AllowAnyHeader()
 					.AllowAnyMethod()
 					.SetPreflightMaxAge(TimeSpan.FromDays(1))
-				);
-			// configure cookie authentication
-			app.UseCookieAuthentication(new CookieAuthenticationOptions() {
-				AuthenticationScheme = authOpts.Value.Scheme,
-				AutomaticAuthenticate = true,
-				AutomaticChallenge = true,
-				CookieDomain = authOpts.Value.CookieDomain,
-				CookieName = authOpts.Value.CookieName,
-				CookieSecure = authOpts.Value.CookieSecure,
-				Events = new CookieAuthenticationEvents() {
-					OnRedirectToLogin = context => {
-						context.Response.StatusCode = 401;
-						return Task.CompletedTask;
-					},
-					OnRedirectToAccessDenied = context => {
-						context.Response.StatusCode = 403;
-						return Task.CompletedTask;
-					}
-				},
-				ExpireTimeSpan = TimeSpan.FromDays(180),
-				SlidingExpiration = true
-			});
-			// configure routes
-			app.UseMvc(
-				configureRoutes: routes => {
-					routes
-						.MapRoute(
-							name: "notifications",
-							template: "Notifications/{tokenString}",
-							defaults: new {
-								Controller = "Notifications",
-								Action = "Index"
-							}
-						)
-						.MapRoute(
-							name: "default",
-							template: "{controller=Home}/{action=Index}/{id?}"
-						);
+			);
+			// configure cookie authentication & authorization
+			app.UseAuthentication();
+			app.UseAuthorization();
+			// configure mvc
+			app.UseEndpoints(
+				endpoints => {
+					endpoints.MapControllerRoute(
+						name: "notifications",
+						pattern: "Notifications/{tokenString}",
+						defaults: new {
+							Controller = "Notifications",
+							Action = "Index"
+						}
+					);
+					endpoints.MapControllerRoute(
+						name: "default",
+						pattern: "{controller=Home}/{action=Index}/{id?}"
+					);
 				}
 			);
 			// configure Npgsql
-			NpgsqlConnection.MapEnumGlobally<SourceRuleAction>();
-			NpgsqlConnection.MapEnumGlobally<UserAccountRole>();
-			NpgsqlConnection.MapEnumGlobally<NotificationChannel>();
-			NpgsqlConnection.MapEnumGlobally<NotificationAction>();
-			NpgsqlConnection.MapEnumGlobally<NotificationEventFrequency>();
-			NpgsqlConnection.MapEnumGlobally<NotificationEventType>();
-			NpgsqlConnection.MapCompositeGlobally<Ranking>();
-			NpgsqlConnection.MapCompositeGlobally<StreakRanking>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SourceRuleAction>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<UserAccountRole>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationChannel>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationAction>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventFrequency>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventType>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 		}

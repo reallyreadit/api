@@ -17,7 +17,7 @@ using Amazon;
 using Mvc.RenderViewToString;
 using api.Messaging;
 using api.Encryption;
-using Microsoft.AspNetCore.Http.Authentication;
+using Microsoft.AspNetCore.Authentication;
 using api.DataAccess.Models;
 using System.Net;
 using api.Authorization;
@@ -31,10 +31,8 @@ using api.BackwardsCompatibility;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
-		private AuthenticationOptions authOpts;
 		private DatabaseOptions dbOpts;
-		public UserAccountsController(IOptions<AuthenticationOptions> authOpts, IOptions<DatabaseOptions> dbOpts) {
-			this.authOpts = authOpts.Value;
+		public UserAccountsController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
 		}
 		private static byte[] GenerateSalt() {
@@ -51,7 +49,7 @@ namespace api.Controllers.UserAccounts {
 			iterationCount: 10000,
 			numBytesRequested: 256 / 8
 		);
-		private static long GetTimeZoneIdFromName(IEnumerable<TimeZone> timeZones, string timeZoneName) => timeZones
+		private static long GetTimeZoneIdFromName(IEnumerable<api.DataAccess.Models.TimeZone> timeZones, string timeZoneName) => timeZones
 			.Where(zone => zone.Name == timeZoneName)
 			.OrderBy(zone => zone.Territory)
 			.First()
@@ -148,7 +146,7 @@ namespace api.Controllers.UserAccounts {
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
-					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
+					await HttpContext.SignInAsync(userAccount);
 					return await JsonUser(
 						user: userAccount,
 						db: db
@@ -231,7 +229,7 @@ namespace api.Controllers.UserAccounts {
 					db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
 					db.CompletePasswordResetRequest(request.Id);
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
-					await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
+					await HttpContext.SignInAsync(userAccount);
 					return await JsonUser(
 						user: userAccount,
 						db: db
@@ -349,7 +347,7 @@ namespace api.Controllers.UserAccounts {
 				if (!IsCorrectPassword(userAccount, binder.Password)) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
-				await HttpContext.Authentication.SignInAsync(authOpts.Scheme, userAccount);
+				await HttpContext.SignInAsync(userAccount);
 				return await JsonUser(
 					user: userAccount,
 					db: db
@@ -359,7 +357,7 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignOut() {
-			await this.HttpContext.Authentication.SignOutAsync(authOpts.Scheme);
+			await this.HttpContext.SignOutAsync();
 			return Ok();
 		}
 		// deprecated
