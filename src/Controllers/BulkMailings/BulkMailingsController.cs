@@ -77,11 +77,22 @@ namespace api.Controllers.BulkMailings {
 		[HttpGet]
 		public JsonResult Lists() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(new[] {
-					new KeyValuePair<string, string>($"{websiteUpdatesList} ({GetWebsiteUpdateListUsers(db).Count()})", websiteUpdatesList),
-					new KeyValuePair<string, string>($"{suggestedReadingsList} ({GetSuggestedReadingListUsers(db).Count()})", suggestedReadingsList),
-					new KeyValuePair<string, string>($"{confirmationReminderList} ({GetConfirmationReminderListUsers(db).Count()})", confirmationReminderList)
-				});
+				return Json(
+					new[] {
+						new {
+								Key = $"{websiteUpdatesList} ({GetWebsiteUpdateListUsers(db).Count()})",
+								Value = websiteUpdatesList
+							},
+							new {
+								Key = $"{suggestedReadingsList} ({GetSuggestedReadingListUsers(db).Count()})",
+								Value = suggestedReadingsList
+							},
+							new {
+								Key = $"{confirmationReminderList} ({GetConfirmationReminderListUsers(db).Count()})",
+								Value = confirmationReminderList
+							}
+					}
+				);
 			}
 		}
 		[HttpPost]

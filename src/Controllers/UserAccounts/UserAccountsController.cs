@@ -476,9 +476,9 @@ namespace api.Controllers.UserAccounts {
 						.GroupBy(zone => new { zone.DisplayName, zone.BaseUtcOffset })
 						.OrderBy(group => group.Key.BaseUtcOffset)
 						.ThenBy(group => group.Key.DisplayName)
-						.Select(group => new KeyValuePair<string, object[]>(
-							key: group.Key.DisplayName,
-							value: group
+						.Select(group => new {
+							Key = group.Key.DisplayName,
+							Value = group
 								.OrderBy(zone => zone.Territory)
 								.Select(zone => new {
 									zone.Id,
@@ -486,7 +486,7 @@ namespace api.Controllers.UserAccounts {
 									zone.Name
 								})
 								.ToArray()
-						))
+						})
 						.ToArray()
 				);
 			}
