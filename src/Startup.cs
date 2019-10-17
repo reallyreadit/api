@@ -167,6 +167,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationAction>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventFrequency>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventType>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationPushUnregistrationReason>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
 			// configure Dapper

@@ -112,41 +112,60 @@ namespace api.Controllers.UserAccounts {
 				)
 			)
 		);
+		private async Task SignInUser(
+			UserAccount user,
+			PushDeviceForm pushDeviceForm,
+			NpgsqlConnection db
+		) {
+			await HttpContext.SignInAsync(user);
+			if (pushDeviceForm?.IsValid() ?? false) {
+				await db.RegisterNotificationPushDevice(
+					userAccountId: user.Id,
+					installationId: pushDeviceForm.InstallationId,
+					name: pushDeviceForm.Name,
+					token: pushDeviceForm.Token
+				);
+			}
+		}
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
-			[FromBody] CreateAccountBinder binder,
+			[FromBody] UserAccountForm form,
 			[FromServices] EmailService emailService,
 			[FromServices] CaptchaService captchaService
 		) {
-			if (!IsPasswordValid(binder.Password)) {
+			if (!IsPasswordValid(form.Password)) {
 				return BadRequest();
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var captchaResponse = await captchaService.Verify(binder.CaptchaResponse);
+				var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
 				if (captchaResponse != null) {
 					db.CreateCaptchaResponse("createUserAccount", captchaResponse);
 				}
 				try {
 					var salt = GenerateSalt();
 					var userAccount = db.CreateUserAccount(
-						name: binder.Name,
-						email: binder.Email,
-						passwordHash: HashPassword(binder.Password, salt),
+						name: form.Name,
+						email: form.Email,
+						passwordHash: HashPassword(form.Password, salt),
 						passwordSalt: salt,
-						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), binder.TimeZoneName),
+						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
 						analytics: new UserAccountCreationAnalytics() {
 							Client = this.GetRequestAnalytics().Client,
-							MarketingScreenVariant = binder.MarketingScreenVariant,
-							ReferrerUrl = binder.ReferrerUrl,
-							InitialPath = binder.InitialPath
+							MarketingScreenVariant = form.MarketingScreenVariant,
+							ReferrerUrl = form.ReferrerUrl,
+							InitialPath = form.InitialPath
 						}
 					);
 					await emailService.SendWelcomeEmail(
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
 					);
-					await HttpContext.SignInAsync(userAccount);
+					await SignInUser(
+						user: userAccount,
+						pushDeviceForm: form.PushDevice,
+						db: db
+					);
 					return await JsonUser(
 						user: userAccount,
 						db: db
@@ -213,23 +232,27 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> ResetPassword(
-			[FromBody] ResetPasswordBinder binder,
+			[FromBody] PasswordResetForm form,
 			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenizationOptions.Value.EncryptionKey)));
+				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey)));
 				if (request == null) {
 					return BadRequest(new[] { "RequestNotFound" });
 				}
 				if (IsPasswordResetRequestValid(request)) {
-					if (!IsPasswordValid(binder.Password)) {
+					if (!IsPasswordValid(form.Password)) {
 						return BadRequest();
 					}
 					var salt = GenerateSalt();
-					db.ChangePassword(request.UserAccountId, HashPassword(binder.Password, salt), salt);
+					db.ChangePassword(request.UserAccountId, HashPassword(form.Password, salt), salt);
 					db.CompletePasswordResetRequest(request.Id);
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
-					await HttpContext.SignInAsync(userAccount);
+					await SignInUser(
+						user: userAccount,
+						pushDeviceForm: form.PushDevice,
+						db: db
+					);
 					return await JsonUser(
 						user: userAccount,
 						db: db
@@ -335,19 +358,25 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> SignIn([FromBody] SignInBinder binder) {
+		public async Task<IActionResult> SignIn(
+			[FromBody] SignInForm form
+		) {
 			// rate limit
 			await Task.Delay(1000);
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				userAccount = db.GetUserAccountByEmail(binder.Email);
+				userAccount = db.GetUserAccountByEmail(form.Email);
 				if (userAccount == null) {
 					return BadRequest(new[] { "UserAccountNotFound" });
 				}
-				if (!IsCorrectPassword(userAccount, binder.Password)) {
+				if (!IsCorrectPassword(userAccount, form.Password)) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
-				await HttpContext.SignInAsync(userAccount);
+				await SignInUser(
+					user: userAccount,
+					pushDeviceForm: form.PushDevice,
+					db: db
+				);
 				return await JsonUser(
 					user: userAccount,
 					db: db
@@ -356,7 +385,20 @@ namespace api.Controllers.UserAccounts {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> SignOut() {
+		public async Task<IActionResult> SignOut(
+			[FromBody] SignOutForm form
+		) {
+			if (
+				User.Identity.IsAuthenticated &&
+				!String.IsNullOrWhiteSpace(form?.InstallationId)
+			) {
+				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+					await db.UnregisterNotificationPushDeviceByInstallationId(
+						installationId: form.InstallationId,
+						reason: NotificationPushUnregistrationReason.SignOut
+					);
+				}
+			}
 			await this.HttpContext.SignOutAsync();
 			return Ok();
 		}

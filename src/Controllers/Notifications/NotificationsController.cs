@@ -65,6 +65,20 @@ namespace api.Controllers.Notifications {
 				return Ok();
 			}
 		}
+		[HttpPost]
+		public async Task<IActionResult> DeviceRegistration(
+			[FromBody] DeviceRegistrationForm form
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				await db.RegisterNotificationPushDevice(
+					userAccountId: User.GetUserAccountId(),
+					installationId: form.InstallationId,
+					name: form.Name,
+					token: form.Token
+				);
+				return Ok();
+			}
+		}
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> Index(
@@ -104,6 +118,19 @@ namespace api.Controllers.Notifications {
 				}
 			}
 			return BadRequest();
+		}
+		[HttpPost]
+		public async Task<IActionResult> PushAuthDenial(
+			[FromBody] PushAuthDenialForm form
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				await db.CreateNotificationPushAuthDenial(
+					userAccountId: User.GetUserAccountId(),
+					installationId: form.InstallationId,
+					deviceName: form.DeviceName
+				);
+				return Ok();
+			}
 		}
 	}
 }

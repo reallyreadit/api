@@ -1,5 +1,5 @@
 namespace api.Controllers.UserAccounts {
-	public class CreateAccountBinder {
+	public class UserAccountForm {
 		public string Name { get; set; }
 		public string Email { get; set; }
 		public string Password { get; set; }
@@ -8,5 +8,6 @@ namespace api.Controllers.UserAccounts {
 		public int MarketingScreenVariant { get; set; }
 		public string ReferrerUrl { get; set; }
 		public string InitialPath { get; set; }
+		public PushDeviceForm PushDevice { get; set; }
 	}
 }

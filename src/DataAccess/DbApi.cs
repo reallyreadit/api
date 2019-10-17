@@ -496,6 +496,20 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<NotificationPushAuthDenial> CreateNotificationPushAuthDenial(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			string installationId,
+			string deviceName
+		) => await conn.QuerySingleOrDefaultAsync<NotificationPushAuthDenial>(
+			sql: "notifications.create_push_auth_denial",
+			param: new {
+				user_account_id = userAccountId,
+				installation_id = installationId,
+				device_name = deviceName
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Task<NotificationDispatch> CreateReplyNotification(
 			this NpgsqlConnection conn,
 			long replyId,
@@ -566,6 +580,22 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<NotificationPushDevice> RegisterNotificationPushDevice(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			string installationId,
+			string name,
+			string token
+		) => await conn.QuerySingleOrDefaultAsync<NotificationPushDevice>(
+			sql: "notifications.register_push_device",
+			param: new {
+				user_account_id = userAccountId,
+				installation_id = installationId,
+				name,
+				token
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<NotificationPreference> SetNotificationPreference(
 			this NpgsqlConnection conn,
 			long userAccountId,
@@ -595,6 +625,30 @@ namespace api.DataAccess {
 				follower_via_extension = options.FollowerViaExtension,
 				follower_via_push = options.FollowerViaPush,
 				follower_digest_via_email = ConvertEnumToString(options.FollowerDigestViaEmail)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<NotificationPushDevice> UnregisterNotificationPushDeviceByInstallationId(
+			this NpgsqlConnection conn,
+			string installationId,
+			NotificationPushUnregistrationReason reason
+		) => await conn.QuerySingleOrDefaultAsync<NotificationPushDevice>(
+			sql: "notifications.unregister_push_device_by_installation_id",
+			param: new {
+				installation_id = installationId,
+				reason = ConvertEnumToString(reason)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<NotificationPushDevice> UnregisterNotificationPushDeviceByToken(
+			this NpgsqlConnection conn,
+			string token,
+			NotificationPushUnregistrationReason reason
+		) => await conn.QuerySingleOrDefaultAsync<NotificationPushDevice>(
+			sql: "notifications.unregister_push_device_by_token",
+			param: new {
+				token,
+				reason = ConvertEnumToString(reason)
 			},
 			commandType: CommandType.StoredProcedure
 		);
