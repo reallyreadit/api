@@ -37,6 +37,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task LogClientErrorReport(
+			this NpgsqlConnection conn,
+			string content,
+			RequestAnalytics analytics
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_client_error_report",
+			param: new {
+				content,
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Task LogExtensionInstallation(
 			this NpgsqlConnection conn,
 			Guid installationId,
