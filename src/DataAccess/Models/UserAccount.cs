@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.Serialization;
+using System.Text.Json.Serialization;
 using api.Messaging;
 
 namespace api.DataAccess.Models {
@@ -7,9 +8,9 @@ namespace api.DataAccess.Models {
 		public long Id { get; set; }
 		public string Name { get; set; }
 		public string Email { get; set; }
-		[IgnoreDataMember]
+		[JsonIgnore]
 		public byte[] PasswordHash { get; set; }
-		[IgnoreDataMember]
+		[JsonIgnore]
 		public byte[] PasswordSalt { get; set; }
 		public bool ReceiveReplyEmailNotifications { get; set; }
 		public bool ReceiveReplyDesktopNotifications { get; set; }
