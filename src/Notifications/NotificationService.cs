@@ -1,34 +1,40 @@
 using System;
-using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
 using api.Encryption;
 using api.Messaging;
-using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
 
 namespace api.Notifications {
 	public class NotificationService {
+		private readonly ApnsService apnsService;
 		private readonly DatabaseOptions databaseOptions;
 		private readonly TokenizationOptions tokenizationOptions;
-		IOptions<ServiceEndpointsOptions> endpoints;
+		private readonly IOptions<ServiceEndpointsOptions> endpoints;
 		private readonly EmailService emailService;
 		private readonly ObfuscationService obfuscation;
+		private readonly ILogger<NotificationService> logger;
 		public NotificationService(
+			ApnsService apnsService,
 			IOptions<DatabaseOptions> databaseOptions,
 			IOptions<TokenizationOptions> tokenizationOptions,
 			IOptions<ServiceEndpointsOptions> endpoints,
 			EmailService emailService,
-			ObfuscationService obfuscation
+			ObfuscationService obfuscation,
+			ILogger<NotificationService> logger
 		) {
+			this.apnsService = apnsService;
 			this.databaseOptions = databaseOptions.Value;
 			this.tokenizationOptions = tokenizationOptions.Value;
 			this.endpoints = endpoints;
 			this.emailService = emailService;
 			this.obfuscation = obfuscation;
+			this.logger = logger;
 		}
 		public async Task CreateAotdNotifications(
 			long articleId
@@ -60,6 +66,7 @@ namespace api.Notifications {
 			) {
 				var dispatch = await db.CreateFollowerNotification(
 					followingId: following.Id,
+					followerId: following.FollowerUserAccountId,
 					followeeId: following.FolloweeuserAccountId
 				);
 				if (dispatch?.EmailAddress != null) {
@@ -118,50 +125,65 @@ namespace api.Notifications {
 		public async Task CreateReplyNotification(
 			Comment comment
 		) {
-			using (
-				var db = new NpgsqlConnection(
-					connectionString: databaseOptions.ConnectionString
-				)
-			) {
-				var dispatch = await db.CreateReplyNotification(
+			NotificationDispatch dispatch;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatch = await db.CreateReplyNotification(
 					replyId: comment.Id,
 					replyAuthorId: comment.UserAccountId,
 					parentId: comment.ParentCommentId.Value
 				);
-				if (dispatch?.EmailAddress != null) {
-					var replyToken = new NotificationToken(
-							receiptId: dispatch.ReceiptId
+			}
+			if (dispatch?.EmailAddress != null) {
+				var replyToken = new NotificationToken(
+						receiptId: dispatch.ReceiptId
+					)
+					.CreateTokenString(
+						key: tokenizationOptions.EncryptionKey
+					);
+				await emailService.SendCommentReplyNotificationEmail(
+					replyTo: new EmailMailbox(
+						name: comment.UserAccount,
+						address: $"reply+{replyToken}@api.readup.com"
+					),
+					dispatch: dispatch,
+					openToken: new NotificationToken(
+							receiptId: dispatch.ReceiptId,
+							channel: NotificationChannel.Email,
+							action: NotificationAction.Open
 						)
 						.CreateTokenString(
 							key: tokenizationOptions.EncryptionKey
-						);
-					await emailService.SendCommentReplyNotificationEmail(
-						replyTo: new EmailMailbox(
-							name: comment.UserAccount,
-							address: $"reply+{replyToken}@api.readup.com"
 						),
-						dispatch: dispatch,
-						openToken: new NotificationToken(
-								receiptId: dispatch.ReceiptId,
-								channel: NotificationChannel.Email,
-								action: NotificationAction.Open
-							)
-							.CreateTokenString(
-								key: tokenizationOptions.EncryptionKey
+					viewCommentToken: new NotificationToken(
+							receiptId: dispatch.ReceiptId,
+							channel: NotificationChannel.Email,
+							action: NotificationAction.View,
+							viewActionResource: ViewActionResource.Comment,
+							viewActionResourceId: comment.Id
+						)
+						.CreateTokenString(
+							key: tokenizationOptions.EncryptionKey
+						),
+					reply: comment
+				);
+			}
+			if (dispatch?.PushDeviceTokens.Any() ?? false) {
+				await apnsService.Send(
+					new ApnsNotification(
+						payload: new ApnsPayload(
+							applePayload: new ApnsApplePayload(
+								alert: new ApnsAlert(
+									title: "Re: " + comment.ArticleTitle,
+									subtitle: comment.UserAccount,
+									body: comment.Text
+								),
+								badge: dispatch.GetTotalBadgeCount()
 							),
-						viewCommentToken: new NotificationToken(
-								receiptId: dispatch.ReceiptId,
-								channel: NotificationChannel.Email,
-								action: NotificationAction.View,
-								viewActionResource: ViewActionResource.Comment,
-								viewActionResourceId: comment.Id
-							)
-							.CreateTokenString(
-								key: tokenizationOptions.EncryptionKey
-							),
-						reply: comment
-					);
-				}
+							alertStatus: dispatch
+						),
+						tokens: dispatch.PushDeviceTokens
+					)
+				);
 			}
 		}
 		public NotificationToken DecryptTokenString(

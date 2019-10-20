@@ -235,8 +235,8 @@ namespace api.Controllers.Extension {
 					User = (
 						this.ClientVersionIsGreaterThanOrEqualTo(
 							versions: new Dictionary<ClientType, SemanticVersion>() {
-								{ ClientType.IosApp, new SemanticVersion(4, 3, 1) },
-								{ ClientType.IosExtension, new SemanticVersion(4, 3, 1) },
+								{ ClientType.IosApp, new SemanticVersion(5, 0, 0) },
+								{ ClientType.IosExtension, new SemanticVersion(5, 0, 0) },
 								{ ClientType.WebExtension, new SemanticVersion(0, 0, 0) }
 							}
 						) ?

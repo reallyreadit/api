@@ -1,10 +1,10 @@
 using System;
-using System.Runtime.Serialization;
 using System.Text.Json.Serialization;
+using api.Notifications;
 using api.Messaging;
 
 namespace api.DataAccess.Models {
-	public class UserAccount : IEmailRecipient {
+	public class UserAccount :  IAlertStatus, IEmailRecipient {
 		public long Id { get; set; }
 		public string Name { get; set; }
 		public string Email { get; set; }

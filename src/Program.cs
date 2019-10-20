@@ -8,8 +8,6 @@ using Serilog;
 
 namespace api {
 	public class Program {
-		private static readonly HttpClient httpClient = new HttpClient();
-		public static HttpClient HttpClient => httpClient;
 		public static void Main(string[] args) {
 			new HostBuilder()
 				.UseContentRoot(Directory.GetCurrentDirectory())

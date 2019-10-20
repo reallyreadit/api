@@ -21,12 +21,18 @@ using api.Notifications;
 using api.Commenting;
 using api.Analytics;
 using api.DataAccess.Models;
+using System.Net.Http;
 
 namespace api.Controllers.Email {
 	public class EmailController : Controller {
-		private DatabaseOptions dbOpts;
-		public EmailController(IOptions<DatabaseOptions> dbOpts) {
+		private readonly DatabaseOptions dbOpts;
+		private readonly IHttpClientFactory httpClientFactory;
+		public EmailController(
+			IOptions<DatabaseOptions> dbOpts,
+			IHttpClientFactory httpClientFactory
+		) {
 			this.dbOpts = dbOpts.Value;
+			this.httpClientFactory = httpClientFactory;
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -47,7 +53,7 @@ namespace api.Controllers.Email {
 								return Ok();
 							}
 						case SnsMessage.MESSAGE_TYPE_SUBSCRIPTION_CONFIRMATION:
-							if ((await Program.HttpClient.GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
+							if ((await httpClientFactory.CreateClient().GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
 								return Ok();
 							}
 							break;
@@ -126,7 +132,7 @@ namespace api.Controllers.Email {
 							}
 							break;
 						case SnsMessage.MESSAGE_TYPE_SUBSCRIPTION_CONFIRMATION:
-							if ((await Program.HttpClient.GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
+							if ((await httpClientFactory.CreateClient().GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
 								return Ok();
 							}
 							break;

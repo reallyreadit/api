@@ -453,11 +453,13 @@ namespace api.DataAccess {
 		public static Task<NotificationDispatch> CreateFollowerNotification(
 			this NpgsqlConnection conn,
 			long followingId,
+			long followerId,
 			long followeeId
 		) => conn.QuerySingleOrDefaultAsync<NotificationDispatch>(
 			sql: "notifications.create_follower_notification",
 			param: new {
 				following_id = followingId,
+				follower_id = followerId,
 				followee_id = followeeId
 			},
 			commandType: CommandType.StoredProcedure

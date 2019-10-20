@@ -10,14 +10,19 @@ using Newtonsoft.Json;
 namespace api.Security {
 	public class CaptchaService {
 		private readonly CaptchaOptions authOpts;
-		public CaptchaService(IOptions<CaptchaOptions> authOpts) {
+		private readonly IHttpClientFactory httpClientFactory;
+		public CaptchaService(
+			IOptions<CaptchaOptions> authOpts,
+			IHttpClientFactory httpClientFactory
+		) {
 			this.authOpts = authOpts.Value;
+			this.httpClientFactory = httpClientFactory;
 		}
 		public async Task<CaptchaVerificationResponse> Verify(string response) {
 			if (!authOpts.VerifyCaptcha) {
 				return null;
 			}
-			var httpResponse = await Program.HttpClient.PostAsync(
+			var httpResponse = await httpClientFactory.CreateClient().PostAsync(
 				requestUri: QueryHelpers.AddQueryString(
 					uri: "https://www.google.com/recaptcha/api/siteverify",
 					queryString: new Dictionary<string, string>() {

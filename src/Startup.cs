@@ -25,6 +25,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Hosting;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authorization;
+using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
 
 namespace api {
 	public class Startup {
@@ -99,6 +101,29 @@ namespace api {
 					options.FallbackPolicy = legacyCookiePolicy;
 				}
 			);
+			// configure http clients
+			services
+				.AddHttpClient()
+				.AddHttpClient<ApnsService>(
+					client => {
+						client.BaseAddress = new Uri(
+							uriString: config
+								.GetSection("PushNotifications")
+								.Get<PushNotificationsOptions>()
+								.ApnsServer
+								.CreateUrl()
+						);
+					}
+				)
+				.ConfigurePrimaryHttpMessageHandler(
+					() => new HttpClientHandler() {
+						ClientCertificates = {
+							new X509Certificate2(
+								fileName: $"apnsclient.{env.EnvironmentName}.p12"
+							)
+						}
+					}
+				);
 			// configure shared key ring in production
 			if (env.IsProduction()) {
 				var dataProtectionOptions = config

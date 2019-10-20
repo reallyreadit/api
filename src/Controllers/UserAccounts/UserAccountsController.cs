@@ -81,7 +81,7 @@ namespace api.Controllers.UserAccounts {
 		) => (
 			this.ClientVersionIsGreaterThanOrEqualTo(
 				versions: new Dictionary<ClientType, SemanticVersion>() {
-					{ ClientType.IosApp, new SemanticVersion(4, 3, 1) },
+					{ ClientType.IosApp, new SemanticVersion(5, 0, 0) },
 					{ ClientType.WebAppClient, new SemanticVersion(1, 8, 0) },
 					{ ClientType.WebAppServer, new SemanticVersion(1, 8, 0) }
 				}

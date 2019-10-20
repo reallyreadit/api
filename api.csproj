@@ -21,4 +21,8 @@
     <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="apnsclient.*.p12" CopyToPublishDirectory="Always" />
+  </ItemGroup>
+
 </Project>
