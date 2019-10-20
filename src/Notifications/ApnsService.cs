@@ -35,6 +35,7 @@ namespace api.Notifications {
 				var requestContent = JsonSerializer.Serialize(
 					value: notification.Payload,
 					options: new JsonSerializerOptions() {
+						IgnoreNullValues = true,
 						PropertyNamingPolicy = JsonNamingPolicy.CamelCase
 					}
 				);

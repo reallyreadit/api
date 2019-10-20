@@ -49,7 +49,7 @@ namespace api.Notifications {
 						articleId: articleId
 					)
 				) {
-					if (dispatch.EmailAddress != null) {
+					if (dispatch.ViaEmail) {
 						// send email
 						Console.WriteLine("Send aotd via email");
 					}
@@ -69,7 +69,7 @@ namespace api.Notifications {
 					followerId: following.FollowerUserAccountId,
 					followeeId: following.FolloweeuserAccountId
 				);
-				if (dispatch?.EmailAddress != null) {
+				if (dispatch?.ViaEmail ?? false) {
 					// send email
 					Console.WriteLine("Send follower via email");
 				}
@@ -90,7 +90,7 @@ namespace api.Notifications {
 						commentAuthorId: comment.UserAccountId
 					)
 				) {
-					if (dispatch.EmailAddress != null) {
+					if (dispatch.ViaEmail) {
 						// send email
 						Console.WriteLine("Send loopback via email");
 					}
@@ -115,7 +115,7 @@ namespace api.Notifications {
 						silentPostId: silentPostId
 					)
 				) {
-					if (dispatch.EmailAddress != null) {
+					if (dispatch.ViaEmail) {
 						// send email
 						Console.WriteLine("Send post via email");
 					}
@@ -133,7 +133,7 @@ namespace api.Notifications {
 					parentId: comment.ParentCommentId.Value
 				);
 			}
-			if (dispatch?.EmailAddress != null) {
+			if (dispatch?.ViaEmail ?? false) {
 				var replyToken = new NotificationToken(
 						receiptId: dispatch.ReceiptId
 					)
@@ -172,11 +172,13 @@ namespace api.Notifications {
 					new ApnsNotification(
 						payload: new ApnsPayload(
 							applePayload: new ApnsApplePayload(
-								alert: new ApnsAlert(
-									title: "Re: " + comment.ArticleTitle,
-									subtitle: comment.UserAccount,
-									body: comment.Text
-								),
+								alert: dispatch.ViaPush ?
+									new ApnsAlert(
+										title: "Re: " + comment.ArticleTitle,
+										subtitle: comment.UserAccount,
+										body: comment.Text
+									) :
+									null,
 								badge: dispatch.GetTotalBadgeCount()
 							),
 							alertStatus: dispatch
