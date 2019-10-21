@@ -56,15 +56,21 @@ namespace api.Controllers.Notifications {
 		}
 		[HttpPost]
 		public async Task<IActionResult> DeviceRegistration(
+			[FromServices] IOptions<DatabaseOptions> databaseOptions,
 			[FromBody] DeviceRegistrationForm form
 		) {
+			var userAccountId = User.GetUserAccountId();
 			await notificationService.RegisterPushDevice(
-				userAccountId: User.GetUserAccountId(),
+				userAccountId: userAccountId,
 				installationId: form.InstallationId,
 				name: form.Name,
 				token: form.Token
 			);
-			return Ok();
+			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
+				return Json(
+					await db.GetUserAccountById(userAccountId)
+				);
+			}
 		}
 		[AllowAnonymous]
 		[HttpGet]
