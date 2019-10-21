@@ -594,6 +594,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<NotificationPushDevice>> GetRegisteredPushDevices(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QueryAsync<NotificationPushDevice>(
+			sql: "notifications.get_registered_push_devices",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<NotificationPushDevice> RegisterNotificationPushDevice(
 			this NpgsqlConnection conn,
 			long userAccountId,

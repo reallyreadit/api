@@ -374,47 +374,14 @@ namespace api.Controllers.Extension {
 			[FromServices] NotificationService notificationService,
 			string id
 		) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var receiptId = obfuscationService.Decode(id).Value;
-				var notification = await db.GetNotification(receiptId);
-				ViewActionResource resource;
-				long resourceId;
-				switch (notification.EventType) {
-					case NotificationEventType.Aotd:
-						resource = ViewActionResource.Article;
-						resourceId = notification.ArticleIds.Single();
-						break;
-					case NotificationEventType.Reply:
-					case NotificationEventType.Loopback:
-						resource = ViewActionResource.Comment;
-						resourceId = notification.CommentIds.Single();
-						break;
-					case NotificationEventType.Post:
-						if (notification.CommentIds.Any()) {
-							resource = ViewActionResource.CommentPost;
-							resourceId = notification.CommentIds.Single();
-						} else {
-							resource = ViewActionResource.SilentPost;
-							resourceId = notification.SilentPostIds.Single();
-						}
-						break;
-					case NotificationEventType.Follower:
-						resource = ViewActionResource.Follower;
-						resourceId = notification.FollowingIds.Single();
-						break;
-					default:
-						throw new InvalidOperationException($"Unexpected value for {nameof(notification.EventType)}");
-				}
-				return Redirect(
-					url: await notificationService.CreateViewInteraction(
-						db: db,
-						notification: notification,
-						channel: NotificationChannel.Extension,
-						resource: resource,
-						resourceId: resourceId
+			return Redirect(
+				(
+					await notificationService.ProcessExtensionRequest(
+						receiptId: obfuscationService.Decode(id).Value
 					)
-				);
-			}
+				)
+				.ToString()
+			);
 		}
 		[AllowAnonymous]
 		[HttpPost]

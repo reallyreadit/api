@@ -117,14 +117,10 @@ namespace api.Controllers.Email {
 												)
 											)
 										);
-										await db.CreateNotificationInteraction(
+										await notificationService.ProcessEmailReply(
+											userAccountId: notification.UserAccountId,
 											receiptId: receiptId,
-											channel: NotificationChannel.Email,
-											action: NotificationAction.Reply,
 											replyId: reply.Id
-										);
-										await db.ClearAlert(
-											receiptId: receiptId
 										);
 										return Ok();
 									}

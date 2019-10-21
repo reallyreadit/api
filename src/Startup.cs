@@ -50,6 +50,7 @@ namespace api {
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(config.GetSection("Email"))
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
+				.Configure<PushNotificationsOptions>(config.GetSection("PushNotifications"))
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ReadingVerificationOptions>(config.GetSection("ReadingVerification"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
@@ -104,17 +105,7 @@ namespace api {
 			// configure http clients
 			services
 				.AddHttpClient()
-				.AddHttpClient<ApnsService>(
-					client => {
-						client.BaseAddress = new Uri(
-							uriString: config
-								.GetSection("PushNotifications")
-								.Get<PushNotificationsOptions>()
-								.ApnsServer
-								.CreateUrl()
-						);
-					}
-				)
+				.AddHttpClient<ApnsService>()
 				.ConfigurePrimaryHttpMessageHandler(
 					() => new HttpClientHandler() {
 						ClientCertificates = {

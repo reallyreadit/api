@@ -22,8 +22,14 @@ namespace api.Notifications {
 		public ApnsService(
 			HttpClient client,
 			IOptions<DatabaseOptions> dbOptions,
+			IOptions<PushNotificationsOptions> pushOptions,
 			ILogger<ApnsService> logger
 		) {
+			client.BaseAddress = new Uri(
+				uriString: pushOptions.Value.ApnsServer.CreateUrl()
+			);
+			client.DefaultRequestHeaders.Add("apns-push-type", "alert");
+			client.DefaultRequestHeaders.Add("apns-topic", pushOptions.Value.ApnsTopic);
 			client.DefaultRequestVersion = new Version(2, 0);
 			this.client = client;
 			this.dbOptions = dbOptions.Value;
@@ -40,14 +46,21 @@ namespace api.Notifications {
 					}
 				);
 				foreach (var token in notification.Tokens) {
-					var response = await client.PostAsync(
-						requestUri: "/3/device/" + token,
-						content: new StringContent(
+					var request = new HttpRequestMessage(
+						method: HttpMethod.Post,
+						requestUri: "/3/device/" + token
+					) {
+						Content = new StringContent(
 							content: requestContent,
 							encoding: Encoding.UTF8,
 							mediaType: "application/json"
-						)
-					);
+						),
+						Version = new Version(2, 0),
+					};
+					if (!String.IsNullOrWhiteSpace(notification.CollapseId)) {
+						request.Headers.Add("apns-collapse-id", notification.CollapseId);
+					}
+					var response = await client.SendAsync(request);
 					if (!response.IsSuccessStatusCode) {
 						ApnsResponse apnsResponse;
 						Exception apnsResponseParseException;

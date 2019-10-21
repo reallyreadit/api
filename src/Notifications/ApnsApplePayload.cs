@@ -1,6 +1,11 @@
 namespace api.Notifications {
 	public class ApnsApplePayload {
 		public ApnsApplePayload(
+			int badge
+		) {
+			Badge = badge;
+		}
+		public ApnsApplePayload(
 			ApnsAlert alert,
 			int badge
 		) {

@@ -7,6 +7,16 @@ namespace api.Notifications {
 			Payload = payload;
 			Tokens = tokens;
 		}
+		public ApnsNotification(
+			string collapseId,
+			ApnsPayload payload,
+			string[] tokens
+		) {
+			CollapseId = collapseId;
+			Payload = payload;
+			Tokens = tokens;
+		}
+		public string CollapseId { get; }
 		public ApnsPayload Payload { get; }
 		public string[] Tokens { get; }
 	}
