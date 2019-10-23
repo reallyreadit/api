@@ -12,7 +12,17 @@ namespace api.Notifications {
 			Alert = alert;
 			Badge = badge;
 		}
+		public ApnsApplePayload(
+			ApnsAlert alert,
+			int badge,
+			string category
+		) {
+			Alert = alert;
+			Badge = badge;
+			Category = category;
+		}
 		public ApnsAlert Alert { get; }
-		public int Badge { get; }		
+		public int Badge { get; }
+		public string Category { get; }
 	}
 }

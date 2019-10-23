@@ -67,76 +67,12 @@ namespace api.Notifications {
 				// swallow duplicate open exception
 			}
 		}
-		private async Task<Uri> CreateViewInteraction(
+		private async Task CreateViewInteraction(
 			NpgsqlConnection db,
 			Notification notification,
 			NotificationChannel channel,
-			ViewActionResource resource,
-			long resourceId
+			string url
 		) {
-			string path;
-			switch (resource) {
-				case ViewActionResource.Article:
-				case ViewActionResource.Comments:
-				case ViewActionResource.Comment:
-					long articleId;
-					long? commentId;
-					string pathRoot;
-					if (resource == ViewActionResource.Comment) {
-						articleId = (
-								await db.GetComment(
-									commentId: resourceId
-								)
-							)
-							.ArticleId;
-						commentId = resourceId;
-						pathRoot = "comments";
-					} else {
-						articleId = resourceId;
-						commentId = null;
-						pathRoot = (
-							resource == ViewActionResource.Article ?
-								"read" :
-								"comments"
-						);
-					}
-					var slugParts = (
-							await db.GetArticle(
-								articleId: articleId
-							)
-						)
-						.Slug.Split('_');
-					path = $"/{pathRoot}/{slugParts[0]}/{slugParts[1]}";
-					if (commentId.HasValue) {
-						path += "/" + obfuscation.Encode(
-							number: commentId.Value
-						);
-					}
-					break;
-				case ViewActionResource.CommentPost:
-					path = $"/following/comment/{obfuscation.Encode(resourceId)}";
-					break;
-				case ViewActionResource.SilentPost:
-					path = $"/following/post/{obfuscation.Encode(resourceId)}";
-					break;
-				case ViewActionResource.Follower:
-					var userName = (
-							await db.GetUserAccountById(
-								userAccountId: (
-									await db.GetFollowing(
-										followingId: resourceId
-									)
-								)
-								.FollowerUserAccountId
-							)
-						)
-						.Name;
-					path = $"/profile?followers&userName={userName}";
-					break;
-				default:
-					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
-			}
-			var url = endpoints.Value.WebServer.CreateUrl(path);
 			try {
 				await db.CreateNotificationInteraction(
 					receiptId: notification.ReceiptId,
@@ -149,26 +85,108 @@ namespace api.Notifications {
 			) {
 				// swallow duplicate view exception
 			}
-			await ClearAlertIfNeeded(
-				db: db,
-				notification: notification,
-				action: NotificationAction.View
-			);
-			return new Uri(url);
+			switch (notification.EventType) {
+				case NotificationEventType.Aotd:
+				case NotificationEventType.Follower:
+				case NotificationEventType.Loopback:
+				case NotificationEventType.Post:
+				case NotificationEventType.Reply:
+					if (!notification.DateAlertCleared.HasValue) {
+						await ClearAlert(
+							db: db,
+							userAccountId: notification.UserAccountId,
+							receiptId: notification.ReceiptId
+						);
+					}
+					break;
+			}
 		}
+		private async Task<Uri> CreateViewInteraction(
+			NpgsqlConnection db,
+			Notification notification,
+			NotificationChannel channel,
+			ViewActionResource resource,
+			long resourceId
+		) {
+			var url = await CreateViewUrl(db, resource, resourceId);
+			await CreateViewInteraction(db, notification, channel, url.ToString());
+			return url;
+		}
+		private Uri CreateViewUrl(string path) => (
+			new Uri(endpoints.Value.WebServer.CreateUrl(path))
+		);
+		private async Task<Uri> CreateViewUrl(
+			NpgsqlConnection db,
+			ViewActionResource resource,
+			long resourceId
+		) {
+			string path;
+			switch (resource) {
+				case ViewActionResource.Article:
+				case ViewActionResource.Comments:
+					var pathRoot = (
+						resource == ViewActionResource.Article ?
+							"read" :
+							"comments"
+					);
+					var slugParts = (
+							await db.GetArticle(
+								articleId: resourceId
+							)
+						)
+						.Slug.Split('_');
+					path = $"/{pathRoot}/{slugParts[0]}/{slugParts[1]}";
+					break;
+				case ViewActionResource.Comment:
+					return CreateViewUrlForComment(await db.GetComment(resourceId));
+				case ViewActionResource.CommentPost:
+					path = $"/following/comment/{obfuscation.Encode(resourceId)}";
+					break;
+				case ViewActionResource.SilentPost:
+					path = $"/following/post/{obfuscation.Encode(resourceId)}";
+					break;
+				case ViewActionResource.Follower:
+					var following = await db.GetFollowing(
+						followingId: resourceId
+					);
+					return CreateViewUrlForFollower(
+						followeeUserName: (await db.GetUserAccountById(following.FolloweeUserAccountId)).Name,
+						followerUserName: (await db.GetUserAccountById(following.FollowerUserAccountId)).Name
+					);
+				default:
+					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
+			}
+			return new Uri(endpoints.Value.WebServer.CreateUrl(path));
+		}
+		private Uri CreateViewUrlForComment(
+			Comment comment
+		) {
+			var slugParts = comment.ArticleSlug.Split('_');
+			return CreateViewUrl(path: $"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(comment.Id)}");
+		}
+		private Uri CreateViewUrlForFollower(
+			string followeeUserName,
+			string followerUserName
+		) => (
+			CreateViewUrl(path: $"/@{followeeUserName}?followers&user={followerUserName}")
+		);
 		private async Task SendPushAlertNotification(
 			NotificationDispatch dispatch,
-			ApnsAlert alert
+			ApnsAlert alert,
+			Uri url,
+			string category = null
 		) {
 			await apnsService.Send(
 				new ApnsNotification(
-					collapseId: dispatch.ReceiptId.ToString(),
+					receiptId: dispatch.ReceiptId,
 					payload: new ApnsPayload(
 						applePayload: new ApnsApplePayload(
 							alert: dispatch.ViaPush ? alert : null,
-							badge: dispatch.GetTotalBadgeCount()
+							badge: dispatch.GetTotalBadgeCount(),
+							category: category
 						),
-						alertStatus: dispatch
+						alertStatus: dispatch,
+						url: url
 					),
 					tokens: dispatch.PushDeviceTokens
 				)
@@ -190,7 +208,7 @@ namespace api.Notifications {
 							),
 							alertStatus: userAccount,
 							clearedNotificationIds: clearedReceiptIds
-								.Select(id => id.ToString())
+								.Select(id => obfuscation.Encode(id))
 								.ToArray()
 						),
 						tokens: pushDevices
@@ -248,17 +266,22 @@ namespace api.Notifications {
 			Following following
 		) {
 			NotificationDispatch dispatch;
-			string followerUserName;
+			string
+				followeeUserName,
+				followerUserName;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				dispatch = await db.CreateFollowerNotification(
 					followingId: following.Id,
 					followerId: following.FollowerUserAccountId,
-					followeeId: following.FolloweeuserAccountId
+					followeeId: following.FolloweeUserAccountId
 				);
-				followerUserName = (
-						await db.GetUserAccountById(following.FollowerUserAccountId)
-					)
-					.Name;
+				if (dispatch?.PushDeviceTokens.Any() ?? false) {
+					followeeUserName = (await db.GetUserAccountById(following.FolloweeUserAccountId)).Name;
+					followerUserName = (await db.GetUserAccountById(following.FollowerUserAccountId)).Name;
+				} else {
+					followeeUserName = null;
+					followerUserName = null;
+				}
 			}
 			if (dispatch?.ViaEmail ?? false) {
 				// send email
@@ -271,6 +294,10 @@ namespace api.Notifications {
 						title: "New Follower",
 						subtitle: "You have a new follower",
 						body: $"{followerUserName} is now following you."
+					),
+					url: CreateViewUrlForFollower(
+						followeeUserName: followeeUserName,
+						followerUserName: followerUserName
 					)
 				);
 			}
@@ -374,7 +401,9 @@ namespace api.Notifications {
 						title: "Re: " + comment.ArticleTitle,
 						subtitle: comment.UserAccount,
 						body: comment.Text
-					)
+					),
+					url: CreateViewUrlForComment(comment),
+					category: "replyable"
 				);
 			}
 		}
@@ -384,33 +413,6 @@ namespace api.Notifications {
 			tokenString: tokenString,
 			key: tokenizationOptions.EncryptionKey
 		);
-		private async Task ClearAlertIfNeeded(
-			NpgsqlConnection db,
-			Notification notification,
-			NotificationAction action
-		) {
-			switch (notification.EventType) {
-				case NotificationEventType.Aotd:
-				case NotificationEventType.Follower:
-				case NotificationEventType.Loopback:
-				case NotificationEventType.Post:
-				case NotificationEventType.Reply:
-					if (
-						(
-							action == NotificationAction.View ||
-							action == NotificationAction.Reply
-						) &&
-						!notification.DateAlertCleared.HasValue
-					) {
-						await ClearAlert(
-							db: db,
-							userAccountId: notification.UserAccountId,
-							receiptId: notification.ReceiptId
-						);
-					}
-					break;
-			}
-		}
 		public async Task LogAuthDenial(
 			long userAccountId,
 			string installationId,
@@ -507,6 +509,38 @@ namespace api.Notifications {
 					channel: NotificationChannel.Extension,
 					resource: resource,
 					resourceId: resourceId
+				);
+			}
+		}
+		public async Task ProcessPushReply(
+			long userAccountId,
+			long receiptId,
+			long replyId
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				await db.CreateNotificationInteraction(
+					receiptId: receiptId,
+					channel: NotificationChannel.Push,
+					action: NotificationAction.Reply,
+					replyId: replyId
+				);
+				await ClearAlert(
+					db: db,
+					userAccountId: userAccountId,
+					receiptId: receiptId
+				);
+			}
+		}
+		public async Task ProcessPushRequest(
+			Notification notification,
+			string url
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				await CreateViewInteraction(
+					db: db,
+					notification: notification,
+					channel: NotificationChannel.Push,
+					url: url
 				);
 			}
 		}

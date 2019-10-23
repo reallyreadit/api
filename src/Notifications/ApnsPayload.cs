@@ -1,11 +1,15 @@
+using System;
+
 namespace api.Notifications {
 	public class ApnsPayload {
 		public ApnsPayload(
 			ApnsApplePayload applePayload,
-			IAlertStatus alertStatus
+			IAlertStatus alertStatus,
+			Uri url
 		) {
 			Aps = applePayload;
 			AlertStatus = alertStatus;
+			Url = url.ToString();
 		}
 		public ApnsPayload(
 			ApnsApplePayload applePayload,
@@ -19,5 +23,6 @@ namespace api.Notifications {
 		public ApnsApplePayload Aps { get; }
 		public IAlertStatus AlertStatus { get; }
 		public string[] ClearedNotificationIds { get; }
+		public string Url { get; }
 	}
 }

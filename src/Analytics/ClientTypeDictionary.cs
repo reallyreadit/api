@@ -7,6 +7,7 @@ namespace api.Analytics {
 		private static IEnumerable<Tuple<string, ClientType>> valuePairs = new Tuple<string, ClientType>[] {
 			new Tuple<string, ClientType>("ios/app", ClientType.IosApp),
 			new Tuple<string, ClientType>("ios/share-extension", ClientType.IosExtension),
+			new Tuple<string, ClientType>("ios/notification", ClientType.IosNotification),
 			new Tuple<string, ClientType>("web/app/client", ClientType.WebAppClient),
 			new Tuple<string, ClientType>("web/app/server", ClientType.WebAppServer),
 			new Tuple<string, ClientType>("web/extension", ClientType.WebExtension)

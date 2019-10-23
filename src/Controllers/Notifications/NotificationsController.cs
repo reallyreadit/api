@@ -10,6 +10,9 @@ using Microsoft.AspNetCore.Authorization;
 using api.Notifications;
 using System;
 using api.Encryption;
+using api.Commenting;
+using System.Linq;
+using api.Analytics;
 
 namespace api.Controllers.Notifications {
 	public class NotificationsController : Controller {
@@ -103,6 +106,63 @@ namespace api.Controllers.Notifications {
 				installationId: form.InstallationId,
 				deviceName: form.DeviceName
 			);
+			return Ok();
+		}
+		[HttpPost]
+		public async Task<IActionResult> PushReply(
+			[FromServices] IOptions<DatabaseOptions> databaseOptions,
+			[FromServices] ObfuscationService obfuscation,
+			[FromServices] CommentingService commentingService,
+			[FromBody] PushReplyForm form
+		) {
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
+				var notification = await db.GetNotification(receiptId: obfuscation.Decode(form.ReceiptId).Value);
+				if (notification.UserAccountId == userAccountId) {
+					var parent = await db.GetComment(notification.CommentIds.Single());
+					var article = await db.GetArticle(
+						articleId: parent.ArticleId,
+						userAccountId: userAccountId
+					);
+					if (article.IsRead) {
+						var reply = await commentingService.PostComment(
+							dbConnection: db,
+							text: form.Text,
+							articleId: parent.ArticleId,
+							parentCommentId: parent.Id,
+							userAccountId: notification.UserAccountId,
+							analytics: new RequestAnalytics(
+								client: new ClientAnalytics(
+									type: ClientType.IosNotification,
+									version: new SemanticVersion(0, 0, 0)
+								)
+							)
+						);
+						await notificationService.ProcessPushReply(
+							userAccountId: notification.UserAccountId,
+							receiptId: notification.ReceiptId,
+							replyId: reply.Id
+						);
+					}
+				}
+			}
+			return Ok();
+		}
+		[HttpPost]
+		public async Task<IActionResult> PushView(
+			[FromServices] IOptions<DatabaseOptions> databaseOptions,
+			[FromServices] ObfuscationService obfuscation,
+			[FromBody] PushViewForm form
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
+				var notification = await db.GetNotification(receiptId: obfuscation.Decode(form.ReceiptId).Value);
+				if (notification.UserAccountId == User.GetUserAccountId()) {
+					await notificationService.ProcessPushRequest(
+						notification: notification,
+						url: form.Url
+					);
+				}
+			}
 			return Ok();
 		}
 	}

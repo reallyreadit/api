@@ -8,15 +8,15 @@ namespace api.Notifications {
 			Tokens = tokens;
 		}
 		public ApnsNotification(
-			string collapseId,
+			long receiptId,
 			ApnsPayload payload,
 			string[] tokens
 		) {
-			CollapseId = collapseId;
+			ReceiptId = receiptId;
 			Payload = payload;
 			Tokens = tokens;
 		}
-		public string CollapseId { get; }
+		public long? ReceiptId { get; }
 		public ApnsPayload Payload { get; }
 		public string[] Tokens { get; }
 	}

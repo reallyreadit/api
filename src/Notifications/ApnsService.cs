@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Encryption;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -19,10 +20,12 @@ namespace api.Notifications {
 		private readonly HttpClient client;
 		private readonly DatabaseOptions dbOptions;
 		private readonly ILogger<ApnsService> logger;
+		private readonly ObfuscationService obfuscation;
 		public ApnsService(
 			HttpClient client,
 			IOptions<DatabaseOptions> dbOptions,
 			IOptions<PushNotificationsOptions> pushOptions,
+			ObfuscationService obfuscation,
 			ILogger<ApnsService> logger
 		) {
 			client.BaseAddress = new Uri(
@@ -34,6 +37,7 @@ namespace api.Notifications {
 			this.client = client;
 			this.dbOptions = dbOptions.Value;
 			this.logger = logger;
+			this.obfuscation = obfuscation;
 		}
 		public async Task Send(params ApnsNotification[] notifications) {
 			var errors = new List<( string Token, ApnsResponse Response )>();
@@ -57,8 +61,8 @@ namespace api.Notifications {
 						),
 						Version = new Version(2, 0),
 					};
-					if (!String.IsNullOrWhiteSpace(notification.CollapseId)) {
-						request.Headers.Add("apns-collapse-id", notification.CollapseId);
+					if (notification.ReceiptId.HasValue) {
+						request.Headers.Add("apns-collapse-id", obfuscation.Encode(notification.ReceiptId.Value));
 					}
 					var response = await client.SendAsync(request);
 					if (!response.IsSuccessStatusCode) {
