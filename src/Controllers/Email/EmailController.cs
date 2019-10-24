@@ -30,7 +30,7 @@ namespace api.Controllers.Email {
 		[HttpPost]
 		public async Task<IActionResult> Delivery() {
 			using (var body = new StreamReader(Request.Body)) {
-				var message = SnsMessage.ParseMessage(body.ReadToEnd());
+				var message = SnsMessage.ParseMessage(await body.ReadToEndAsync());
 				if (message.IsMessageSignatureValid()) {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
@@ -58,15 +58,16 @@ namespace api.Controllers.Email {
 		[HttpPost]
 		public async Task<IActionResult> Reply() {
 			using (var body = new StreamReader(Request.Body)) {
-				var message = SnsMessage.ParseMessage(body.ReadToEnd());
+				var message = SnsMessage.ParseMessage(await body.ReadToEndAsync());
 				if (message.IsMessageSignatureValid()) {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
 							var notification = JsonConvert.DeserializeObject<SesReceiptNotification>(message.MessageText);
-							var mailContent = MimeMessage
-								.Load(
-									stream: new MemoryStream(
-										buffer: Encoding.UTF8.GetBytes(notification.Content)
+							var mailContent = (
+									await MimeMessage.LoadAsync(
+										stream: new MemoryStream(
+											buffer: Encoding.UTF8.GetBytes(notification.Content)
+										)
 									)
 								)
 								.GetTextBody(
@@ -88,7 +89,7 @@ namespace api.Controllers.Email {
 										text: UrlSafeBase64.Decode(addressMatch.Groups[1].Value),
 										key: "UqlX9jyFSdvBe5/WYgGYUA=="
 									);
-									System.IO.File.WriteAllText(
+									await System.IO.File.WriteAllTextAsync(
 										path: "logs/mail-dump.txt",
 										contents: token + "\n\n" + mailContent
 									);
