@@ -63,15 +63,25 @@ namespace api.Controllers.Email {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
 							var notification = JsonConvert.DeserializeObject<SesReceiptNotification>(message.MessageText);
-							var mailContent = (
-									await MimeMessage.LoadAsync(
-										stream: new MemoryStream(
-											buffer: Encoding.UTF8.GetBytes(notification.Content)
+							var mailContent = String.Join(
+								separator: '\n',
+								values: new QuoteParser.QuoteParser
+									.Builder()
+									.Build()
+									.Parse(
+										(
+											await MimeMessage.LoadAsync(
+												stream: new MemoryStream(
+													buffer: Encoding.UTF8.GetBytes(notification.Content)
+												)
+											)
 										)
+										.GetTextBody(
+											format: TextFormat.Plain
+										)
+										.Split('\n')
 									)
-								)
-								.GetTextBody(
-									format: TextFormat.Plain
+									.Body
 								);
 							if (!String.IsNullOrWhiteSpace(mailContent)) {
 								var addressMatch = notification.Mail.CommonHeaders.To
