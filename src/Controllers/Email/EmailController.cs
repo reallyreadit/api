@@ -38,7 +38,7 @@ namespace api.Controllers.Email {
 		[HttpPost]
 		public async Task<IActionResult> Delivery() {
 			using (var body = new StreamReader(Request.Body)) {
-				var message = SnsMessage.ParseMessage(body.ReadToEnd());
+				var message = SnsMessage.ParseMessage(await body.ReadToEndAsync());
 				if (message.IsMessageSignatureValid()) {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
@@ -69,19 +69,30 @@ namespace api.Controllers.Email {
 			[FromServices] CommentingService commentingService
 		) {
 			using (var body = new StreamReader(Request.Body)) {
-				var message = SnsMessage.ParseMessage(body.ReadToEnd());
+				var message = SnsMessage.ParseMessage(await body.ReadToEndAsync());
 				if (message.IsMessageSignatureValid()) {
 					switch (message.Type) {
 						case SnsMessage.MESSAGE_TYPE_NOTIFICATION:
 							var sesNotification = JsonConvert.DeserializeObject<SesReceiptNotification>(message.MessageText);
-							var mailContent = MimeMessage
-								.Load(
-									stream: new MemoryStream(
-										buffer: Encoding.UTF8.GetBytes(sesNotification.Content)
+							var mailContent = String.Join(
+								separator: '\n',
+								values: new QuoteParser.QuoteParser
+									.Builder()
+									.Build()
+									.Parse(
+										(
+											await MimeMessage.LoadAsync(
+												stream: new MemoryStream(
+													buffer: Encoding.UTF8.GetBytes(sesNotification.Content)
+												)
+											)
+										)
+										.GetTextBody(
+											format: TextFormat.Plain
+										)
+										.Split('\n')
 									)
-								)
-								.GetTextBody(
-									format: TextFormat.Plain
+									.Body
 								);
 							// TODO: trim quoted text
 							if (commentingService.IsCommentTextValid(mailContent)) {
