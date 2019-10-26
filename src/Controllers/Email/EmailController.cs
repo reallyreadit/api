@@ -90,7 +90,6 @@ namespace api.Controllers.Email {
 										.GetTextBody(
 											format: TextFormat.Plain
 										)
-										.Split('\n')
 									)
 									.Body
 								);
