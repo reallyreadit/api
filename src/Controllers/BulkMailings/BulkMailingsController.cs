@@ -96,32 +96,34 @@ namespace api.Controllers.BulkMailings {
 			}
 		}
 		[HttpPost]
-		public async Task<IActionResult> SendTest([FromBody] BulkMailingTestBinder binder, [FromServices] EmailService emailService) {
+		public IActionResult SendTest([FromBody] BulkMailingTestBinder binder, [FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				try {
 					bool isSuccessful;
 					if (binder.List == confirmationReminderList) {
-						isSuccessful = await emailService.SendConfirmationReminderEmail(
-							recipient: new UserAccount() {
-								Name = "Test User",
-								Email = binder.EmailAddress,
-								IsEmailConfirmed = false
-							},
-							subject: binder.Subject,
-							body: binder.Body,
-							emailConfirmationId: 0
-						);
+						// isSuccessful = await emailService.SendConfirmationReminderEmail(
+						// 	recipient: new UserAccount() {
+						// 		Name = "Test User",
+						// 		Email = binder.EmailAddress,
+						// 		IsEmailConfirmed = false
+						// 	},
+						// 	subject: binder.Subject,
+						// 	body: binder.Body,
+						// 	emailConfirmationId: 0
+						// );
+						isSuccessful = false;
 					} else {
-						isSuccessful = await emailService.SendListSubscriptionEmail(
-							recipient: new UserAccount() {
-								Name = "Test User",
-								Email = binder.EmailAddress,
-								IsEmailConfirmed = true
-							},
-							subject: binder.Subject,
-							body: binder.Body,
-							listDescription: listDescriptions[binder.List]
-						);
+						// isSuccessful = await emailService.SendListSubscriptionEmail(
+						// 	recipient: new UserAccount() {
+						// 		Name = "Test User",
+						// 		Email = binder.EmailAddress,
+						// 		IsEmailConfirmed = true
+						// 	},
+						// 	subject: binder.Subject,
+						// 	body: binder.Body,
+						// 	listDescription: listDescriptions[binder.List]
+						// );
+						isSuccessful = false;
 					}
 					if (isSuccessful) {
 						return Ok();
@@ -134,7 +136,7 @@ namespace api.Controllers.BulkMailings {
 			}
 		}
 		[HttpPost]
-		public async Task<IActionResult> Send([FromBody] BulkMailingBinder binder, [FromServices] EmailService emailService) {
+		public IActionResult Send([FromBody] BulkMailingBinder binder, [FromServices] EmailService emailService) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				IEnumerable<UserAccount> recipients;
 				switch (binder.List) {
@@ -157,19 +159,19 @@ namespace api.Controllers.BulkMailings {
 					};
 					try {
 						if (binder.List == confirmationReminderList) {
-							bulkMailingRecipient.IsSuccessful = await emailService.SendConfirmationReminderEmail(
-								recipient: recipient,
-								subject: binder.Subject,
-								body: binder.Body,
-								emailConfirmationId: db.GetLatestUnconfirmedEmailConfirmation(recipient.Id).Id
-							);
+							// bulkMailingRecipient.IsSuccessful = await emailService.SendConfirmationReminderEmail(
+							// 	recipient: recipient,
+							// 	subject: binder.Subject,
+							// 	body: binder.Body,
+							// 	emailConfirmationId: db.GetLatestUnconfirmedEmailConfirmation(recipient.Id).Id
+							// );
 						} else {
-							bulkMailingRecipient.IsSuccessful = await emailService.SendListSubscriptionEmail(
-								recipient: recipient,
-								subject: binder.Subject,
-								body: binder.Body,
-								listDescription: listDescriptions[binder.List]
-							);
+							// bulkMailingRecipient.IsSuccessful = await emailService.SendListSubscriptionEmail(
+							// 	recipient: recipient,
+							// 	subject: binder.Subject,
+							// 	body: binder.Body,
+							// 	listDescription: listDescriptions[binder.List]
+							// );
 						}
 					} catch {
 						bulkMailingRecipient.IsSuccessful = false;

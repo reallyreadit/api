@@ -1,6 +1,0 @@
-@model api.Messaging.Views.ConfirmationEmailViewModel
-
-@{ Layout = "EmailLayout"; }
-
-<p>Hey, @Model.Name!</p>
-<p>Please click <a href="@Model.WebServerEndpoint.CreateUrl("/confirmEmail?token=" + Model.Token)">here</a> to confirm your new email address.</p>

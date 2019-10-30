@@ -41,14 +41,17 @@ namespace api {
 		}
 		public void ConfigureServices(IServiceCollection services) {
 			// configure options
-			var authOptsConfigSection = config.GetSection("Authentication");
+			IConfigurationSection
+				authOptsConfigSection = config.GetSection("Authentication"),
+				emailOptsConfigSection = config.GetSection("Email");
 			var authOpts = authOptsConfigSection.Get<MyAuthenticationOptions>();
+			var emailOpts = emailOptsConfigSection.Get<EmailOptions>();
 			services
 				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
 				.Configure<CorsOptions>(config.GetSection("Cors"))
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
-				.Configure<EmailOptions>(config.GetSection("Email"))
+				.Configure<EmailOptions>(emailOptsConfigSection)
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
 				.Configure<PushNotificationsOptions>(config.GetSection("PushNotifications"))
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
@@ -59,7 +62,6 @@ namespace api {
 			services
 				.AddScoped<CaptchaService>()
 				.AddScoped<CommentingService>()
-				.AddScoped<EmailService>()
 				.AddScoped<NotificationService>()
 				.AddScoped<ObfuscationService>()
 				.AddTransient<RazorViewToStringRenderer>()
@@ -115,6 +117,17 @@ namespace api {
 						}
 					}
 				);
+			// configure email service
+			switch (emailOpts.DeliveryMethod) {
+				case EmailDeliveryMethod.AmazonSes:
+					services.AddScoped<EmailService, AmazonSesEmailService>();
+					break;
+				case EmailDeliveryMethod.Smtp:
+					services.AddScoped<EmailService, SmtpEmailService>();
+					break;
+				default:
+					throw new ArgumentException("Unexpected value for EmailDeliveryMethod");
+			}
 			// configure shared key ring in production
 			if (env.IsProduction()) {
 				var dataProtectionOptions = config

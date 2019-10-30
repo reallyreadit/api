@@ -7,6 +7,7 @@ using api.DataAccess;
 using api.DataAccess.Models;
 using api.Encryption;
 using api.Messaging;
+using api.Messaging.Views;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -16,7 +17,7 @@ namespace api.Notifications {
 		private readonly ApnsService apnsService;
 		private readonly DatabaseOptions databaseOptions;
 		private readonly TokenizationOptions tokenizationOptions;
-		private readonly IOptions<ServiceEndpointsOptions> endpoints;
+		private readonly ServiceEndpointsOptions endpoints;
 		private readonly EmailService emailService;
 		private readonly ObfuscationService obfuscation;
 		private readonly ILogger<NotificationService> logger;
@@ -32,7 +33,7 @@ namespace api.Notifications {
 			this.apnsService = apnsService;
 			this.databaseOptions = databaseOptions.Value;
 			this.tokenizationOptions = tokenizationOptions.Value;
-			this.endpoints = endpoints;
+			this.endpoints = endpoints.Value;
 			this.emailService = emailService;
 			this.obfuscation = obfuscation;
 			this.logger = logger;
@@ -51,6 +52,47 @@ namespace api.Notifications {
 				);
 			}
 		}
+		private Uri CreateArticleTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long articleId) => (
+			CreateTrackingUrl(
+				dispatch: dispatch,
+				channel: channel,
+				action: NotificationAction.View,
+				resource: ViewActionResource.Article,
+				resourceId: articleId
+			)
+		);
+		private Uri CreateCommentTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long commentId) => (
+			CreateTrackingUrl(
+				dispatch: dispatch,
+				channel: channel,
+				action: NotificationAction.View,
+				resource: ViewActionResource.Comment,
+				resourceId: commentId
+			)
+		);
+		private Uri CreateEmailOpenTrackingUrl(INotificationDispatch dispatch) => (
+			CreateTrackingUrl(
+				dispatch: dispatch,
+				channel: NotificationChannel.Email,
+				action: NotificationAction.Open
+			)
+		);
+		private string CreateEmailReplyAddress(INotificationDispatch dispatch) {
+			var replyToken = new NotificationToken(
+					receiptId: dispatch.ReceiptId
+				)
+				.CreateTokenString(tokenizationOptions.EncryptionKey);
+			return $"reply+{replyToken}@api.readup.com";
+		}
+		private Uri CreateFollowerTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long followingId) => (
+			CreateTrackingUrl(
+				dispatch: dispatch,
+				channel: channel,
+				action: NotificationAction.View,
+				resource: ViewActionResource.Follower,
+				resourceId: followingId
+			)
+		);
 		private async Task CreateOpenInteraction(
 			NpgsqlConnection db,
 			long receiptId
@@ -66,6 +108,23 @@ namespace api.Notifications {
 			) {
 				// swallow duplicate open exception
 			}
+		}
+		private Uri CreateTrackingUrl(
+			INotificationDispatch dispatch,
+			NotificationChannel channel,
+			NotificationAction action,
+			ViewActionResource? resource = null,
+			long? resourceId = null
+		) {
+			var token = new NotificationToken(
+					receiptId: dispatch.ReceiptId,
+					channel: channel,
+					action: action,
+					viewActionResource: resource,
+					viewActionResourceId: resourceId
+				)
+				.CreateTokenString(tokenizationOptions.EncryptionKey);
+			return new Uri(endpoints.ApiServer.CreateUrl($"/Notifications/{token}"));
 		}
 		private async Task CreateViewInteraction(
 			NpgsqlConnection db,
@@ -113,7 +172,7 @@ namespace api.Notifications {
 			return url;
 		}
 		private Uri CreateViewUrl(string path) => (
-			new Uri(endpoints.Value.WebServer.CreateUrl(path))
+			new Uri(endpoints.WebServer.CreateUrl(path))
 		);
 		private async Task<Uri> CreateViewUrl(
 			NpgsqlConnection db,
@@ -156,7 +215,7 @@ namespace api.Notifications {
 				default:
 					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
 			}
-			return new Uri(endpoints.Value.WebServer.CreateUrl(path));
+			return new Uri(endpoints.WebServer.CreateUrl(path));
 		}
 		private Uri CreateViewUrlForComment(
 			Comment comment
@@ -295,10 +354,7 @@ namespace api.Notifications {
 						subtitle: "You have a new follower",
 						body: $"{followerUserName} is now following you."
 					),
-					url: CreateViewUrlForFollower(
-						followeeUserName: followeeUserName,
-						followerUserName: followerUserName
-					)
+					url: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Push, following.Id)
 				);
 			}
 		}
@@ -349,6 +405,42 @@ namespace api.Notifications {
 				}
 			}
 		}
+		public async Task CreateReplyDigestNotifications(
+			NotificationEventFrequency frequency
+		) {
+			IEnumerable<NotificationDigestDispatch<NotificationDigestComment>> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreateReplyDigestNotifications(frequency);
+			}
+			if (dispatches.Any()) {
+				await emailService.SendReplyDigestNotifications(
+					dispatches
+						.Select(
+							dispatch => new EmailNotification<CommentViewModel[]>(
+								userId: dispatch.UserAccountId,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: $"[{frequency.ToString()} digest] Replies to your comments",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: dispatch.Items
+									.Select(
+										comment => new CommentViewModel(
+											author: comment.Author,
+											article: comment.ArticleTitle,
+											text: comment.Text,
+											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
+											viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+										)
+									)
+									.ToArray()
+							)
+						)
+						.ToArray()
+				);
+			}
+		}
 		public async Task CreateReplyNotification(
 			Comment comment
 		) {
@@ -361,37 +453,27 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatch?.ViaEmail ?? false) {
-				var replyToken = new NotificationToken(
-						receiptId: dispatch.ReceiptId
+				await emailService.SendReplyNotification(
+					new EmailNotification<CommentViewModel>(
+						userId: dispatch.UserAccountId,
+						replyTo: new EmailMailbox(
+							name: comment.UserAccount,
+							address: CreateEmailReplyAddress(dispatch)
+						),
+						to: new EmailMailbox(
+							name: dispatch.UserName,
+							address: dispatch.EmailAddress
+						),
+						subject: $"{comment.UserAccount} replied to your comment",
+						openUrl: CreateEmailOpenTrackingUrl(dispatch),
+						content: new CommentViewModel(
+							author: comment.UserAccount,
+							article: comment.ArticleTitle,
+							text: comment.Text,
+							readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
+							viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+						)
 					)
-					.CreateTokenString(
-						key: tokenizationOptions.EncryptionKey
-					);
-				await emailService.SendCommentReplyNotificationEmail(
-					replyTo: new EmailMailbox(
-						name: comment.UserAccount,
-						address: $"reply+{replyToken}@api.readup.com"
-					),
-					dispatch: dispatch,
-					openToken: new NotificationToken(
-							receiptId: dispatch.ReceiptId,
-							channel: NotificationChannel.Email,
-							action: NotificationAction.Open
-						)
-						.CreateTokenString(
-							key: tokenizationOptions.EncryptionKey
-						),
-					viewCommentToken: new NotificationToken(
-							receiptId: dispatch.ReceiptId,
-							channel: NotificationChannel.Email,
-							action: NotificationAction.View,
-							viewActionResource: ViewActionResource.Comment,
-							viewActionResourceId: comment.Id
-						)
-						.CreateTokenString(
-							key: tokenizationOptions.EncryptionKey
-						),
-					reply: comment
 				);
 			}
 			if (dispatch?.PushDeviceTokens.Any() ?? false) {
@@ -402,7 +484,7 @@ namespace api.Notifications {
 						subtitle: comment.UserAccount,
 						body: comment.Text
 					),
-					url: CreateViewUrlForComment(comment),
+					url: CreateCommentTrackingUrl(dispatch, NotificationChannel.Push, comment.Id),
 					category: "replyable"
 				);
 			}

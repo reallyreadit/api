@@ -16,40 +16,12 @@ using Npgsql;
 using System.Text.RegularExpressions;
 
 namespace api.Messaging {
-	public class EmailService {
+	public abstract class EmailService {
 		private Lazy<IEnumerable<string>> bouncedAddresses;
 		private RazorViewToStringRenderer viewRenderer;
 		private EmailOptions emailOpts;
 		private ServiceEndpointsOptions serviceOpts;
 		private readonly TokenizationOptions tokenizationOptions;
-		private string CreateToken(object value) => WebUtility.UrlEncode(StringEncryption.Encrypt(value?.ToString(), tokenizationOptions.EncryptionKey));
-		private async Task<bool> SendEmail(IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) => await SendEmail(
-			null,
-			recipient,
-			viewName,
-			model,
-			requireConfirmation
-		);
-		private async Task<bool> SendEmail(EmailMailbox replyTo, IEmailRecipient recipient, string viewName, EmailLayoutViewModel model, bool requireConfirmation = true) {
-			if (
-				(requireConfirmation && !recipient.IsEmailAddressConfirmed) ||
-				(HasEmailAddressBounced(recipient.EmailAddress))
-			) {
-				return false;
-			}
-			EmailMailbox
-				senderMailbox = new EmailMailbox(emailOpts.From.Name, emailOpts.From.Address),
-				recipientMailbox = new EmailMailbox(recipient.Name, recipient.EmailAddress);
-			var body = await this.viewRenderer.RenderViewToStringAsync(viewName, model);
-			switch (emailOpts.DeliveryMethod) {
-				case EmailDeliveryMethod.AmazonSes:
-					return await AmazonSesEmailService.SendEmail(senderMailbox, replyTo, recipientMailbox, model.Title, body, emailOpts.AmazonSesRegionEndpoint);
-				case EmailDeliveryMethod.Smtp:
-					return await SmtpEmailService.SendEmail(senderMailbox, replyTo, recipientMailbox, model.Title, body, emailOpts.SmtpServer.Host, emailOpts.SmtpServer.Port);
-				default:
-					throw new InvalidOperationException("Unexpected value for DeliveryMethod option");
-			}
-		}
 		public static string NormalizeEmailAddress(string address) => (
 			String.IsNullOrWhiteSpace(address) ?
 				String.Empty :
@@ -78,100 +50,54 @@ namespace api.Messaging {
 			this.serviceOpts = serviceOpts.Value;
 			this.tokenizationOptions = tokenizationOptions.Value;
 		}
+		private string CreateSubscriptionsUrl(long userId) {
+			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(userId.ToString(), tokenizationOptions.EncryptionKey));
+			return serviceOpts.WebServer.CreateUrl($"/email/subscriptions?token={token}");
+		}
+		private async Task Send<TContent>(string viewName, string subscription, params EmailNotification<TContent>[] notifications) {
+			var sendableNotifications = notifications
+				.Where(view => !HasEmailAddressBounced(view.To.Address))
+				.ToArray();
+			if (sendableNotifications.Any()) {
+				var messages = new List<EmailMessage>();
+				foreach (var notification in sendableNotifications) {
+					messages.Add(
+						new EmailMessage(
+							from: new EmailMailbox(emailOpts.From.Name, emailOpts.From.Address),
+							replyTo: notification.ReplyTo,
+							to: notification.To,
+							subject: notification.Subject,
+							body: await this.viewRenderer.RenderViewToStringAsync(
+								name: viewName,
+								model: new LayoutViewModel<TContent>(
+									title: notification.Subject,
+									homeUrl: serviceOpts.WebServer.CreateUrl(),
+									logoUrl: serviceOpts.StaticContentServer.CreateUrl("/email/logo.svg"),
+									openImageUrl: notification.OpenUrl.ToString(),
+									subscription: subscription,
+									subscriptionsUrl: (
+										subscription != null ?
+											CreateSubscriptionsUrl(notification.UserId) :
+											null
+									),
+									content: notification.Content
+								)
+							)
+						)
+					);
+				}
+				await Send(messages.ToArray());
+			}
+		}
+		protected abstract Task Send(params EmailMessage[] messages);
 		public bool HasEmailAddressBounced(string emailAddress) => (
 			this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(emailAddress))
 		);
-		public async Task<bool> SendWelcomeEmail(UserAccount recipient, long emailConfirmationId) => await SendEmail(
-			recipient,
-			viewName: "WelcomeEmail",
-			model: new ConfirmationEmailViewModel(
-				title: "Please confirm your email address",
-				webServerEndpoint: this.serviceOpts.WebServer,
-				name: recipient.Name,
-				token: CreateToken(emailConfirmationId)
-			),
-			requireConfirmation: false
-		);
-		public async Task<bool> SendConfirmationEmail(UserAccount recipient, long emailConfirmationId) => await SendEmail(
-			recipient,
-			viewName: "ConfirmationEmail",
-			model: new ConfirmationEmailViewModel(
-				title: "Please confirm your email address",
-				webServerEndpoint: this.serviceOpts.WebServer,
-				name: recipient.Name,
-				token: CreateToken(emailConfirmationId)
-			),
-			requireConfirmation: false
-		);
-		public async Task<bool> SendPasswordResetEmail(UserAccount recipient, long passwordResetRequestId) => await SendEmail(
-			recipient,
-			viewName: "PasswordResetEmail",
-			model: new ConfirmationEmailViewModel(
-				title: "Password reset request",
-				webServerEndpoint: this.serviceOpts.WebServer,
-				name: recipient.Name,
-				token: CreateToken(passwordResetRequestId)
-			),
-			requireConfirmation: false
-		);
-		public async Task<bool> SendCommentReplyNotificationEmail(
-			EmailMailbox replyTo,
-			NotificationDispatch dispatch,
-			string openToken,
-			string viewCommentToken,
-			Comment reply
-		) => await SendEmail(
-			replyTo: replyTo,
-			recipient: new EmailRecipient(
-				emailAddress: dispatch.EmailAddress
-			),
-			viewName: "ReplyNotificationEmail",
-			model: new ReplyNotificationEmail(
-				apiServerEndpoint: this.serviceOpts.ApiServer,
-				webServerEndpoint: this.serviceOpts.WebServer,
-				openToken: openToken,
-				viewCommentToken: viewCommentToken,
-				subscriptionsToken: CreateToken(
-					value: dispatch.UserAccountId
-				),
-				title: $"{reply.UserAccount} replied to your comment on {reply.ArticleTitle}",
-				respondent: reply.UserAccount,
-				commentText: reply.Text
-			),
-			requireConfirmation: false
-		);
-		public async Task<bool> SendListSubscriptionEmail(UserAccount recipient, string subject, string body, string listDescription) => await SendEmail(
-			recipient,
-			viewName: "ListSubscriptionEmail",
-			model: new ListSubscriptionEmailViewModel(
-				title: subject,
-				webServerEndpoint: this.serviceOpts.WebServer,
-				body: body,
-				listDescription: listDescription,
-				subscriptionsToken: CreateToken(recipient.Id)
-			),
-			requireConfirmation: false
-		);
-		public async Task<bool> SendConfirmationReminderEmail(UserAccount recipient, string subject, string body, long emailConfirmationId) => await SendEmail(
-			recipient,
-			viewName: "ConfirmationReminderEmail",
-			model: new ConfirmationReminderEmailViewModel(
-				title: subject,
-				webServerEndpoint: this.serviceOpts.WebServer,
-				body: body,
-				confirmationToken: CreateToken(emailConfirmationId),
-				subscriptionsToken: CreateToken(recipient.Id)
-			),
-			requireConfirmation: false
-		);
-		public async Task<bool> SendExtensionInstructionsEmail(UserAccount recipient) => await SendEmail(
-			recipient: recipient,
-			viewName: "ExtensionInstructionsEmail",
-			model: new EmailLayoutViewModel(
-				title: "Add the Readup Chrome extension.",
-				webServerEndpoint: this.serviceOpts.WebServer
-			),
-			requireConfirmation: false
-		);
+		public async Task SendReplyDigestNotifications(EmailNotification<CommentViewModel[]>[] notifications) {
+			await Send("ReplyDigest", "reply digest notifications", notifications);
+		}
+		public async Task SendReplyNotification(EmailNotification<CommentViewModel> notification) {
+			await Send("Reply", "reply notifications", notification);
+		}
 	}
 }

@@ -1,0 +1,34 @@
+@model api.Messaging.Views.LayoutViewModel
+
+<!DOCTYPE html>
+<html style="margin:0;padding:0;background-color:#F7F6F5;">
+	<head>
+		<title>@Model.Title</title>
+	</head>
+	<body style="margin:0;padding:0;background-color:#F7F6F5;">
+		<div style="padding:0 1em;font-family:sans-serif;font-size:12pt;background-color:#F7F6F5;">
+			<div style="max-width:600px;margin:2em auto;padding:0.5em 1em;color:#2A2326;background-color:white;border:1px solid #e0e0e0;border-radius:0.25em;">
+				<div style="margin:1em 0;text-align:center;">
+					<a href="@Model.HomeUrl" style="display:inline-block;">
+						<img src="http://static.dev.readup.com/email/logo.svg" alt="Logo" style="display:block;width:96px;margin:0 auto;" />
+					</a>
+				</div>
+				@RenderBody()
+				@await Html.PartialAsync("HorizontalRule")
+				@if (Model.Subscription != null) {
+					<div style="margin:1em 0;text-align:center;font-size:10pt;color:#666;">You've received this message because you're subscribed to @Model.Subscription.</div>
+					<div style="margin:1em 0;text-align:center;font-size:10pt;color:#666;"><a href="@Model.SubscriptionsUrl" style="color:#666;">Update your notification preferences or unsubscribe.</a></div>
+				}
+				<div style="margin:1em 0;text-align:center;font-size:10pt;color:#666;">
+					<a href="@Model.HomeUrl" style="color:#666;">readup.com</a> | <a href="mailto:support@readup.com" style="color:#666;">support@@readup.com</a>
+				</div>
+				<div style="margin:1em 0;text-align:center;font-size:10pt;color:#666;">
+					reallyread.it, inc.<br />
+					309 Poe Ave<br />
+					Toms River NJ 08753
+				</div>
+			</div>
+			<img src="@Model.OpenImageUrl" alt="Hello" />
+		</div>
+	</body>
+</html>

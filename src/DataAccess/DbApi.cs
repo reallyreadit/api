@@ -10,6 +10,7 @@ using api.Analytics;
 using api.DataAccess.Serialization;
 using api.DataAccess.Stats;
 using System.Text.RegularExpressions;
+using System.Linq;
 
 namespace api.DataAccess {
     public static class DbApi {
@@ -524,6 +525,48 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<NotificationDigestDispatch<NotificationDigestComment>>> CreateReplyDigestNotifications(
+			this NpgsqlConnection conn,
+			NotificationEventFrequency frequency
+		) => (
+				await conn.QueryAsync<NotificationCommentDigestDispatch>(
+					sql: "notifications.create_reply_digest_notifications",
+					param: new {
+						frequency = ConvertEnumToString(frequency)
+					},
+					commandType: CommandType.StoredProcedure
+				)
+			)
+			.Aggregate(
+				new List<NotificationDigestDispatch<NotificationDigestComment>>(),
+				(dispatches, row) => {
+					var comment = new NotificationDigestComment(
+						id: row.CommentId,
+						dateCreated: row.CommentDateCreated,
+						text: row.CommentText,
+						author: row.CommentAuthor,
+						articleId: row.CommentArticleId,
+						articleTitle: row.CommentArticleTitle
+					);
+					var dispatch = dispatches.SingleOrDefault(dispatch => dispatch.ReceiptId == row.ReceiptId);
+					if (dispatch != null) {
+						dispatch.Items.Add(comment);	
+					} else {
+						dispatches.Add(
+							new NotificationDigestDispatch<NotificationDigestComment>(
+								receiptId: row.ReceiptId,
+								userAccountId: row.UserAccountId,
+								userName: row.UserName,
+								emailAddress: row.EmailAddress,
+								items: new List<NotificationDigestComment>() {
+									comment	
+								}
+							)
+						);
+					}
+					return dispatches;
+				}
+			);
 		public static Task<NotificationDispatch> CreateReplyNotification(
 			this NpgsqlConnection conn,
 			long replyId,

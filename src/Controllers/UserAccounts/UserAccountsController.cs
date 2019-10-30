@@ -157,10 +157,10 @@ namespace api.Controllers.UserAccounts {
 							InitialPath = form.InitialPath
 						}
 					);
-					await emailService.SendWelcomeEmail(
+					/*await emailService.SendWelcomeEmail(
 						recipient: userAccount,
 						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-					);
+					);*/
 					await SignInUser(
 						user: userAccount,
 						pushDeviceForm: form.PushDevice,
@@ -207,10 +207,10 @@ namespace api.Controllers.UserAccounts {
 					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
 				var userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
-				await emailService.SendConfirmationEmail(
-					recipient: userAccount,
-					emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-				);
+				// await emailService.SendConfirmationEmail(
+				// 	recipient: userAccount,
+				// 	emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
+				// );
 			}
 			return Ok();
 		}
@@ -292,10 +292,10 @@ namespace api.Controllers.UserAccounts {
 					}
 					var updatedUserAccount = await db.GetUserAccountById(userAccount.Id);
 					if (!isEmailAddressConfirmed) {
-						await emailService.SendConfirmationEmail(
-							recipient: updatedUserAccount,
-							emailConfirmationId: confirmation.Id
-						);
+						// await emailService.SendConfirmationEmail(
+						// 	recipient: updatedUserAccount,
+						// 	emailConfirmationId: confirmation.Id
+						// );
 					}
 					return await JsonUser(
 						user: updatedUserAccount,
@@ -325,7 +325,7 @@ namespace api.Controllers.UserAccounts {
 				if (IsPasswordResetRequestValid(latestRequest)) {
 					return BadRequest(new[] { "RequestLimitExceeded" });
 				}
-				await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
+				// await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
 			}
 			return Ok();
 		}

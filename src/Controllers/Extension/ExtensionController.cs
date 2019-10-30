@@ -304,15 +304,6 @@ namespace api.Controllers.Extension {
 				);
 			}
 		}
-		[HttpPost]
-		public async Task<IActionResult> SendInstructions([FromServices] EmailService emailService) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				await emailService.SendExtensionInstructionsEmail(
-					recipient: await db.GetUserAccountById(this.User.GetUserAccountId())
-				);
-			}
-			return Ok();
-		}
 		[HttpGet]
 		public async Task<IActionResult> Notifications(
 			[FromServices] ObfuscationService obfuscation,

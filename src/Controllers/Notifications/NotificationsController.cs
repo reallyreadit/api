@@ -165,5 +165,16 @@ namespace api.Controllers.Notifications {
 			}
 			return Ok();
 		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> ReplyDigest(
+			[FromServices] IOptions<AuthenticationOptions> authOptions,
+			[FromForm] DigestForm form
+		) {
+			if (form.ApiKey == authOptions.Value.ApiKey) {
+				await notificationService.CreateReplyDigestNotifications(form.Frequency);
+			}
+			return Ok();
+		}
 	}
 }

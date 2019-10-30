@@ -1,0 +1,12 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.CommentViewModel[]>
+
+@{ Layout = "Layout"; }
+
+@{
+	for (var i = 0; i < Model.Content.Count(); i++) {
+		await Html.RenderPartialAsync("Comment", Model.Content.ElementAt(i));
+		if (i < Model.Content.Count() - 1) {
+			await Html.RenderPartialAsync("HorizontalRule");
+		}
+	}
+}

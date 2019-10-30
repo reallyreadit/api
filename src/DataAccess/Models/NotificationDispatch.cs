@@ -1,7 +1,7 @@
 using api.Notifications;
 
 namespace api.DataAccess.Models {
-	public class NotificationDispatch : IAlertStatus {
+	public class NotificationDispatch : IAlertStatus, INotificationDispatch {
 		public long ReceiptId { get; set; }
 		public bool ViaEmail { get; set; }
 		public bool ViaPush { get; set; }
