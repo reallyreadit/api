@@ -332,10 +332,42 @@ namespace api.Controllers.Extension {
 					foreach (var notification in newNotifications) {
 						string title, message;
 						switch (notification.EventType) {
+							case NotificationEventType.Aotd:
+								title = "Article of the Day";
+								message = (await db.GetArticle(notification.ArticleIds.Single())).Title;
+								break;
+							case NotificationEventType.Follower:
+								var follower = await db.GetUserAccountById(
+									(await db.GetFollowing(notification.FollowingIds.Single())).FollowerUserAccountId
+								);
+								title = $"{follower.Name} is now following you.";
+								message = "Click here to view";
+								break;
+							case NotificationEventType.Loopback:
+								var loopback = await db.GetComment(notification.CommentIds.Single());
+								title = $"{loopback.UserAccount} commented on {loopback.ArticleTitle}";
+								message = "Click here to view.";
+								break;
+							case NotificationEventType.Post:
+								string userName, articleTitle;
+								if (notification.CommentIds.Any()) {
+									var postComment = await db.GetComment(notification.CommentIds.Single());
+									userName = postComment.UserAccount;
+									articleTitle = postComment.ArticleTitle;
+								} else if (notification.SilentPostIds.Any()) {
+									var silentPost = await db.GetSilentPost(notification.SilentPostIds.Single());
+									userName = (await db.GetUserAccountById(silentPost.UserAccountId)).Name;
+									articleTitle = (await db.GetArticle(silentPost.ArticleId)).Title;
+								} else {
+									throw new ArgumentException("Post notification must reference a comment or silent post");
+								}
+								title = $"{userName} posted {articleTitle}";
+								message = "Click here to view.";
+								break;
 							case NotificationEventType.Reply:
-								var comment = await db.GetComment(notification.CommentIds.Single());
-								title = $"{comment.UserAccount} replied to your comment on {comment.ArticleTitle}";
-								message = "Click here to view the reply in the comment thread.";
+								var reply = await db.GetComment(notification.CommentIds.Single());
+								title = $"{reply.UserAccount} replied to your comment on {reply.ArticleTitle}";
+								message = "Click here to view.";
 								break;
 							default:
 								throw new NotSupportedException("Unsupported EventType");

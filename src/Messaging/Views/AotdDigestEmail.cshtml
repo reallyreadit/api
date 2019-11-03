@@ -1,0 +1,18 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.Shared.ArticleViewModel[]>
+
+@{ Layout = "Layout"; }
+
+<div style="margin:1.5em 0;"><span style="font-weight:bold;">The AOTD <span style="font-style:italic;">Weekly</span>:</span> Readup's once-per-week roundup of the top articles and stories according to the Readup community.</div>
+@await Html.PartialAsync(
+	"Shared/List",
+	Model.Content,
+	new ViewDataDictionary(ViewData) {
+		{ "ViewName", "Shared/Article" },
+		{
+			"ViewData",
+			new ViewDataDictionary(ViewData) {
+				{ "ShowDate", true }
+			}
+		}
+	}
+)

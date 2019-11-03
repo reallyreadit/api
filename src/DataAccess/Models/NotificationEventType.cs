@@ -7,13 +7,18 @@ namespace api.DataAccess.Models {
 		CompanyUpdate,
 		SuggestedReading,
 		Aotd,
+		AotdDigest,
 		Reply,
-		ReplyDigest,
+		ReplyDailyDigest,
+		ReplyWeeklyDigest,
 		Loopback,
-		LoopbackDigest,
+		LoopbackDailyDigest,
+		LoopbackWeeklyDigest,
 		Post,
-		PostDigest,
+		PostDailyDigest,
+		PostWeeklyDigest,
 		Follower,
-		FollowerDigest
+		FollowerDailyDigest,
+		FollowerWeeklyDigest
 	}
 }

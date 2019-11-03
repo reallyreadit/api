@@ -14,7 +14,7 @@
 					</a>
 				</div>
 				@RenderBody()
-				@await Html.PartialAsync("HorizontalRule")
+				@await Html.PartialAsync("Shared/HorizontalRule")
 				@if (Model.Subscription != null) {
 					<div style="margin:1em 0;text-align:center;font-size:10pt;color:#666;">You've received this message because you're subscribed to @Model.Subscription.</div>
 					<div style="margin:1em 0;text-align:center;font-size:10pt;color:#666;"><a href="@Model.SubscriptionsUrl" style="color:#666;">Update your notification preferences or unsubscribe.</a></div>

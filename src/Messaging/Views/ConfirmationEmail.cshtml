@@ -1,0 +1,6 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.ConfirmationEmailViewModel>
+
+@{ Layout = "Layout"; }
+
+<div style="margin:1em 0;">Please confirm your email address.</div>
+@await Html.PartialAsync("Shared/Button", (Text: "Confirm Email Address", Url: Model.Content.EmailConfirmationUrl))

@@ -1,0 +1,4 @@
+@model api.Messaging.Views.Shared.FollowerViewModel
+
+<div style="margin:1em 0;">@Model.UserName is now following you.</div>
+@await Html.PartialAsync("Shared/Button", (Text: "View " + Model.UserName + "'s" + " Profile", Url: Model.ViewProfileUrl))

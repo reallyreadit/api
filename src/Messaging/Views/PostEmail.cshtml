@@ -1,0 +1,8 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.PostEmailViewModel>
+
+@{ Layout = "Layout"; }
+
+@await Html.PartialAsync("Shared/Post", Model.Content.Post)
+@if (Model.Content.IsReplyable) {
+	await Html.RenderPartialAsync("Shared/ReplyableNotice", Model.Content.Post.Author);
+}

@@ -1,0 +1,6 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.AotdEmailViewModel>
+
+@{ Layout = "Layout"; }
+
+@await Html.PartialAsync("Shared/Article", Model.Content.Article)
+<div style="margin:1.5em 0;text-align:center;font-style:italic;color:#666;">The Article of the Day (AOTD) is crowdsourced by the Readup Community. <a href="@Model.Content.LearnMoreUrl" style="color:#2A2326;">Learn more.</a></div>

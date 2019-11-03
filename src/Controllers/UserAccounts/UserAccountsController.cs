@@ -4,30 +4,23 @@ using System.Security.Cryptography;
 using api.DataAccess;
 using System;
 using System.Linq;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using api.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.Options;
 using api.Configuration;
-using Amazon.SimpleEmail;
-using Amazon.SimpleEmail.Model;
 using System.Collections.Generic;
-using Amazon;
-using Mvc.RenderViewToString;
-using api.Messaging;
 using api.Encryption;
 using Microsoft.AspNetCore.Authentication;
 using api.DataAccess.Models;
 using System.Net;
 using api.Authorization;
 using Npgsql;
-using System.IO;
 using api.Security;
 using api.ClientModels;
 using api.Analytics;
-using api.DataAccess.Stats;
 using api.BackwardsCompatibility;
+using api.Notifications;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -131,7 +124,7 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
 			[FromBody] UserAccountForm form,
-			[FromServices] EmailService emailService,
+			[FromServices] NotificationService notificationService,
 			[FromServices] CaptchaService captchaService
 		) {
 			if (!IsPasswordValid(form.Password)) {
@@ -157,10 +150,7 @@ namespace api.Controllers.UserAccounts {
 							InitialPath = form.InitialPath
 						}
 					);
-					/*await emailService.SendWelcomeEmail(
-						recipient: userAccount,
-						emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-					);*/
+					await notificationService.CreateWelcomeNotification(userAccount.Id);
 					await SignInUser(
 						user: userAccount,
 						pushDeviceForm: form.PushDevice,
@@ -201,16 +191,14 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpPost]
-		public async Task<IActionResult> ResendConfirmationEmail([FromServices] EmailService emailService) {
+		public async Task<IActionResult> ResendConfirmationEmail(
+			[FromServices] NotificationService notificationService
+		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
 					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
-				var userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
-				// await emailService.SendConfirmationEmail(
-				// 	recipient: userAccount,
-				// 	emailConfirmationId: db.CreateEmailConfirmation(userAccount.Id).Id
-				// );
+				await notificationService.CreateEmailConfirmationNotification(this.User.GetUserAccountId());
 			}
 			return Ok();
 		}
@@ -264,7 +252,7 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> ChangeEmailAddress(
 			[FromBody] EmailAddressBinder binder,
-			[FromServices] EmailService emailService
+			[FromServices] NotificationService notificationService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
@@ -292,10 +280,7 @@ namespace api.Controllers.UserAccounts {
 					}
 					var updatedUserAccount = await db.GetUserAccountById(userAccount.Id);
 					if (!isEmailAddressConfirmed) {
-						// await emailService.SendConfirmationEmail(
-						// 	recipient: updatedUserAccount,
-						// 	emailConfirmationId: confirmation.Id
-						// );
+						await notificationService.CreateEmailConfirmationNotification(userAccount.Id, confirmation.Id);
 					}
 					return await JsonUser(
 						user: updatedUserAccount,
@@ -309,7 +294,7 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> RequestPasswordReset(
 			[FromBody] PasswordResetRequestBinder binder,
-			[FromServices] EmailService emailService,
+			[FromServices] NotificationService notificationService,
 			[FromServices] CaptchaService captchaService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
@@ -325,7 +310,7 @@ namespace api.Controllers.UserAccounts {
 				if (IsPasswordResetRequestValid(latestRequest)) {
 					return BadRequest(new[] { "RequestLimitExceeded" });
 				}
-				// await emailService.SendPasswordResetEmail(userAccount, db.CreatePasswordResetRequest(userAccount.Id).Id);
+				await notificationService.CreatePasswordResetNotification(userAccount.Id);
 			}
 			return Ok();
 		}
@@ -436,7 +421,7 @@ namespace api.Controllers.UserAccounts {
 					userAccountId: User.GetUserAccountId()
 				);
 				preference.CompanyUpdateViaEmail = binder.ReceiveWebsiteUpdates;
-				preference.SuggestedReadingViaEmail = binder.ReceiveSuggestedReadings;
+				preference.AotdDigestViaEmail = binder.ReceiveSuggestedReadings ? NotificationEventFrequency.Weekly : NotificationEventFrequency.Never;
 				preference = await db.SetNotificationPreference(
 					userAccountId: preference.UserAccountId,
 					options: preference
@@ -491,7 +476,7 @@ namespace api.Controllers.UserAccounts {
 						Subscriptions = new {
 							CommentReplyNotifications = preference.ReplyViaEmail,
 							WebsiteUpdates = preference.CompanyUpdateViaEmail,
-							SuggestedReadings = preference.SuggestedReadingViaEmail
+							SuggestedReadings = preference.AotdDigestViaEmail == NotificationEventFrequency.Weekly
 						}
 					});
 				}
@@ -518,7 +503,7 @@ namespace api.Controllers.UserAccounts {
 				);
 				if (preference != null) {
 					preference.CompanyUpdateViaEmail = binder.WebsiteUpdates;
-					preference.SuggestedReadingViaEmail = binder.SuggestedReadings;
+					preference.AotdDigestViaEmail = binder.SuggestedReadings ? NotificationEventFrequency.Weekly : NotificationEventFrequency.Never;
 					preference.ReplyViaEmail = binder.CommentReplyNotifications;
 					await db.SetNotificationPreference(
 						userAccountId: preference.UserAccountId,
@@ -661,36 +646,48 @@ namespace api.Controllers.UserAccounts {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var options = new NotificationPreferenceOptions() {
-					CompanyUpdateViaEmail = form.CompanyUpdate == NotificationChannel.Email,
-					SuggestedReadingViaEmail = form.SuggestedReading == NotificationEventFrequency.Weekly,
-					AotdViaEmail = form.Aotd.HasFlag(NotificationChannel.Email),
-					AotdViaExtension = form.Aotd.HasFlag(NotificationChannel.Extension),
-					AotdViaPush = form.Aotd.HasFlag(NotificationChannel.Push),
-					ReplyDigestViaEmail = form.ReplyDigest,
-					LoopbackDigestViaEmail = form.LoopbackDigest,
-					PostDigestViaEmail = form.PostDigest,
-					FollowerDigestViaEmail = form.FollowerDigest
+					CompanyUpdateViaEmail = form.CompanyUpdate,
+					AotdViaEmail = form.Aotd.Email == AlertEmailPreference.Immediately,
+					AotdViaExtension = form.Aotd.Extension,
+					AotdViaPush = form.Aotd.Push,
+					AotdDigestViaEmail = form.Aotd.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						form.Aotd.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+					PostViaEmail = form.Post.Email == AlertEmailPreference.Immediately,
+					PostViaExtension = form.Post.Extension,
+					PostViaPush = form.Post.Push,
+					PostDigestViaEmail = form.Post.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						form.Post.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+					ReplyViaEmail = form.Reply.Email == AlertEmailPreference.Immediately,
+					ReplyViaExtension = form.Reply.Extension,
+					ReplyViaPush = form.Reply.Push,
+					ReplyDigestViaEmail = form.Reply.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						form.Reply.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+					LoopbackViaEmail = form.Loopback.Email == AlertEmailPreference.Immediately,
+					LoopbackViaExtension = form.Loopback.Extension,
+					LoopbackViaPush = form.Loopback.Push,
+					LoopbackDigestViaEmail = form.Loopback.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						form.Loopback.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+					FollowerViaEmail = form.Follower.Email == AlertEmailPreference.Immediately,
+					FollowerViaExtension = form.Follower.Extension,
+					FollowerViaPush = form.Follower.Push,
+					FollowerDigestViaEmail = form.Follower.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						form.Follower.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never
 				};
-				if (options.ReplyDigestViaEmail == NotificationEventFrequency.Never) {
-					options.ReplyViaEmail = form.Reply.HasFlag(NotificationChannel.Email);
-					options.ReplyViaExtension = form.Reply.HasFlag(NotificationChannel.Extension);
-					options.ReplyViaPush = form.Reply.HasFlag(NotificationChannel.Push);
-				}
-				if (options.LoopbackDigestViaEmail == NotificationEventFrequency.Never) {
-					options.LoopbackViaEmail = form.Loopback.HasFlag(NotificationChannel.Email);
-					options.LoopbackViaExtension = form.Loopback.HasFlag(NotificationChannel.Extension);
-					options.LoopbackViaPush = form.Loopback.HasFlag(NotificationChannel.Push);
-				}
-				if (options.PostDigestViaEmail == NotificationEventFrequency.Never) {
-					options.PostViaEmail = form.Post.HasFlag(NotificationChannel.Email);
-					options.PostViaExtension = form.Post.HasFlag(NotificationChannel.Extension);
-					options.PostViaPush = form.Post.HasFlag(NotificationChannel.Push);
-				}
-				if (options.FollowerDigestViaEmail == NotificationEventFrequency.Never) {
-					options.FollowerViaEmail = form.Follower.HasFlag(NotificationChannel.Email);
-					options.FollowerViaExtension = form.Follower.HasFlag(NotificationChannel.Extension);
-					options.FollowerViaPush = form.Follower.HasFlag(NotificationChannel.Push);
-				}
 				return Json(
 					data: new NotificationPreference(
 						options: await db.SetNotificationPreference(

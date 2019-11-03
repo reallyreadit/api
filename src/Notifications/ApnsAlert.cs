@@ -1,6 +1,18 @@
 namespace api.Notifications {
 	public class ApnsAlert {
 		public ApnsAlert(
+			string title
+		) {
+			Title = title;
+		}
+		public ApnsAlert(
+			string title,
+			string body
+		) {
+			Title = title;
+			Body = body;
+		}
+		public ApnsAlert(
 			string title,
 			string subtitle,
 			string body

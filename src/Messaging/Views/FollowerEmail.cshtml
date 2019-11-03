@@ -1,0 +1,6 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.Shared.FollowerViewModel>
+
+@{ Layout = "Layout"; }
+
+<div style="margin:1.5em 0;">Congratulations, you have a new follower.</div>
+@await Html.PartialAsync("Shared/Follower", Model.Content)

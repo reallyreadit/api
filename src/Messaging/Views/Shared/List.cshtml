@@ -1,0 +1,14 @@
+@model Array
+
+@{
+	for (var i = 0; i < Model.Length; i++) {
+		await Html.RenderPartialAsync(
+			(string)ViewData["ViewName"],
+			Model.GetValue(i),
+			ViewData["ViewData"] as ViewDataDictionary
+		);
+		if (i < Model.Length - 1) {
+			await Html.RenderPartialAsync("Shared/HorizontalRule");
+		}
+	}
+}

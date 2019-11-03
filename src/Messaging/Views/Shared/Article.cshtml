@@ -1,0 +1,39 @@
+@model api.Messaging.Views.Shared.ArticleViewModel
+
+@{
+	var headerText = (
+		(ViewData["ShowDate"] as Nullable<bool>) ?? false ?
+			Model.AotdTimestamp :
+			"Article of the Day"
+	);
+}
+
+<div style="margin:1em 0;">
+	<div style="margin-bottom:0.25em;">
+		<span style="text-transform:uppercase;font-size:11pt;font-weight:bold;">@headerText</span>
+	</div>
+	@if (!String.IsNullOrWhiteSpace(Model.Authors) || !String.IsNullOrWhiteSpace(Model.Source)) {
+		<div style="margin-bottom:0.25em;">
+			@if (!String.IsNullOrWhiteSpace(Model.Authors)) {
+				<span style="text-transform:uppercase;font-size:11pt;font-weight:bold;">@Model.Authors</span>
+			}
+			@if (!String.IsNullOrWhiteSpace(Model.Authors) && !String.IsNullOrWhiteSpace(Model.Source)) {
+				<span style="font-size:11pt;"> in </span>
+			}
+			@if (!String.IsNullOrWhiteSpace(Model.Source)) {
+				<span style="text-transform:uppercase;font-size:11pt;font-weight:bold;font-style:italic;">@Model.Source</span>
+			}
+		</div>
+	}
+	<div style="margin-bottom:0.25em;">
+		<a href="@Model.ReadArticleUrl" style="font-size:16pt;font-weight:bold;color:#2A2326;">@Model.Title</a>
+	</div>
+	<div>
+		@Model.Length | 
+		@Model.ReadCount | 
+		<a href="@Model.ViewCommentsUrl" style="color:#2A2326;">@Model.CommentCount</a>
+		@if (Model.AverageRatingScore != null) {
+			<text> | Rating: @Model.AverageRatingScore</text>
+		}
+	</div>
+</div>

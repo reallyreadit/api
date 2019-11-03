@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Net;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using api.Configuration;
 using api.DataAccess;
@@ -8,6 +10,7 @@ using api.DataAccess.Models;
 using api.Encryption;
 using api.Messaging;
 using api.Messaging.Views;
+using api.Messaging.Views.Shared;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -52,6 +55,26 @@ namespace api.Notifications {
 				);
 			}
 		}
+		private ApnsNotification CreateApnsNotification(
+			ApnsAlert alert,
+			NotificationAlertDispatch dispatch,
+			Uri url,
+			string category = null
+		) => (
+			new ApnsNotification(
+				receiptId: dispatch.ReceiptId,
+				payload: new ApnsPayload(
+					applePayload: new ApnsApplePayload(
+						alert: dispatch.ViaPush ? alert : null,
+						badge: dispatch.GetTotalBadgeCount(),
+						category: category
+					),
+					alertStatus: dispatch,
+					url: url
+				),
+				tokens: dispatch.PushDeviceTokens
+			)
+		);
 		private Uri CreateArticleTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long articleId) => (
 			CreateTrackingUrl(
 				dispatch: dispatch,
@@ -70,6 +93,19 @@ namespace api.Notifications {
 				resourceId: commentId
 			)
 		);
+		private Uri CreateCommentsTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long articleId) => (
+			CreateTrackingUrl(
+				dispatch: dispatch,
+				channel: channel,
+				action: NotificationAction.View,
+				resource: ViewActionResource.Comments,
+				resourceId: articleId
+			)
+		);
+		private Uri CreateEmailConfirmationUrl(long emailConfirmationId) {
+			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(emailConfirmationId.ToString(), tokenizationOptions.EncryptionKey));
+			return new Uri(endpoints.WebServer.CreateUrl($"/confirmEmail?token={token}"));
+		}
 		private Uri CreateEmailOpenTrackingUrl(INotificationDispatch dispatch) => (
 			CreateTrackingUrl(
 				dispatch: dispatch,
@@ -108,6 +144,34 @@ namespace api.Notifications {
 			) {
 				// swallow duplicate open exception
 			}
+		}
+		private Uri CreatePasswordResetUrl(long resetRequestId) {
+			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(resetRequestId.ToString(), tokenizationOptions.EncryptionKey));
+			return new Uri(endpoints.WebServer.CreateUrl($"/resetPassword?token={token}"));
+		}
+		private Uri CreatePostTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long? commentId, long? silentPostId) {
+			if (
+				(!commentId.HasValue && !silentPostId.HasValue) ||
+				(commentId.HasValue && silentPostId.HasValue)
+			) {
+				throw new ArgumentException("Post must have only commentId or silentPostId");
+			}
+			if (commentId.HasValue) {
+				return CreateTrackingUrl(
+					dispatch: dispatch,
+					channel: channel,
+					action: NotificationAction.View,
+					resource: ViewActionResource.CommentPost,
+					resourceId: commentId
+				);
+			}
+			return CreateTrackingUrl(
+				dispatch: dispatch,
+				channel: channel,
+				action: NotificationAction.View,
+				resource: ViewActionResource.SilentPost,
+				resourceId: silentPostId
+			);
 		}
 		private Uri CreateTrackingUrl(
 			INotificationDispatch dispatch,
@@ -229,28 +293,6 @@ namespace api.Notifications {
 		) => (
 			CreateViewUrl(path: $"/@{followeeUserName}?followers&user={followerUserName}")
 		);
-		private async Task SendPushAlertNotification(
-			NotificationDispatch dispatch,
-			ApnsAlert alert,
-			Uri url,
-			string category = null
-		) {
-			await apnsService.Send(
-				new ApnsNotification(
-					receiptId: dispatch.ReceiptId,
-					payload: new ApnsPayload(
-						applePayload: new ApnsApplePayload(
-							alert: dispatch.ViaPush ? alert : null,
-							badge: dispatch.GetTotalBadgeCount(),
-							category: category
-						),
-						alertStatus: dispatch,
-						url: url
-					),
-					tokens: dispatch.PushDeviceTokens
-				)
-			);
-		}
 		private async Task SendPushClearNotifications(
 			NpgsqlConnection db,
 			long userAccountId,
@@ -301,108 +343,502 @@ namespace api.Notifications {
 				}
 			}
 		}
+		public async Task CreateAotdDigestNotifications() {
+			IEnumerable<NotificationEmailDispatch> dispatches;
+			IEnumerable<Article> articles;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreateAotdDigestNotifications();
+				articles = await db.GetAotds(7);
+			}
+			if (dispatches.Any()) {
+				await emailService.SendAotdDigestNotifications(
+					dispatches
+						.Select(
+							dispatch => new EmailNotification<ArticleViewModel[]>(
+								userId: dispatch.UserAccountId,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: "The AOTD Weekly",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: articles
+									.OrderByDescending(article => article.AotdTimestamp)
+									.Select(
+										article => new ArticleViewModel(
+											article: article,
+											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, article.Id),
+											viewCommentsUrl: CreateCommentsTrackingUrl(dispatch, NotificationChannel.Email, article.Id)
+										)
+									)
+									.ToArray()
+							)
+						)
+						.ToArray()
+				);
+			}
+		}
 		public async Task CreateAotdNotifications(
-			long articleId
+			Article article
 		) {
-			using (
-				var db = new NpgsqlConnection(
-					connectionString: databaseOptions.ConnectionString
-				)
-			) {
-				foreach (
-					var dispatch in await db.CreateAotdNotifications(
-						articleId: articleId
-					)
-				) {
-					if (dispatch.ViaEmail) {
-						// send email
-						Console.WriteLine("Send aotd via email");
+			IEnumerable<NotificationAlertDispatch> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreateAotdNotifications(
+					articleId: article.Id
+				);
+			}
+			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
+				var alert = new ApnsAlert(
+					title: "Article of the Day",
+					subtitle: article.Title,
+					body: article.GetFormattedByline()
+				);
+				await apnsService.Send(
+					dispatches
+						.Where(dispatch => dispatch.PushDeviceTokens.Any())
+						.Select(
+							dispatch => CreateApnsNotification(
+								alert: alert,
+								dispatch: dispatch,
+								url: CreateArticleTrackingUrl(dispatch, NotificationChannel.Push, article.Id)
+							)
+						)
+						.ToArray()
+				);
+			}
+			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
+				var learnMoreUrl = new Uri("https://blog.readup.com/?");
+				await emailService.SendAotdNotifications(
+					dispatches
+						.Where(dispatch => dispatch.ViaEmail)
+						.Select(
+							dispatch => new EmailNotification<AotdEmailViewModel>(
+								userId: dispatch.UserAccountId,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: "AOTD: " + article.Title,
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: new AotdEmailViewModel(
+									article: article,
+									readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, article.Id),
+									viewCommentsUrl: CreateCommentsTrackingUrl(dispatch, NotificationChannel.Email, article.Id),
+									learnMoreUrl: learnMoreUrl
+								)
+							)
+						)
+						.ToArray()
+				);
+			}
+		}
+		public async Task CreateCompanyUpdateNotifications(
+			long authorId,
+			string subject,
+			string body,
+			string testEmailAddress
+		) {
+			var links = new Dictionary<string, (string Text, long ArticleId)>();
+			var linkMatches = Regex
+				.Matches(body, @"\[([^]]+)\]\(([^\)]+)\)", RegexOptions.Multiline)
+				.Where(match => match.Success);
+			IEnumerable<NotificationEmailDispatch> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				foreach (var match in linkMatches) {
+					var article = db.FindArticle(match.Groups[2].Value.Split(':')?[1], null);
+					if (article == null) {
+						throw new ArgumentException("Invalid article slug");
 					}
+					links.Add(match.Groups[0].Value, (Text: match.Groups[1].Value, ArticleId: article.Id));
 				}
+				if (testEmailAddress != null) {
+					dispatches = new[] {
+						new NotificationEmailDispatch() {
+							ReceiptId = 0,
+							UserAccountId = 0,
+							UserName = "Test User",
+							EmailAddress = testEmailAddress
+						}
+					};
+				} else {
+					dispatches = await db.CreateCompanyUpdateNotifications(authorId, subject, body);
+				}
+			}
+			if (dispatches.Any()) {
+				await emailService.SendCompanyUpdateNotifications(
+					dispatches
+						.Select(
+							dispatch => {
+								var html = body;
+								foreach (var link in links) {
+									var href = CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, link.Value.ArticleId);
+									html = html.Replace(link.Key, $"<a href=\"{href}\">{link.Value.Text}</a>");
+								}
+								return new EmailNotification<CompanyUpdateEmailViewModel>(
+									userId: dispatch.UserAccountId,
+									to: new EmailMailbox(
+										name: dispatch.UserName,
+										address: dispatch.EmailAddress
+									),
+									subject: subject,
+									openUrl: CreateEmailOpenTrackingUrl(dispatch),
+									content: new CompanyUpdateEmailViewModel(
+										html: html
+									)
+								);
+							}
+						)
+						.ToArray()
+				);
+			}
+		}
+		public async Task CreateEmailConfirmationNotification(
+			long userAccountId,
+			long? confirmationId = null
+		) {
+			NotificationEmailDispatch dispatch;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				if (!confirmationId.HasValue) {
+					confirmationId = db.CreateEmailConfirmation(userAccountId).Id;
+				}
+				dispatch = await db.CreateTransactionalNotification(
+					userAccountId: userAccountId,
+					eventType: NotificationEventType.EmailConfirmation,
+					emailConfirmationId: confirmationId,
+					passwordResetRequestId: null
+				);
+			}
+			await emailService.SendEmailConfirmationNotification(
+				new EmailNotification<ConfirmationEmailViewModel>(
+					userId: dispatch.UserAccountId,
+					to: new EmailMailbox(
+						name: dispatch.UserName,
+						address: dispatch.EmailAddress
+					),
+					subject: $"Email Confirmation",
+					openUrl: CreateEmailOpenTrackingUrl(dispatch),
+					content: new ConfirmationEmailViewModel(
+						emailConfirmationUrl: CreateEmailConfirmationUrl(confirmationId.Value)
+					)
+				)
+			);
+		}
+		public async Task CreateFollowerDigestNotifications(
+			NotificationEventFrequency frequency
+		) {
+			IEnumerable<NotificationDigestDispatch<NotificationDigestFollower>> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreateFollowerDigestNotifications(frequency);
+			}
+			if (dispatches.Any()) {
+				await emailService.SendFollowerDigestNotifications(
+					dispatches
+						.Select(
+							dispatch => new EmailNotification<FollowerViewModel[]>(
+								userId: dispatch.UserAccountId,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: $"[{frequency.ToString()} digest] Your new followers",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: dispatch.Items
+									.OrderByDescending(follower => follower.DateFollowed)
+									.Select(
+										follower => new FollowerViewModel(
+											userName: follower.UserName,
+											viewProfileUrl: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Email, follower.FollowingId)
+										)
+									)
+									.ToArray()
+							)
+						)
+						.ToArray()
+				);
 			}
 		}
 		public async Task CreateFollowerNotification(
 			Following following
 		) {
-			NotificationDispatch dispatch;
-			string
-				followeeUserName,
-				followerUserName;
+			NotificationAlertDispatch dispatch;
+			string followerUserName;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				dispatch = await db.CreateFollowerNotification(
 					followingId: following.Id,
 					followerId: following.FollowerUserAccountId,
 					followeeId: following.FolloweeUserAccountId
 				);
-				if (dispatch?.PushDeviceTokens.Any() ?? false) {
-					followeeUserName = (await db.GetUserAccountById(following.FolloweeUserAccountId)).Name;
+				if (
+					(dispatch?.ViaEmail ?? false) ||
+					(dispatch?.PushDeviceTokens.Any() ?? false)
+				 ) {
 					followerUserName = (await db.GetUserAccountById(following.FollowerUserAccountId)).Name;
 				} else {
-					followeeUserName = null;
 					followerUserName = null;
 				}
 			}
 			if (dispatch?.ViaEmail ?? false) {
-				// send email
-				Console.WriteLine("Send follower via email");
+				await emailService.SendFollowerNotification(
+					new EmailNotification<FollowerViewModel>(
+						userId: dispatch.UserAccountId,
+						to: new EmailMailbox(
+							name: dispatch.UserName,
+							address: dispatch.EmailAddress
+						),
+						subject: $"{followerUserName} is now following you",
+						openUrl: CreateEmailOpenTrackingUrl(dispatch),
+						content: new FollowerViewModel(
+							userName: followerUserName,
+							viewProfileUrl: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Email, following.Id)
+						)
+					)
+				);
 			}
 			if (dispatch?.PushDeviceTokens.Any() ?? false) {
-				await SendPushAlertNotification(
-					dispatch: dispatch,
-					alert: new ApnsAlert(
-						title: "New Follower",
-						subtitle: "You have a new follower",
-						body: $"{followerUserName} is now following you."
-					),
-					url: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Push, following.Id)
+				await apnsService.Send(
+					CreateApnsNotification(
+						alert: new ApnsAlert(
+							title: $"{followerUserName} is now following you"
+						),
+						dispatch: dispatch,
+						url: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Push, following.Id)
+					)
+				);
+			}
+		}
+		public async Task CreateLoopbackDigestNotifications(
+			NotificationEventFrequency frequency
+		) {
+			IEnumerable<NotificationDigestDispatch<NotificationDigestComment>> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreateLoopbackDigestNotifications(frequency);
+			}
+			if (dispatches.Any()) {
+				await emailService.SendLoopbackDigestNotifications(
+					dispatches
+						.Select(
+							dispatch => new EmailNotification<CommentViewModel[]>(
+								userId: dispatch.UserAccountId,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: $"[{frequency.ToString()} digest] Comments on articles you've read",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: dispatch.Items
+									.OrderByDescending(comment => comment.DateCreated)
+									.Select(
+										comment => new CommentViewModel(
+											author: comment.Author,
+											article: comment.ArticleTitle,
+											text: comment.Text,
+											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
+											viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+										)
+									)
+									.ToArray()
+							)
+						)
+						.ToArray()
 				);
 			}
 		}
 		public async Task CreateLoopbackNotifications(
 			Comment comment
 		) {
-			using (
-				var db = new NpgsqlConnection(
-					connectionString: databaseOptions.ConnectionString
-				)
-			) {
-				foreach (
-					var dispatch in await db.CreateLoopbackNotifications(
-						articleId: comment.ArticleId,
-						commentId: comment.Id,
-						commentAuthorId: comment.UserAccountId
+			IEnumerable<NotificationAlertDispatch> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreateLoopbackNotifications(
+					articleId: comment.ArticleId,
+					commentId: comment.Id,
+					commentAuthorId: comment.UserAccountId
+				);
+			}
+			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
+				var alert = new ApnsAlert(
+					title: $"{comment.UserAccount} commented on {comment.ArticleTitle}",
+					body: comment.Text
+				);
+				await apnsService.Send(
+					dispatches
+						.Where(dispatch => dispatch.PushDeviceTokens.Any())
+						.Select(
+							dispatch => CreateApnsNotification(
+								alert: alert,
+								dispatch: dispatch,
+								url: CreateCommentTrackingUrl(dispatch, NotificationChannel.Push, comment.Id),
+								category: "replyable"
+							)
+						)
+						.ToArray()
+				);
+			}
+			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
+				await emailService.SendLoopbackNotifications(
+					dispatches
+						.Where(dispatch => dispatch.ViaEmail)
+						.Select(
+							dispatch => new EmailNotification<CommentViewModel>(
+								userId: dispatch.UserAccountId,
+								replyTo: new EmailMailbox(
+									name: comment.UserAccount,
+									address: CreateEmailReplyAddress(dispatch)
+								),
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: $"{comment.UserAccount} commented on {comment.ArticleTitle}",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: new CommentViewModel(
+									author: comment.UserAccount,
+									article: comment.ArticleTitle,
+									text: comment.Text,
+									readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
+									viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+								)
+							)
+						)
+						.ToArray()
+				);
+			}
+		}
+		public async Task CreatePasswordResetNotification(
+			long userAccountId
+		) {
+			PasswordResetRequest resetRequest;
+			NotificationEmailDispatch dispatch;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				resetRequest = db.CreatePasswordResetRequest(userAccountId);
+				dispatch = await db.CreateTransactionalNotification(
+					userAccountId: userAccountId,
+					eventType: NotificationEventType.PasswordReset,
+					emailConfirmationId: null,
+					passwordResetRequestId: resetRequest.Id
+				);
+			}
+			await emailService.SendPasswordResetNotification(
+				new EmailNotification<PasswordResetEmailViewModel>(
+					userId: dispatch.UserAccountId,
+					to: new EmailMailbox(
+						name: dispatch.UserName,
+						address: dispatch.EmailAddress
+					),
+					subject: $"Password Reset",
+					openUrl: CreateEmailOpenTrackingUrl(dispatch),
+					content: new PasswordResetEmailViewModel(
+						passwordResetUrl: CreatePasswordResetUrl(resetRequest.Id)
 					)
-				) {
-					if (dispatch.ViaEmail) {
-						// send email
-						Console.WriteLine("Send loopback via email");
-					}
-				}
+				)
+			);
+		}
+		public async Task CreatePostDigestNotifications(
+			NotificationEventFrequency frequency
+		) {
+			IEnumerable<NotificationDigestDispatch<NotificationDigestPost>> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreatePostDigestNotifications(frequency);
+			}
+			if (dispatches.Any()) {
+				await emailService.SendPostDigestNotifications(
+					dispatches
+						.Select(
+							dispatch => new EmailNotification<PostViewModel[]>(
+								userId: dispatch.UserAccountId,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: $"[{frequency.ToString()} digest] Posts from people you follow",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: dispatch.Items
+									.OrderByDescending(post => post.DateCreated)
+									.Select(
+										post => new PostViewModel(
+											author: post.Author,
+											article: post.ArticleTitle,
+											text: post.CommentText,
+											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, post.ArticleId),
+											viewPostUrl: CreatePostTrackingUrl(dispatch, NotificationChannel.Email, post.CommentId, post.SilentPostId)
+										)
+									)
+									.ToArray()
+							)
+						)
+						.ToArray()
+				);
 			}
 		}
 		public async Task CreatePostNotifications(
 			long userAccountId,
+			string userName,
+			long articleId,
+			string articleTitle,
 			long? commentId,
+			string commentText,
 			long? silentPostId
 		) {
-
-			using (
-				var db = new NpgsqlConnection(
-					connectionString: databaseOptions.ConnectionString
-				)
-			) {
-				foreach (
-					var dispatch in await db.CreatePostNotifications(
-						posterId: userAccountId,
-						commentId: commentId,
-						silentPostId: silentPostId
-					)
-				) {
-					if (dispatch.ViaEmail) {
-						// send email
-						Console.WriteLine("Send post via email");
-					}
-				}
+			IEnumerable<NotificationPostAlertDispatch> dispatches;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				dispatches = await db.CreatePostNotifications(
+					articleId: articleId,
+					posterId: userAccountId,
+					commentId: commentId,
+					silentPostId: silentPostId
+				);
+			}
+			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
+				var alert = new ApnsAlert(
+					title: $"{userName} posted {articleTitle}",
+					body: commentText
+				);
+				await apnsService.Send(
+					dispatches
+						.Where(dispatch => dispatch.PushDeviceTokens.Any())
+						.Select(
+							dispatch => CreateApnsNotification(
+								alert: alert,
+								dispatch: dispatch,
+								url: CreatePostTrackingUrl(dispatch, NotificationChannel.Push, commentId, silentPostId),
+								category: dispatch.IsReplyable ? "replyable" : null
+							)
+						)
+						.ToArray()
+				);
+			}
+			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
+				await emailService.SendPostNotifications(
+					dispatches
+						.Where(dispatch => dispatch.ViaEmail)
+						.Select(
+							dispatch => new EmailNotification<PostEmailViewModel>(
+								userId: dispatch.UserAccountId,
+								replyTo: dispatch.IsReplyable ?
+									new EmailMailbox(
+										name: userName,
+										address: CreateEmailReplyAddress(dispatch)
+									) :
+									null,
+								to: new EmailMailbox(
+									name: dispatch.UserName,
+									address: dispatch.EmailAddress
+								),
+								subject: $"{userName} posted {articleTitle}",
+								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								content: new PostEmailViewModel(
+									post: new PostViewModel(
+										author: userName,
+										article: articleTitle,
+										text: commentText,
+										readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, articleId),
+										viewPostUrl: CreatePostTrackingUrl(dispatch, NotificationChannel.Email, commentId, silentPostId)
+									),
+									isReplyable: dispatch.IsReplyable
+								)
+							)
+						)
+						.ToArray()
+				);
 			}
 		}
 		public async Task CreateReplyDigestNotifications(
@@ -425,6 +861,7 @@ namespace api.Notifications {
 								subject: $"[{frequency.ToString()} digest] Replies to your comments",
 								openUrl: CreateEmailOpenTrackingUrl(dispatch),
 								content: dispatch.Items
+									.OrderByDescending(comment => comment.DateCreated)
 									.Select(
 										comment => new CommentViewModel(
 											author: comment.Author,
@@ -444,7 +881,7 @@ namespace api.Notifications {
 		public async Task CreateReplyNotification(
 			Comment comment
 		) {
-			NotificationDispatch dispatch;
+			NotificationAlertDispatch dispatch;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				dispatch = await db.CreateReplyNotification(
 					replyId: comment.Id,
@@ -477,17 +914,48 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatch?.PushDeviceTokens.Any() ?? false) {
-				await SendPushAlertNotification(
-					dispatch: dispatch,
-					alert: new ApnsAlert(
-						title: "Re: " + comment.ArticleTitle,
-						subtitle: comment.UserAccount,
-						body: comment.Text
-					),
-					url: CreateCommentTrackingUrl(dispatch, NotificationChannel.Push, comment.Id),
-					category: "replyable"
+				await apnsService.Send(
+					CreateApnsNotification(
+						alert: new ApnsAlert(
+							title: "Re: " + comment.ArticleTitle,
+							subtitle: comment.UserAccount,
+							body: comment.Text
+						),
+						dispatch: dispatch,
+						url: CreateCommentTrackingUrl(dispatch, NotificationChannel.Push, comment.Id),
+						category: "replyable"
+					)
 				);
 			}
+		}
+		public async Task CreateWelcomeNotification(
+			long userAccountId
+		) {
+			EmailConfirmation emailConfirmation;
+			NotificationEmailDispatch dispatch;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				emailConfirmation = db.CreateEmailConfirmation(userAccountId);
+				dispatch = await db.CreateTransactionalNotification(
+					userAccountId: userAccountId,
+					eventType: NotificationEventType.Welcome,
+					emailConfirmationId: emailConfirmation.Id,
+					passwordResetRequestId: null
+				);
+			}
+			await emailService.SendWelcomeNotification(
+				new EmailNotification<ConfirmationEmailViewModel>(
+					userId: dispatch.UserAccountId,
+					to: new EmailMailbox(
+						name: dispatch.UserName,
+						address: dispatch.EmailAddress
+					),
+					subject: $"Welcome to Readup",
+					openUrl: CreateEmailOpenTrackingUrl(dispatch),
+					content: new ConfirmationEmailViewModel(
+						emailConfirmationUrl: CreateEmailConfirmationUrl(emailConfirmation.Id)
+					)
+				)
+			);
 		}
 		public NotificationToken DecryptTokenString(
 			string tokenString
@@ -531,21 +999,29 @@ namespace api.Notifications {
 				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 					switch (token.Action) {
 						case NotificationAction.Open:
-							await CreateOpenInteraction(
-								db: db,
-								receiptId: token.ReceiptId
-							);
+							if (token.ReceiptId != 0) {
+								await CreateOpenInteraction(
+									db: db,
+									receiptId: token.ReceiptId
+								);
+							}
 							return (NotificationAction.Open, null);
 						case NotificationAction.View:
 							return (
 								NotificationAction.View,
-								await CreateViewInteraction(
-									db: db,
-									notification: await db.GetNotification(token.ReceiptId),
-									channel: token.Channel.Value,
-									resource: token.ViewActionResource.Value,
-									resourceId: token.ViewActionResourceId.Value
-								)
+								token.ReceiptId != 0 ?
+									await CreateViewInteraction(
+										db: db,
+										notification: await db.GetNotification(token.ReceiptId),
+										channel: token.Channel.Value,
+										resource: token.ViewActionResource.Value,
+										resourceId: token.ViewActionResourceId.Value
+									) :
+									await CreateViewUrl(
+										db: db,
+										resource: token.ViewActionResource.Value,
+										resourceId: token.ViewActionResourceId.Value
+									)
 							);
 					}
 				}

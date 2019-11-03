@@ -1,6 +1,0 @@
-@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.CommentViewModel>
-
-@{ Layout = "Layout"; }
-
-@await Html.PartialAsync("Comment", Model.Content)
-<div style="margin:1.5em 0;text-align:center;font-style:italic;color:#666;">You can respond to @Model.Content.Author by replying to this email.</div>

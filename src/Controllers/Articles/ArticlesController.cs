@@ -43,9 +43,7 @@ namespace api.Controllers.Articles {
 					)
 				) {
 					var article = await db.SetAotd();
-					await notifications.CreateAotdNotifications(
-						articleId: article.Id
-					);
+					await notifications.CreateAotdNotifications(article);
 					return Ok();
 				}
 			}
@@ -155,7 +153,7 @@ namespace api.Controllers.Articles {
 							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
 					}
 				}
-				var aotd = verificationService.AssignProofToken(await db.GetAotd(userAccountId), userAccountId);
+				var aotd = verificationService.AssignProofToken((await db.GetAotds(1, userAccountId)).Single(), userAccountId);
 				var articlePageResult = PageResult<Article>.Create(
 					articles,
 					items => items.Select(article => verificationService.AssignProofToken(article, userAccountId))

@@ -2,18 +2,15 @@ using System;
 using System.Linq;
 using System.Threading.Tasks;
 using api.Configuration;
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.ViewEngines;
 using Microsoft.Extensions.Options;
 using Mvc.RenderViewToString;
 using api.Messaging.Views;
 using api.Encryption;
 using System.Net;
-using api.DataAccess.Models;
 using api.DataAccess;
 using System.Collections.Generic;
 using Npgsql;
-using System.Text.RegularExpressions;
+using api.Messaging.Views.Shared;
 
 namespace api.Messaging {
 	public abstract class EmailService {
@@ -93,11 +90,47 @@ namespace api.Messaging {
 		public bool HasEmailAddressBounced(string emailAddress) => (
 			this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(emailAddress))
 		);
+		public async Task SendAotdDigestNotifications(EmailNotification<ArticleViewModel[]>[] notifications) {
+			await Send("AotdDigestEmail", "the Article of the Day digest", notifications);
+		}
+		public async Task SendAotdNotifications(EmailNotification<AotdEmailViewModel>[] notifications) {
+			await Send("AotdEmail", "the Article of the Day", notifications);
+		}
+		public async Task SendCompanyUpdateNotifications(EmailNotification<CompanyUpdateEmailViewModel>[] notification) {
+			await Send("CompanyUpdateEmail", "company updates", notification);
+		}
+		public async Task SendEmailConfirmationNotification(EmailNotification<ConfirmationEmailViewModel> notification) {
+			await Send("ConfirmationEmail", null, notification);
+		}
+		public async Task SendFollowerDigestNotifications(EmailNotification<FollowerViewModel[]>[] notifications) {
+			await Send("FollowerDigestEmail", "a digest of your new followers", notifications);
+		}
+		public async Task SendFollowerNotification(EmailNotification<FollowerViewModel> notifications) {
+			await Send("FollowerEmail", "new follower notifications", notifications);
+		}
+		public async Task SendLoopbackDigestNotifications(EmailNotification<CommentViewModel[]>[] notifications) {
+			await Send("LoopbackDigestEmail", "a digest of comments on articles you've read", notifications);
+		}
+		public async Task SendLoopbackNotifications(EmailNotification<CommentViewModel>[] notifications) {
+			await Send("LoopbackEmail", "comments on articles you've read", notifications);
+		}
+		public async Task SendPasswordResetNotification(EmailNotification<PasswordResetEmailViewModel> notification) {
+			await Send("PasswordResetEmail", null, notification);
+		}
+		public async Task SendPostDigestNotifications(EmailNotification<PostViewModel[]>[] notifications) {
+			await Send("PostDigestEmail", "a digest of posts from people you follow", notifications);
+		}
+		public async Task SendPostNotifications(EmailNotification<PostEmailViewModel>[] notifications) {
+			await Send("PostEmail", "posts from people you follow", notifications);
+		}
 		public async Task SendReplyDigestNotifications(EmailNotification<CommentViewModel[]>[] notifications) {
-			await Send("ReplyDigest", "reply digest notifications", notifications);
+			await Send("ReplyDigestEmail", "a digest of replies to your comments", notifications);
 		}
 		public async Task SendReplyNotification(EmailNotification<CommentViewModel> notification) {
-			await Send("Reply", "reply notifications", notification);
+			await Send("ReplyEmail", "replies to your comments", notification);
+		}
+		public async Task SendWelcomeNotification(EmailNotification<ConfirmationEmailViewModel> notification) {
+			await Send("WelcomeEmail", null, notification);
 		}
 	}
 }

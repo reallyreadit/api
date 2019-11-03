@@ -1,8 +1,7 @@
 using System.Collections.Generic;
-using api.Notifications;
 
 namespace api.DataAccess.Models {
-	public class NotificationDigestDispatch<T> : INotificationDispatch {
+	public class NotificationDigestDispatch<T> : NotificationEmailDispatch {
 		public NotificationDigestDispatch(
 			long receiptId,
 			long userAccountId,
@@ -16,10 +15,6 @@ namespace api.DataAccess.Models {
 			EmailAddress = emailAddress;
 			Items = items;
 		}
-		public long ReceiptId { get; }
-		public long UserAccountId { get; }
-		public string UserName { get; }
-		public string EmailAddress { get; }
 		public IList<T> Items { get; }
 	}
 }

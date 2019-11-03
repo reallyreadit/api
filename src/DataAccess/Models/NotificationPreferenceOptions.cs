@@ -1,10 +1,10 @@
 namespace api.DataAccess.Models {
 	public class NotificationPreferenceOptions {
 		public bool CompanyUpdateViaEmail { get; set; }
-		public bool SuggestedReadingViaEmail { get; set; }
 		public bool AotdViaEmail { get; set; }
 		public bool AotdViaExtension { get; set; }
 		public bool AotdViaPush { get; set; }
+		public NotificationEventFrequency AotdDigestViaEmail { get; set; }
 		public bool ReplyViaEmail { get; set; }
 		public bool ReplyViaExtension { get; set; }
 		public bool ReplyViaPush { get; set; }

@@ -174,6 +174,7 @@ namespace api.Controllers.Social {
 			var analytics = this.GetRequestAnalytics();
 			Comment comment;
 			SilentPost silentPost;
+			string userName;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var article = await db.GetArticle(
 					articleId: form.ArticleId,
@@ -191,6 +192,7 @@ namespace api.Controllers.Social {
 								analytics: analytics
 							);
 							silentPost = null;
+							userName = comment.UserAccount;
 						} else {
 							silentPost = await db.CreateSilentPost(
 								userAccountId: userAccountId,
@@ -198,9 +200,14 @@ namespace api.Controllers.Social {
 								analytics: analytics
 							);
 							comment = null;
+							userName = (await db.GetUserAccountById(userAccountId)).Name;
 							await notificationService.CreatePostNotifications(
 								userAccountId: userAccountId,
+								userName: userName,
+								articleId: article.Id,
+								articleTitle: article.Title,
 								commentId: null,
+								commentText: null,
 								silentPostId: silentPost.Id
 							);
 						}
@@ -242,7 +249,7 @@ namespace api.Controllers.Social {
 								new Post(
 									article: article,
 									date: silentPost.DateCreated,
-									userName: (await db.GetUserAccountById(userAccountId)).Name,
+									userName: userName,
 									badge: badge,
 									comment: null,
 									silentPostId: obfuscationService.Encode(silentPost.Id),

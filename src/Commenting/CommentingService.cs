@@ -45,7 +45,11 @@ namespace api.Commenting {
 				);
 				await notificationService.CreatePostNotifications(
 					userAccountId: userAccountId,
+					userName: comment.UserAccount,
+					articleId: comment.ArticleId,
+					articleTitle: comment.ArticleTitle,
 					commentId: comment.Id,
+					commentText: comment.Text,
 					silentPostId: null
 				);
 			}

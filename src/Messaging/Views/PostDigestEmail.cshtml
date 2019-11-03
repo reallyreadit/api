@@ -1,0 +1,11 @@
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.Shared.PostViewModel[]>
+
+@{ Layout = "Layout"; }
+
+@await Html.PartialAsync(
+	"Shared/List",
+	Model.Content,
+	new ViewDataDictionary(ViewData) {
+		{ "ViewName", "Shared/Post" }
+	}
+)

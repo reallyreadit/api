@@ -1,6 +1,6 @@
 using System;
 
-namespace api.Messaging.Views {
+namespace api.Messaging.Views.Shared {
 	public class CommentViewModel {
 		public CommentViewModel(
 			string author,

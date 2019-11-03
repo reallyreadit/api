@@ -18,7 +18,7 @@ namespace api.BackwardsCompatibility {
 			DateCreated = user.DateCreated;
 			Role = user.Role;
 			ReceiveWebsiteUpdates = preference?.CompanyUpdateViaEmail ?? false;
-			ReceiveSuggestedReadings = preference?.SuggestedReadingViaEmail ?? false;
+			ReceiveSuggestedReadings = preference?.AotdDigestViaEmail == NotificationEventFrequency.Weekly;
 			IsEmailConfirmed = user.IsEmailConfirmed;
 			TimeZoneId = user.TimeZoneId;
 			TimeZoneName = timeZone?.Name;

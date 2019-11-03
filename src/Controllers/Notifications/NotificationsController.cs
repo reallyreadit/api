@@ -22,6 +22,17 @@ namespace api.Controllers.Notifications {
 		) {
 			this.notificationService = notificationService;
 		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> AotdDigest(
+			[FromServices] IOptions<AuthenticationOptions> authOptions,
+			[FromForm] AotdDigestForm form
+		) {
+			if (form.ApiKey == authOptions.Value.ApiKey) {
+				await notificationService.CreateAotdDigestNotifications();
+			}
+			return Ok();
+		}
 		[HttpPost]
 		public async Task<IActionResult> ClearAlerts(
 			[FromBody] ClearAlertForm form
@@ -76,6 +87,17 @@ namespace api.Controllers.Notifications {
 			}
 		}
 		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> FollowerDigest(
+			[FromServices] IOptions<AuthenticationOptions> authOptions,
+			[FromForm] DigestForm form
+		) {
+			if (form.ApiKey == authOptions.Value.ApiKey) {
+				await notificationService.CreateFollowerDigestNotifications(form.Frequency);
+			}
+			return Ok();
+		}
+		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> Index(
 			[FromServices] NotificationService notificationService,
@@ -96,6 +118,28 @@ namespace api.Controllers.Notifications {
 				}
 			}
 			return BadRequest();
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> LoopbackDigest(
+			[FromServices] IOptions<AuthenticationOptions> authOptions,
+			[FromForm] DigestForm form
+		) {
+			if (form.ApiKey == authOptions.Value.ApiKey) {
+				await notificationService.CreateLoopbackDigestNotifications(form.Frequency);
+			}
+			return Ok();
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> PostDigest(
+			[FromServices] IOptions<AuthenticationOptions> authOptions,
+			[FromForm] DigestForm form
+		) {
+			if (form.ApiKey == authOptions.Value.ApiKey) {
+				await notificationService.CreatePostDigestNotifications(form.Frequency);
+			}
+			return Ok();
 		}
 		[HttpPost]
 		public async Task<IActionResult> PushAuthDenial(

@@ -409,31 +409,39 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<IEnumerable<NotificationDispatch>> CreateAotdNotifications(
+		public static async Task<IEnumerable<NotificationEmailDispatch>> CreateAotdDigestNotifications(
+			this NpgsqlConnection conn
+		) => (
+			await conn.QueryAsync<NotificationEmailDispatch>(
+				sql: "notifications.create_aotd_digest_notifications",
+				commandType: CommandType.StoredProcedure
+			)
+		);
+		public static async Task<IEnumerable<NotificationAlertDispatch>> CreateAotdNotifications(
 			this NpgsqlConnection conn,
 			long articleId
-		) => await conn.QueryAsync<NotificationDispatch>(
+		) => await conn.QueryAsync<NotificationAlertDispatch>(
 			sql: "notifications.create_aotd_notifications",
 			param: new {
 				article_id = articleId
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static long CreateBulkMailing(
+		public static async Task<IEnumerable<NotificationEmailDispatch>> CreateCompanyUpdateNotifications(
 			this NpgsqlConnection conn,
+			long authorId,
 			string subject,
-			string body,
-			string type,
-			long userAccountId,
-			long[] recipientIds
-		) => conn.QuerySingleOrDefault<long>(
-			sql: "notifications.create_bulk_mailing",
-			param: new {
-				subject, body, type,
-				user_account_id = userAccountId,
-				recipient_ids = recipientIds
-			},
-			commandType: CommandType.StoredProcedure
+			string body
+		) => (
+			await conn.QueryAsync<NotificationEmailDispatch>(
+				sql: "notifications.create_company_update_notifications",
+				param: new {
+					author_id = authorId,
+					subject,
+					body
+				},
+				commandType: CommandType.StoredProcedure
+			)
 		);
 		public static Task CreateEmailNotification(
 			this NpgsqlConnection conn,
@@ -451,12 +459,51 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Task<NotificationDispatch> CreateFollowerNotification(
+		public static async Task<IEnumerable<NotificationDigestDispatch<NotificationDigestFollower>>> CreateFollowerDigestNotifications(
+			this NpgsqlConnection conn,
+			NotificationEventFrequency frequency
+		) => (
+				await conn.QueryAsync<NotificationFollowerDigestDispatch>(
+					sql: "notifications.create_follower_digest_notifications",
+					param: new {
+						frequency = ConvertEnumToString(frequency)
+					},
+					commandType: CommandType.StoredProcedure
+				)
+			)
+			.Aggregate(
+				new List<NotificationDigestDispatch<NotificationDigestFollower>>(),
+				(dispatches, row) => {
+					var follower = new NotificationDigestFollower(
+						followingId: row.FollowerFollowingId,
+						dateFollowed: row.FollowerDateFollowed,
+						userName: row.FollowerUserName
+					);
+					var dispatch = dispatches.SingleOrDefault(dispatch => dispatch.ReceiptId == row.ReceiptId);
+					if (dispatch != null) {
+						dispatch.Items.Add(follower);
+					} else {
+						dispatches.Add(
+							new NotificationDigestDispatch<NotificationDigestFollower>(
+								receiptId: row.ReceiptId,
+								userAccountId: row.UserAccountId,
+								userName: row.UserName,
+								emailAddress: row.EmailAddress,
+								items: new List<NotificationDigestFollower>() {
+									follower
+								}
+							)
+						);
+					}
+					return dispatches;
+				}
+			);
+		public static Task<NotificationAlertDispatch> CreateFollowerNotification(
 			this NpgsqlConnection conn,
 			long followingId,
 			long followerId,
 			long followeeId
-		) => conn.QuerySingleOrDefaultAsync<NotificationDispatch>(
+		) => conn.QuerySingleOrDefaultAsync<NotificationAlertDispatch>(
 			sql: "notifications.create_follower_notification",
 			param: new {
 				following_id = followingId,
@@ -483,12 +530,54 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Task<IEnumerable<NotificationDispatch>> CreateLoopbackNotifications(
+		public static async Task<IEnumerable<NotificationDigestDispatch<NotificationDigestComment>>> CreateLoopbackDigestNotifications(
+			this NpgsqlConnection conn,
+			NotificationEventFrequency frequency
+		) => (
+				await conn.QueryAsync<NotificationCommentDigestDispatch>(
+					sql: "notifications.create_loopback_digest_notifications",
+					param: new {
+						frequency = ConvertEnumToString(frequency)
+					},
+					commandType: CommandType.StoredProcedure
+				)
+			)
+			.Aggregate(
+				new List<NotificationDigestDispatch<NotificationDigestComment>>(),
+				(dispatches, row) => {
+					var comment = new NotificationDigestComment(
+						id: row.CommentId,
+						dateCreated: row.CommentDateCreated,
+						text: row.CommentText,
+						author: row.CommentAuthor,
+						articleId: row.CommentArticleId,
+						articleTitle: row.CommentArticleTitle
+					);
+					var dispatch = dispatches.SingleOrDefault(dispatch => dispatch.ReceiptId == row.ReceiptId);
+					if (dispatch != null) {
+						dispatch.Items.Add(comment);
+					} else {
+						dispatches.Add(
+							new NotificationDigestDispatch<NotificationDigestComment>(
+								receiptId: row.ReceiptId,
+								userAccountId: row.UserAccountId,
+								userName: row.UserName,
+								emailAddress: row.EmailAddress,
+								items: new List<NotificationDigestComment>() {
+									comment
+								}
+							)
+						);
+					}
+					return dispatches;
+				}
+			);
+		public static Task<IEnumerable<NotificationAlertDispatch>> CreateLoopbackNotifications(
 			this NpgsqlConnection conn,
 			long articleId,
 			long commentId,
 			long commentAuthorId
-		) => conn.QueryAsync<NotificationDispatch>(
+		) => conn.QueryAsync<NotificationAlertDispatch>(
 			sql: "notifications.create_loopback_notifications",
 			param: new {
 				article_id = articleId,
@@ -497,14 +586,59 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Task<IEnumerable<NotificationDispatch>> CreatePostNotifications(
+		public static async Task<IEnumerable<NotificationDigestDispatch<NotificationDigestPost>>> CreatePostDigestNotifications(
 			this NpgsqlConnection conn,
+			NotificationEventFrequency frequency
+		) => (
+				await conn.QueryAsync<NotificationPostDigestDispatch>(
+					sql: "notifications.create_post_digest_notifications",
+					param: new {
+						frequency = ConvertEnumToString(frequency)
+					},
+					commandType: CommandType.StoredProcedure
+				)
+			)
+			.Aggregate(
+				new List<NotificationDigestDispatch<NotificationDigestPost>>(),
+				(dispatches, row) => {
+					var post = new NotificationDigestPost(
+						commentId: row.PostCommentId,
+						silentPostId: row.PostSilentPostId,
+						dateCreated: row.PostDateCreated,
+						commentText: row.PostCommentText,
+						author: row.PostAuthor,
+						articleId: row.PostArticleId,
+						articleTitle: row.PostArticleTitle
+					);
+					var dispatch = dispatches.SingleOrDefault(dispatch => dispatch.ReceiptId == row.ReceiptId);
+					if (dispatch != null) {
+						dispatch.Items.Add(post);
+					} else {
+						dispatches.Add(
+							new NotificationDigestDispatch<NotificationDigestPost>(
+								receiptId: row.ReceiptId,
+								userAccountId: row.UserAccountId,
+								userName: row.UserName,
+								emailAddress: row.EmailAddress,
+								items: new List<NotificationDigestPost>() {
+									post
+								}
+							)
+						);
+					}
+					return dispatches;
+				}
+			);
+		public static Task<IEnumerable<NotificationPostAlertDispatch>> CreatePostNotifications(
+			this NpgsqlConnection conn,
+			long articleId,
 			long posterId,
 			long? commentId,
 			long? silentPostId
-		) => conn.QueryAsync<NotificationDispatch>(
+		) => conn.QueryAsync<NotificationPostAlertDispatch>(
 			sql: "notifications.create_post_notifications",
 			param: new {
+				article_id = articleId,
 				poster_id = posterId,
 				comment_id = commentId,
 				silent_post_id = silentPostId
@@ -567,12 +701,12 @@ namespace api.DataAccess {
 					return dispatches;
 				}
 			);
-		public static Task<NotificationDispatch> CreateReplyNotification(
+		public static Task<NotificationAlertDispatch> CreateReplyNotification(
 			this NpgsqlConnection conn,
 			long replyId,
 			long replyAuthorId,
 			long parentId
-		) => conn.QuerySingleOrDefaultAsync<NotificationDispatch>(
+		) => conn.QuerySingleOrDefaultAsync<NotificationAlertDispatch>(
 			sql: "notifications.create_reply_notification",
 			param: new {
 				reply_id = replyId,
@@ -581,12 +715,26 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<NotificationEmailDispatch> CreateTransactionalNotification(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			NotificationEventType eventType,
+			long? emailConfirmationId,
+			long? passwordResetRequestId
+		) => (
+			await conn.QuerySingleOrDefaultAsync<NotificationEmailDispatch>(
+				sql: "notifications.create_transactional_notification",
+				param: new {
+					user_account_id = userAccountId,
+					event_type = ConvertEnumToString(eventType),
+					email_confirmation_id = emailConfirmationId,
+					password_reset_request_id = passwordResetRequestId
+				},
+				commandType: CommandType.StoredProcedure
+			)
+		);
 		public static IEnumerable<string> GetBlockedEmailAddresses(this NpgsqlConnection conn) => conn.Query<string>(
 			sql: "notifications.get_blocked_email_addresses",
-			commandType: CommandType.StoredProcedure
-		);
-		public static IEnumerable<UserAccount> GetConfirmationReminderRecipients(this NpgsqlConnection conn) => conn.Query<UserAccount>(
-			sql: "notifications.get_confirmation_reminder_recipients",
 			commandType: CommandType.StoredProcedure
 		);
 		public static IEnumerable<BulkMailing> GetBulkMailings(this NpgsqlConnection conn) => conn.Query<BulkMailing>(
@@ -672,10 +820,10 @@ namespace api.DataAccess {
 			param: new {
 				user_account_id = userAccountId,
 				company_update_via_email = options.CompanyUpdateViaEmail,
-				suggested_reading_via_email = options.SuggestedReadingViaEmail,
 				aotd_via_email = options.AotdViaEmail,
 				aotd_via_extension = options.AotdViaExtension,
 				aotd_via_push = options.AotdViaPush,
+				aotd_digest_via_email = ConvertEnumToString(options.AotdDigestViaEmail),
 				reply_via_email = options.ReplyViaEmail,
 				reply_via_extension = options.ReplyViaExtension,
 				reply_via_push = options.ReplyViaPush,
@@ -722,13 +870,15 @@ namespace api.DataAccess {
 		#endregion
 
 		#region community_reads
-		public static async Task<Article> GetAotd(
+		public static async Task<IEnumerable<Article>> GetAotds(
 			this NpgsqlConnection conn,
-			long userAccountId
-		) => await conn.QuerySingleOrDefaultAsync<Article>(
-			sql: "community_reads.get_aotd",
+			int dayCount,
+			long? userAccountId = null
+		) => await conn.QueryAsync<Article>(
+			sql: "community_reads.get_aotds",
 			param: new {
-				user_account_id = userAccountId
+				user_account_id = userAccountId,
+				day_count = dayCount
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1011,6 +1161,16 @@ namespace api.DataAccess {
 			param: new {
 				viewer_user_id = viewerUserId,
 				subject_user_name = subjectUserName
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SilentPost> GetSilentPost(
+			this NpgsqlConnection conn,
+			long id
+		) => await conn.QuerySingleOrDefaultAsync<SilentPost>(
+			sql: "social.get_silent_post",
+			param: new {
+				id
 			},
 			commandType: CommandType.StoredProcedure
 		);

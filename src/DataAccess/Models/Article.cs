@@ -1,4 +1,5 @@
 using System;
+using api.Formatting;
 
 namespace api.DataAccess.Models {
 	public class Article {
@@ -24,5 +25,15 @@ namespace api.DataAccess.Models {
 		public int? RatingScore { get; set; }
 		public DateTime? DatePosted { get; set; }
 		public string ProofToken { get; set; }
+		public string GetFormattedByline(int maxAuthorCount = 3) {
+			var byline = Authors.ToListString();
+			if (!String.IsNullOrWhiteSpace(Source)) {
+				if (!String.IsNullOrWhiteSpace(byline)) {
+					byline += " in ";
+				}
+				byline += Source.Trim();
+			}
+			return byline;
+		}
 	}
 }
