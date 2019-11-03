@@ -467,29 +467,22 @@ namespace api.Controllers.UserAccounts {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
 				if (userAccount != null) {
-					var preference = await db.GetNotificationPreference(
-						userAccountId: userAccount.Id
-					);
-					return Json(new {
-						IsValid = true,
-						EmailAddress = userAccount.Email,
-						Subscriptions = new {
-							CommentReplyNotifications = preference.ReplyViaEmail,
-							WebsiteUpdates = preference.CompanyUpdateViaEmail,
-							SuggestedReadings = preference.AotdDigestViaEmail == NotificationEventFrequency.Weekly
+					return Json(
+						new {
+							IsValid = true,
+							EmailAddress = userAccount.Email,
+							Preference = new NotificationPreference(
+								await db.GetNotificationPreference(userAccount.Id)
+							)
 						}
-					});
+					);
 				}
 			}
-			return Json(new {
-				IsValid = false,
-				EmailAddress = null as string,
-				Subscriptions = new {
-					CommentReplyNotifications = false,
-					WebsiteUpdates = false,
-					SuggestedReadings = false
+			return Json(
+				new {
+					IsValid = false
 				}
-			});
+			);
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -502,12 +495,9 @@ namespace api.Controllers.UserAccounts {
 					userAccountId: Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenizationOptions.Value.EncryptionKey))
 				);
 				if (preference != null) {
-					preference.CompanyUpdateViaEmail = binder.WebsiteUpdates;
-					preference.AotdDigestViaEmail = binder.SuggestedReadings ? NotificationEventFrequency.Weekly : NotificationEventFrequency.Never;
-					preference.ReplyViaEmail = binder.CommentReplyNotifications;
 					await db.SetNotificationPreference(
 						userAccountId: preference.UserAccountId,
-						options: preference
+						options: binder.GetOptions()
 					);
 					return Ok();
 				}
@@ -645,54 +635,11 @@ namespace api.Controllers.UserAccounts {
 			[FromBody] NotificationPreference form
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var options = new NotificationPreferenceOptions() {
-					CompanyUpdateViaEmail = form.CompanyUpdate,
-					AotdViaEmail = form.Aotd.Email == AlertEmailPreference.Immediately,
-					AotdViaExtension = form.Aotd.Extension,
-					AotdViaPush = form.Aotd.Push,
-					AotdDigestViaEmail = form.Aotd.Email == AlertEmailPreference.DailyDigest ?
-						NotificationEventFrequency.Daily :
-						form.Aotd.Email == AlertEmailPreference.WeeklyDigest ?
-							NotificationEventFrequency.Weekly :
-							NotificationEventFrequency.Never,
-					PostViaEmail = form.Post.Email == AlertEmailPreference.Immediately,
-					PostViaExtension = form.Post.Extension,
-					PostViaPush = form.Post.Push,
-					PostDigestViaEmail = form.Post.Email == AlertEmailPreference.DailyDigest ?
-						NotificationEventFrequency.Daily :
-						form.Post.Email == AlertEmailPreference.WeeklyDigest ?
-							NotificationEventFrequency.Weekly :
-							NotificationEventFrequency.Never,
-					ReplyViaEmail = form.Reply.Email == AlertEmailPreference.Immediately,
-					ReplyViaExtension = form.Reply.Extension,
-					ReplyViaPush = form.Reply.Push,
-					ReplyDigestViaEmail = form.Reply.Email == AlertEmailPreference.DailyDigest ?
-						NotificationEventFrequency.Daily :
-						form.Reply.Email == AlertEmailPreference.WeeklyDigest ?
-							NotificationEventFrequency.Weekly :
-							NotificationEventFrequency.Never,
-					LoopbackViaEmail = form.Loopback.Email == AlertEmailPreference.Immediately,
-					LoopbackViaExtension = form.Loopback.Extension,
-					LoopbackViaPush = form.Loopback.Push,
-					LoopbackDigestViaEmail = form.Loopback.Email == AlertEmailPreference.DailyDigest ?
-						NotificationEventFrequency.Daily :
-						form.Loopback.Email == AlertEmailPreference.WeeklyDigest ?
-							NotificationEventFrequency.Weekly :
-							NotificationEventFrequency.Never,
-					FollowerViaEmail = form.Follower.Email == AlertEmailPreference.Immediately,
-					FollowerViaExtension = form.Follower.Extension,
-					FollowerViaPush = form.Follower.Push,
-					FollowerDigestViaEmail = form.Follower.Email == AlertEmailPreference.DailyDigest ?
-						NotificationEventFrequency.Daily :
-						form.Follower.Email == AlertEmailPreference.WeeklyDigest ?
-							NotificationEventFrequency.Weekly :
-							NotificationEventFrequency.Never
-				};
 				return Json(
 					data: new NotificationPreference(
 						options: await db.SetNotificationPreference(
 							userAccountId: User.GetUserAccountId(),
-							options: options
+							options: form.GetOptions()
 						)
 					)
 				);

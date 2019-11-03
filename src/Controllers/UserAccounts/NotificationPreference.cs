@@ -51,5 +51,50 @@ namespace api.Controllers.UserAccounts {
 		public AlertPreference Reply { get; set; }
 		public AlertPreference Loopback { get; set; }
 		public AlertPreference Follower { get; set; }
+		public NotificationPreferenceOptions GetOptions() {
+			return new NotificationPreferenceOptions() {
+				CompanyUpdateViaEmail = CompanyUpdate,
+				AotdViaEmail = Aotd.Email == AlertEmailPreference.Immediately,
+				AotdViaExtension = Aotd.Extension,
+				AotdViaPush = Aotd.Push,
+				AotdDigestViaEmail = Aotd.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						Aotd.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+				PostViaEmail = Post.Email == AlertEmailPreference.Immediately,
+				PostViaExtension = Post.Extension,
+				PostViaPush = Post.Push,
+				PostDigestViaEmail = Post.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						Post.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+				ReplyViaEmail = Reply.Email == AlertEmailPreference.Immediately,
+				ReplyViaExtension = Reply.Extension,
+				ReplyViaPush = Reply.Push,
+				ReplyDigestViaEmail = Reply.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						Reply.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+				LoopbackViaEmail = Loopback.Email == AlertEmailPreference.Immediately,
+				LoopbackViaExtension = Loopback.Extension,
+				LoopbackViaPush = Loopback.Push,
+				LoopbackDigestViaEmail = Loopback.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						Loopback.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never,
+				FollowerViaEmail = Follower.Email == AlertEmailPreference.Immediately,
+				FollowerViaExtension = Follower.Extension,
+				FollowerViaPush = Follower.Push,
+				FollowerDigestViaEmail = Follower.Email == AlertEmailPreference.DailyDigest ?
+						NotificationEventFrequency.Daily :
+						Follower.Email == AlertEmailPreference.WeeklyDigest ?
+							NotificationEventFrequency.Weekly :
+							NotificationEventFrequency.Never
+			};
+		}
 	}
 }
