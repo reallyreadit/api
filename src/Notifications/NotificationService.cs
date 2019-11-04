@@ -235,9 +235,6 @@ namespace api.Notifications {
 			await CreateViewInteraction(db, notification, channel, url.ToString());
 			return url;
 		}
-		private Uri CreateViewUrl(string path) => (
-			new Uri(endpoints.WebServer.CreateUrl(path))
-		);
 		private async Task<Uri> CreateViewUrl(
 			NpgsqlConnection db,
 			ViewActionResource resource,
@@ -252,47 +249,40 @@ namespace api.Notifications {
 							"read" :
 							"comments"
 					);
-					var slugParts = (
+					var articleSlugParts = (
 							await db.GetArticle(
 								articleId: resourceId
 							)
 						)
 						.Slug.Split('_');
-					path = $"/{pathRoot}/{slugParts[0]}/{slugParts[1]}";
+					path = $"/{pathRoot}/{articleSlugParts[0]}/{articleSlugParts[1]}";
 					break;
 				case ViewActionResource.Comment:
-					return CreateViewUrlForComment(await db.GetComment(resourceId));
+					var comment = await db.GetComment(resourceId);
+					var commentSlugParts = comment.ArticleSlug.Split('_');
+					path = $"/comments/{commentSlugParts[0]}/{commentSlugParts[1]}/{obfuscation.Encode(comment.Id)}";
+					break;
 				case ViewActionResource.CommentPost:
-					path = $"/following/comment/{obfuscation.Encode(resourceId)}";
+					var postComment = await db.GetComment(resourceId);
+					var commentPoster = await db.GetUserAccountById(postComment.UserAccountId);
+					path = $"/@{commentPoster.Name}/comment/{obfuscation.Encode(resourceId)}";
 					break;
 				case ViewActionResource.SilentPost:
-					path = $"/following/post/{obfuscation.Encode(resourceId)}";
+					var silentPost = await db.GetSilentPost(resourceId);
+					var silentPoster = await db.GetUserAccountById(silentPost.UserAccountId);
+					path = $"/@{silentPoster.Name}/post/{obfuscation.Encode(resourceId)}";
 					break;
 				case ViewActionResource.Follower:
-					var following = await db.GetFollowing(
-						followingId: resourceId
+					var follower = await db.GetUserAccountById(
+						(await db.GetFollowing(resourceId)).FollowerUserAccountId
 					);
-					return CreateViewUrlForFollower(
-						followeeUserName: (await db.GetUserAccountById(following.FolloweeUserAccountId)).Name,
-						followerUserName: (await db.GetUserAccountById(following.FollowerUserAccountId)).Name
-					);
+					path = $"/@{follower.Name}";
+					break;
 				default:
 					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
 			}
 			return new Uri(endpoints.WebServer.CreateUrl(path));
 		}
-		private Uri CreateViewUrlForComment(
-			Comment comment
-		) {
-			var slugParts = comment.ArticleSlug.Split('_');
-			return CreateViewUrl(path: $"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(comment.Id)}");
-		}
-		private Uri CreateViewUrlForFollower(
-			string followeeUserName,
-			string followerUserName
-		) => (
-			CreateViewUrl(path: $"/@{followeeUserName}?followers&user={followerUserName}")
-		);
 		private async Task SendPushClearNotifications(
 			NpgsqlConnection db,
 			long userAccountId,
