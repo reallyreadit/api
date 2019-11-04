@@ -663,7 +663,7 @@ namespace api.Notifications {
 			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
 				var alert = new ApnsAlert(
 					title: $"{comment.UserAccount} commented on {comment.ArticleTitle}",
-					body: comment.Text
+					body: WebUtility.HtmlDecode(comment.Text)
 				);
 				await apnsService.Send(
 					dispatches
@@ -796,7 +796,7 @@ namespace api.Notifications {
 			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
 				var alert = new ApnsAlert(
 					title: $"{userName} posted {articleTitle}",
-					body: commentText
+					body: WebUtility.HtmlDecode(commentText)
 				);
 				await apnsService.Send(
 					dispatches
@@ -923,9 +923,8 @@ namespace api.Notifications {
 				await apnsService.Send(
 					CreateApnsNotification(
 						alert: new ApnsAlert(
-							title: "Re: " + comment.ArticleTitle,
-							subtitle: comment.UserAccount,
-							body: comment.Text
+							title: $"{comment.UserAccount} replied to your comment",
+							body: WebUtility.HtmlDecode(comment.Text)
 						),
 						dispatch: dispatch,
 						url: CreateCommentUrl(comment.ArticleSlug, comment.Id),
