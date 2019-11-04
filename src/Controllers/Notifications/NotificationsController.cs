@@ -198,15 +198,10 @@ namespace api.Controllers.Notifications {
 			[FromServices] ObfuscationService obfuscation,
 			[FromBody] PushViewForm form
 		) {
-			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-				var notification = await db.GetNotification(receiptId: obfuscation.Decode(form.ReceiptId).Value);
-				if (notification.UserAccountId == User.GetUserAccountId()) {
-					await notificationService.ProcessPushRequest(
-						notification: notification,
-						url: form.Url
-					);
-				}
-			}
+			await notificationService.ProcessPushRequest(
+				receiptId: obfuscation.Decode(form.ReceiptId).Value,
+				url: form.Url
+			);
 			return Ok();
 		}
 		[AllowAnonymous]

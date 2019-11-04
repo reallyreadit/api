@@ -84,6 +84,10 @@ namespace api.Notifications {
 				resourceId: articleId
 			)
 		);
+		private Uri CreateArticleUrl(string slug) {
+			var slugParts = slug.Split('_');
+			return new Uri(endpoints.WebServer.CreateUrl($"/read/{slugParts[0]}/{slugParts[1]}"));
+		}
 		private Uri CreateCommentTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long commentId) => (
 			CreateTrackingUrl(
 				dispatch: dispatch,
@@ -93,6 +97,10 @@ namespace api.Notifications {
 				resourceId: commentId
 			)
 		);
+		private Uri CreateCommentUrl(string slug, long commentId) {
+			var slugParts = slug.Split('_');
+			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(commentId)}"));
+		}
 		private Uri CreateCommentsTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long articleId) => (
 			CreateTrackingUrl(
 				dispatch: dispatch,
@@ -102,6 +110,10 @@ namespace api.Notifications {
 				resourceId: articleId
 			)
 		);
+		private Uri CreateCommentsUrl(string slug) {
+			var slugParts = slug.Split('_');
+			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}"));
+		}
 		private Uri CreateEmailConfirmationUrl(long emailConfirmationId) {
 			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(emailConfirmationId.ToString(), tokenizationOptions.EncryptionKey));
 			return new Uri(endpoints.WebServer.CreateUrl($"/confirmEmail?token={token}"));
@@ -129,6 +141,9 @@ namespace api.Notifications {
 				resourceId: followingId
 			)
 		);
+		private Uri CreateFollowerUrl(string name) {
+			return new Uri(endpoints.WebServer.CreateUrl($"/@{name}"));
+		}
 		private async Task CreateOpenInteraction(
 			NpgsqlConnection db,
 			long receiptId
@@ -172,6 +187,21 @@ namespace api.Notifications {
 				resource: ViewActionResource.SilentPost,
 				resourceId: silentPostId
 			);
+		}
+		private Uri CreatePostUrl(string authorName, long? commentId, long? silentPostId) {
+			if (
+				(!commentId.HasValue && !silentPostId.HasValue) ||
+				(commentId.HasValue && silentPostId.HasValue)
+			) {
+				throw new ArgumentException("Post must have only commentId or silentPostId");
+			}
+			string path;
+			if (commentId.HasValue) {
+				path = $"/@{authorName}/comment/{obfuscation.Encode(commentId.Value)}";
+			} else {
+				path = $"/@{authorName}/post/{obfuscation.Encode(silentPostId.Value)}";
+			}
+			return new Uri(endpoints.WebServer.CreateUrl(path));
 		}
 		private Uri CreateTrackingUrl(
 			INotificationDispatch dispatch,
@@ -240,48 +270,34 @@ namespace api.Notifications {
 			ViewActionResource resource,
 			long resourceId
 		) {
-			string path;
 			switch (resource) {
 				case ViewActionResource.Article:
 				case ViewActionResource.Comments:
-					var pathRoot = (
-						resource == ViewActionResource.Article ?
-							"read" :
-							"comments"
-					);
-					var articleSlugParts = (
-							await db.GetArticle(
-								articleId: resourceId
-							)
-						)
-						.Slug.Split('_');
-					path = $"/{pathRoot}/{articleSlugParts[0]}/{articleSlugParts[1]}";
-					break;
+					var article = await db.GetArticle(resourceId);
+					if (resource == ViewActionResource.Article) {
+						return CreateArticleUrl(article.Slug);
+					} else {
+						return CreateCommentsUrl(article.Slug);
+					}
 				case ViewActionResource.Comment:
 					var comment = await db.GetComment(resourceId);
-					var commentSlugParts = comment.ArticleSlug.Split('_');
-					path = $"/comments/{commentSlugParts[0]}/{commentSlugParts[1]}/{obfuscation.Encode(comment.Id)}";
-					break;
+					return CreateCommentUrl(comment.ArticleSlug, comment.Id);
 				case ViewActionResource.CommentPost:
 					var postComment = await db.GetComment(resourceId);
 					var commentPoster = await db.GetUserAccountById(postComment.UserAccountId);
-					path = $"/@{commentPoster.Name}/comment/{obfuscation.Encode(resourceId)}";
-					break;
+					return CreatePostUrl(commentPoster.Name, postComment.Id, null);
 				case ViewActionResource.SilentPost:
 					var silentPost = await db.GetSilentPost(resourceId);
 					var silentPoster = await db.GetUserAccountById(silentPost.UserAccountId);
-					path = $"/@{silentPoster.Name}/post/{obfuscation.Encode(resourceId)}";
-					break;
+					return CreatePostUrl(silentPoster.Name, null, silentPost.Id);
 				case ViewActionResource.Follower:
 					var follower = await db.GetUserAccountById(
 						(await db.GetFollowing(resourceId)).FollowerUserAccountId
 					);
-					path = $"/@{follower.Name}";
-					break;
+					return CreateFollowerUrl(follower.Name);
 				default:
 					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
 			}
-			return new Uri(endpoints.WebServer.CreateUrl(path));
 		}
 		private async Task SendPushClearNotifications(
 			NpgsqlConnection db,
@@ -390,7 +406,7 @@ namespace api.Notifications {
 							dispatch => CreateApnsNotification(
 								alert: alert,
 								dispatch: dispatch,
-								url: CreateArticleTrackingUrl(dispatch, NotificationChannel.Push, article.Id)
+								url: CreateArticleUrl(article.Slug)
 							)
 						)
 						.ToArray()
@@ -591,7 +607,7 @@ namespace api.Notifications {
 							title: $"{followerUserName} is now following you"
 						),
 						dispatch: dispatch,
-						url: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Push, following.Id)
+						url: CreateFollowerUrl(followerUserName)
 					)
 				);
 			}
@@ -656,7 +672,7 @@ namespace api.Notifications {
 							dispatch => CreateApnsNotification(
 								alert: alert,
 								dispatch: dispatch,
-								url: CreateCommentTrackingUrl(dispatch, NotificationChannel.Push, comment.Id),
+								url: CreateCommentUrl(comment.ArticleSlug, comment.Id),
 								category: "replyable"
 							)
 						)
@@ -789,7 +805,7 @@ namespace api.Notifications {
 							dispatch => CreateApnsNotification(
 								alert: alert,
 								dispatch: dispatch,
-								url: CreatePostTrackingUrl(dispatch, NotificationChannel.Push, commentId, silentPostId),
+								url: CreatePostUrl(userName, commentId, silentPostId),
 								category: dispatch.IsReplyable ? "replyable" : null
 							)
 						)
@@ -912,7 +928,7 @@ namespace api.Notifications {
 							body: comment.Text
 						),
 						dispatch: dispatch,
-						url: CreateCommentTrackingUrl(dispatch, NotificationChannel.Push, comment.Id),
+						url: CreateCommentUrl(comment.ArticleSlug, comment.Id),
 						category: "replyable"
 					)
 				);
@@ -1080,10 +1096,11 @@ namespace api.Notifications {
 			}
 		}
 		public async Task ProcessPushRequest(
-			Notification notification,
+			long receiptId,
 			string url
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				var notification = await db.GetNotification(receiptId);
 				await CreateViewInteraction(
 					db: db,
 					notification: notification,
