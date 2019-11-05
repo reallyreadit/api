@@ -176,14 +176,6 @@ namespace api {
 			app.UseEndpoints(
 				endpoints => {
 					endpoints.MapControllerRoute(
-						name: "notifications",
-						pattern: "Notifications/{tokenString}",
-						defaults: new {
-							Controller = "Notifications",
-							Action = "Index"
-						}
-					);
-					endpoints.MapControllerRoute(
 						name: "default",
 						pattern: "{controller=Home}/{action=Index}/{id?}"
 					);

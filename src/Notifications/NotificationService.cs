@@ -75,12 +75,10 @@ namespace api.Notifications {
 				tokens: dispatch.PushDeviceTokens
 			)
 		);
-		private Uri CreateArticleTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long articleId) => (
-			CreateTrackingUrl(
+		private Uri CreateArticleEmailUrl(INotificationDispatch dispatch, long articleId) => (
+			CreateEmailUrl(
 				dispatch: dispatch,
-				channel: channel,
-				action: NotificationAction.View,
-				resource: ViewActionResource.Article,
+				resource: EmailLinkResource.Article,
 				resourceId: articleId
 			)
 		);
@@ -88,12 +86,10 @@ namespace api.Notifications {
 			var slugParts = slug.Split('_');
 			return new Uri(endpoints.WebServer.CreateUrl($"/read/{slugParts[0]}/{slugParts[1]}"));
 		}
-		private Uri CreateCommentTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long commentId) => (
-			CreateTrackingUrl(
+		private Uri CreateCommentEmailUrl(INotificationDispatch dispatch, long commentId) => (
+			CreateEmailUrl(
 				dispatch: dispatch,
-				channel: channel,
-				action: NotificationAction.View,
-				resource: ViewActionResource.Comment,
+				resource: EmailLinkResource.Comment,
 				resourceId: commentId
 			)
 		);
@@ -101,12 +97,10 @@ namespace api.Notifications {
 			var slugParts = slug.Split('_');
 			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(commentId)}"));
 		}
-		private Uri CreateCommentsTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long articleId) => (
-			CreateTrackingUrl(
+		private Uri CreateCommentsEmailUrl(INotificationDispatch dispatch, long articleId) => (
+			CreateEmailUrl(
 				dispatch: dispatch,
-				channel: channel,
-				action: NotificationAction.View,
-				resource: ViewActionResource.Comments,
+				resource: EmailLinkResource.Comments,
 				resourceId: articleId
 			)
 		);
@@ -118,26 +112,28 @@ namespace api.Notifications {
 			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(emailConfirmationId.ToString(), tokenizationOptions.EncryptionKey));
 			return new Uri(endpoints.WebServer.CreateUrl($"/confirmEmail?token={token}"));
 		}
-		private Uri CreateEmailOpenTrackingUrl(INotificationDispatch dispatch) => (
-			CreateTrackingUrl(
-				dispatch: dispatch,
-				channel: NotificationChannel.Email,
-				action: NotificationAction.Open
-			)
-		);
-		private string CreateEmailReplyAddress(INotificationDispatch dispatch) {
-			var replyToken = new NotificationToken(
-					receiptId: dispatch.ReceiptId
+		private Uri CreateEmailOpenUrl(INotificationDispatch dispatch) {
+			var id = UrlSafeBase64.Encode(
+				StringEncryption.Encrypt(
+					text: dispatch.ReceiptId.ToString(),
+					key: tokenizationOptions.EncryptionKey
 				)
-				.CreateTokenString(tokenizationOptions.EncryptionKey);
-			return $"reply+{replyToken}@api.readup.com";
+			);
+			return new Uri(endpoints.ApiServer.CreateUrl($"/Email/Open/{id}"));
 		}
-		private Uri CreateFollowerTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long followingId) => (
-			CreateTrackingUrl(
+		private string CreateEmailReplyAddress(INotificationDispatch dispatch) {
+			var token = UrlSafeBase64.Encode(
+				StringEncryption.Encrypt(
+					text: dispatch.ReceiptId.ToString(),
+					key: tokenizationOptions.EncryptionKey
+				)
+			);
+			return $"reply+{token}@api.readup.com";
+		}
+		private Uri CreateFollowerEmailUrl(INotificationDispatch dispatch, NotificationChannel channel, long followingId) => (
+			CreateEmailUrl(
 				dispatch: dispatch,
-				channel: channel,
-				action: NotificationAction.View,
-				resource: ViewActionResource.Follower,
+				resource: EmailLinkResource.Follower,
 				resourceId: followingId
 			)
 		);
@@ -164,7 +160,7 @@ namespace api.Notifications {
 			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(resetRequestId.ToString(), tokenizationOptions.EncryptionKey));
 			return new Uri(endpoints.WebServer.CreateUrl($"/resetPassword?token={token}"));
 		}
-		private Uri CreatePostTrackingUrl(INotificationDispatch dispatch, NotificationChannel channel, long? commentId, long? silentPostId) {
+		private Uri CreatePostEmailUrl(INotificationDispatch dispatch, long? commentId, long? silentPostId) {
 			if (
 				(!commentId.HasValue && !silentPostId.HasValue) ||
 				(commentId.HasValue && silentPostId.HasValue)
@@ -172,20 +168,16 @@ namespace api.Notifications {
 				throw new ArgumentException("Post must have only commentId or silentPostId");
 			}
 			if (commentId.HasValue) {
-				return CreateTrackingUrl(
+				return CreateEmailUrl(
 					dispatch: dispatch,
-					channel: channel,
-					action: NotificationAction.View,
-					resource: ViewActionResource.CommentPost,
-					resourceId: commentId
+					resource: EmailLinkResource.CommentPost,
+					resourceId: commentId.Value
 				);
 			}
-			return CreateTrackingUrl(
+			return CreateEmailUrl(
 				dispatch: dispatch,
-				channel: channel,
-				action: NotificationAction.View,
-				resource: ViewActionResource.SilentPost,
-				resourceId: silentPostId
+				resource: EmailLinkResource.SilentPost,
+				resourceId: silentPostId.Value
 			);
 		}
 		private Uri CreatePostUrl(string authorName, long? commentId, long? silentPostId) {
@@ -203,22 +195,18 @@ namespace api.Notifications {
 			}
 			return new Uri(endpoints.WebServer.CreateUrl(path));
 		}
-		private Uri CreateTrackingUrl(
+		private Uri CreateEmailUrl(
 			INotificationDispatch dispatch,
-			NotificationChannel channel,
-			NotificationAction action,
-			ViewActionResource? resource = null,
-			long? resourceId = null
+			EmailLinkResource resource,
+			long resourceId
 		) {
-			var token = new NotificationToken(
+			var token = new EmailLinkToken(
 					receiptId: dispatch.ReceiptId,
-					channel: channel,
-					action: action,
-					viewActionResource: resource,
-					viewActionResourceId: resourceId
+					resource: resource,
+					resourceId: resourceId
 				)
 				.CreateTokenString(tokenizationOptions.EncryptionKey);
-			return new Uri(endpoints.ApiServer.CreateUrl($"/Notifications/{token}"));
+			return new Uri(endpoints.WebServer.CreateUrl($"/mailLink/{token}"));
 		}
 		private async Task CreateViewInteraction(
 			NpgsqlConnection db,
@@ -258,7 +246,7 @@ namespace api.Notifications {
 			NpgsqlConnection db,
 			Notification notification,
 			NotificationChannel channel,
-			ViewActionResource resource,
+			EmailLinkResource resource,
 			long resourceId
 		) {
 			var url = await CreateViewUrl(db, resource, resourceId);
@@ -267,30 +255,30 @@ namespace api.Notifications {
 		}
 		private async Task<Uri> CreateViewUrl(
 			NpgsqlConnection db,
-			ViewActionResource resource,
+			EmailLinkResource resource,
 			long resourceId
 		) {
 			switch (resource) {
-				case ViewActionResource.Article:
-				case ViewActionResource.Comments:
+				case EmailLinkResource.Article:
+				case EmailLinkResource.Comments:
 					var article = await db.GetArticle(resourceId);
-					if (resource == ViewActionResource.Article) {
+					if (resource == EmailLinkResource.Article) {
 						return CreateArticleUrl(article.Slug);
 					} else {
 						return CreateCommentsUrl(article.Slug);
 					}
-				case ViewActionResource.Comment:
+				case EmailLinkResource.Comment:
 					var comment = await db.GetComment(resourceId);
 					return CreateCommentUrl(comment.ArticleSlug, comment.Id);
-				case ViewActionResource.CommentPost:
+				case EmailLinkResource.CommentPost:
 					var postComment = await db.GetComment(resourceId);
 					var commentPoster = await db.GetUserAccountById(postComment.UserAccountId);
 					return CreatePostUrl(commentPoster.Name, postComment.Id, null);
-				case ViewActionResource.SilentPost:
+				case EmailLinkResource.SilentPost:
 					var silentPost = await db.GetSilentPost(resourceId);
 					var silentPoster = await db.GetUserAccountById(silentPost.UserAccountId);
 					return CreatePostUrl(silentPoster.Name, null, silentPost.Id);
-				case ViewActionResource.Follower:
+				case EmailLinkResource.Follower:
 					var follower = await db.GetUserAccountById(
 						(await db.GetFollowing(resourceId)).FollowerUserAccountId
 					);
@@ -367,14 +355,14 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: "The AOTD Weekly",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: articles
 									.OrderByDescending(article => article.AotdTimestamp)
 									.Select(
 										article => new ArticleViewModel(
 											article: article,
-											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, article.Id),
-											viewCommentsUrl: CreateCommentsTrackingUrl(dispatch, NotificationChannel.Email, article.Id)
+											readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
+											viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id)
 										)
 									)
 									.ToArray()
@@ -425,11 +413,11 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: "AOTD: " + article.Title,
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: new AotdEmailViewModel(
 									article: article,
-									readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, article.Id),
-									viewCommentsUrl: CreateCommentsTrackingUrl(dispatch, NotificationChannel.Email, article.Id),
+									readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
+									viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
 									learnMoreUrl: learnMoreUrl
 								)
 							)
@@ -477,7 +465,7 @@ namespace api.Notifications {
 							dispatch => {
 								var html = body;
 								foreach (var link in links) {
-									var href = CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, link.Value.ArticleId);
+									var href = CreateArticleEmailUrl(dispatch, link.Value.ArticleId);
 									html = html.Replace(link.Key, $"<a href=\"{href}\">{link.Value.Text}</a>");
 								}
 								return new EmailNotification<CompanyUpdateEmailViewModel>(
@@ -487,7 +475,7 @@ namespace api.Notifications {
 										address: dispatch.EmailAddress
 									),
 									subject: subject,
-									openUrl: CreateEmailOpenTrackingUrl(dispatch),
+									openUrl: CreateEmailOpenUrl(dispatch),
 									content: new CompanyUpdateEmailViewModel(
 										html: html
 									)
@@ -522,7 +510,7 @@ namespace api.Notifications {
 						address: dispatch.EmailAddress
 					),
 					subject: $"Email Confirmation",
-					openUrl: CreateEmailOpenTrackingUrl(dispatch),
+					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new ConfirmationEmailViewModel(
 						emailConfirmationUrl: CreateEmailConfirmationUrl(confirmationId.Value)
 					)
@@ -547,13 +535,13 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: $"[{frequency.ToString()} digest] Your new followers",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: dispatch.Items
 									.OrderByDescending(follower => follower.DateFollowed)
 									.Select(
 										follower => new FollowerViewModel(
 											userName: follower.UserName,
-											viewProfileUrl: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Email, follower.FollowingId)
+											viewProfileUrl: CreateFollowerEmailUrl(dispatch, NotificationChannel.Email, follower.FollowingId)
 										)
 									)
 									.ToArray()
@@ -592,10 +580,10 @@ namespace api.Notifications {
 							address: dispatch.EmailAddress
 						),
 						subject: $"{followerUserName} is now following you",
-						openUrl: CreateEmailOpenTrackingUrl(dispatch),
+						openUrl: CreateEmailOpenUrl(dispatch),
 						content: new FollowerViewModel(
 							userName: followerUserName,
-							viewProfileUrl: CreateFollowerTrackingUrl(dispatch, NotificationChannel.Email, following.Id)
+							viewProfileUrl: CreateFollowerEmailUrl(dispatch, NotificationChannel.Email, following.Id)
 						)
 					)
 				);
@@ -630,7 +618,7 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: $"[{frequency.ToString()} digest] Comments on articles you've read",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: dispatch.Items
 									.OrderByDescending(comment => comment.DateCreated)
 									.Select(
@@ -638,8 +626,8 @@ namespace api.Notifications {
 											author: comment.Author,
 											article: comment.ArticleTitle,
 											text: comment.Text,
-											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
-											viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+											readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
+											viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 										)
 									)
 									.ToArray()
@@ -695,13 +683,13 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: $"{comment.UserAccount} commented on {comment.ArticleTitle}",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: new CommentViewModel(
 									author: comment.UserAccount,
 									article: comment.ArticleTitle,
 									text: comment.Text,
-									readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
-									viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+									readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
+									viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 								)
 							)
 						)
@@ -731,7 +719,7 @@ namespace api.Notifications {
 						address: dispatch.EmailAddress
 					),
 					subject: $"Password Reset",
-					openUrl: CreateEmailOpenTrackingUrl(dispatch),
+					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new PasswordResetEmailViewModel(
 						passwordResetUrl: CreatePasswordResetUrl(resetRequest.Id)
 					)
@@ -756,7 +744,7 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: $"[{frequency.ToString()} digest] Posts from people you follow",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: dispatch.Items
 									.OrderByDescending(post => post.DateCreated)
 									.Select(
@@ -764,8 +752,8 @@ namespace api.Notifications {
 											author: post.Author,
 											article: post.ArticleTitle,
 											text: post.CommentText,
-											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, post.ArticleId),
-											viewPostUrl: CreatePostTrackingUrl(dispatch, NotificationChannel.Email, post.CommentId, post.SilentPostId)
+											readArticleUrl: CreateArticleEmailUrl(dispatch, post.ArticleId),
+											viewPostUrl: CreatePostEmailUrl(dispatch, post.CommentId, post.SilentPostId)
 										)
 									)
 									.ToArray()
@@ -830,14 +818,14 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: $"{userName} posted {articleTitle}",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: new PostEmailViewModel(
 									post: new PostViewModel(
 										author: userName,
 										article: articleTitle,
 										text: commentText,
-										readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, articleId),
-										viewPostUrl: CreatePostTrackingUrl(dispatch, NotificationChannel.Email, commentId, silentPostId)
+										readArticleUrl: CreateArticleEmailUrl(dispatch, articleId),
+										viewPostUrl: CreatePostEmailUrl(dispatch, commentId, silentPostId)
 									),
 									isReplyable: dispatch.IsReplyable
 								)
@@ -865,7 +853,7 @@ namespace api.Notifications {
 									address: dispatch.EmailAddress
 								),
 								subject: $"[{frequency.ToString()} digest] Replies to your comments",
-								openUrl: CreateEmailOpenTrackingUrl(dispatch),
+								openUrl: CreateEmailOpenUrl(dispatch),
 								content: dispatch.Items
 									.OrderByDescending(comment => comment.DateCreated)
 									.Select(
@@ -873,8 +861,8 @@ namespace api.Notifications {
 											author: comment.Author,
 											article: comment.ArticleTitle,
 											text: comment.Text,
-											readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
-											viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+											readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
+											viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 										)
 									)
 									.ToArray()
@@ -908,13 +896,13 @@ namespace api.Notifications {
 							address: dispatch.EmailAddress
 						),
 						subject: $"{comment.UserAccount} replied to your comment",
-						openUrl: CreateEmailOpenTrackingUrl(dispatch),
+						openUrl: CreateEmailOpenUrl(dispatch),
 						content: new CommentViewModel(
 							author: comment.UserAccount,
 							article: comment.ArticleTitle,
 							text: comment.Text,
-							readArticleUrl: CreateArticleTrackingUrl(dispatch, NotificationChannel.Email, comment.ArticleId),
-							viewCommentUrl: CreateCommentTrackingUrl(dispatch, NotificationChannel.Email, comment.Id)
+							readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
+							viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 						)
 					)
 				);
@@ -955,19 +943,28 @@ namespace api.Notifications {
 						address: dispatch.EmailAddress
 					),
 					subject: $"Welcome to Readup",
-					openUrl: CreateEmailOpenTrackingUrl(dispatch),
+					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new ConfirmationEmailViewModel(
 						emailConfirmationUrl: CreateEmailConfirmationUrl(emailConfirmation.Id)
 					)
 				)
 			);
 		}
-		public NotificationToken DecryptTokenString(
-			string tokenString
-		) => new NotificationToken(
-			tokenString: tokenString,
-			key: tokenizationOptions.EncryptionKey
-		);
+		public long? GetReceiptIdFromEmailReplyAddress(string address) {
+			var match = Regex.Match(
+				input: EmailFormatting.ExtractEmailAddress(address),
+				pattern: @"^reply\+([^@]+)@"
+			);
+			if (match.Success) {
+				return Int64.Parse(
+					StringEncryption.Decrypt(
+						text: UrlSafeBase64.Decode(match.Groups[1].Value),
+						key: tokenizationOptions.EncryptionKey
+					)
+				);
+			}
+			return null;
+		}
 		public async Task LogAuthDenial(
 			long userAccountId,
 			string installationId,
@@ -975,6 +972,49 @@ namespace api.Notifications {
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				await db.CreateNotificationPushAuthDenial(userAccountId, installationId, deviceName);
+			}
+		}
+		public async Task<Uri> ProcessEmailLink(
+			string tokenString
+		) {
+			var token = new EmailLinkToken(
+				tokenString: tokenString,
+				key: tokenizationOptions.EncryptionKey
+			);
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				return (
+					token.ReceiptId != 0 ?
+						await CreateViewInteraction(
+							db: db,
+							notification: await db.GetNotification(token.ReceiptId),
+							channel: NotificationChannel.Email,
+							resource: token.Resource,
+							resourceId: token.ResourceId
+						) :
+						await CreateViewUrl(
+							db: db,
+							resource: token.Resource,
+							resourceId: token.ResourceId
+						)
+				);
+			}
+		}
+		public async Task ProcessEmailOpen(
+			string tokenString
+		) {
+			var receiptId = Int64.Parse(
+				StringEncryption.Decrypt(
+					text: UrlSafeBase64.Decode(tokenString),
+					key: tokenizationOptions.EncryptionKey
+				)
+			);
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				if (receiptId != 0) {
+					await CreateOpenInteraction(
+						db: db,
+						receiptId: receiptId
+					);
+				}
 			}
 		}
 		public async Task ProcessEmailReply(
@@ -996,71 +1036,34 @@ namespace api.Notifications {
 				);
 			}
 		}
-		public async Task<( NotificationAction Action, Uri RedirectUrl )?> ProcessEmailRequest(
-			string tokenString
-		) {
-			var token = DecryptTokenString(tokenString);
-			if (token.Channel.HasValue && token.Action.HasValue) {
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					switch (token.Action) {
-						case NotificationAction.Open:
-							if (token.ReceiptId != 0) {
-								await CreateOpenInteraction(
-									db: db,
-									receiptId: token.ReceiptId
-								);
-							}
-							return (NotificationAction.Open, null);
-						case NotificationAction.View:
-							return (
-								NotificationAction.View,
-								token.ReceiptId != 0 ?
-									await CreateViewInteraction(
-										db: db,
-										notification: await db.GetNotification(token.ReceiptId),
-										channel: token.Channel.Value,
-										resource: token.ViewActionResource.Value,
-										resourceId: token.ViewActionResourceId.Value
-									) :
-									await CreateViewUrl(
-										db: db,
-										resource: token.ViewActionResource.Value,
-										resourceId: token.ViewActionResourceId.Value
-									)
-							);
-					}
-				}
-			}
-			return null;
-		}
-		public async Task<Uri> ProcessExtensionRequest(
+		public async Task<Uri> ProcessExtensionView(
 			long receiptId
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				var notification = await db.GetNotification(receiptId);
-				ViewActionResource resource;
+				EmailLinkResource resource;
 				long resourceId;
 				switch (notification.EventType) {
 					case NotificationEventType.Aotd:
-						resource = ViewActionResource.Article;
+						resource = EmailLinkResource.Article;
 						resourceId = notification.ArticleIds.Single();
 						break;
 					case NotificationEventType.Reply:
 					case NotificationEventType.Loopback:
-						resource = ViewActionResource.Comment;
+						resource = EmailLinkResource.Comment;
 						resourceId = notification.CommentIds.Single();
 						break;
 					case NotificationEventType.Post:
 						if (notification.CommentIds.Any()) {
-							resource = ViewActionResource.CommentPost;
+							resource = EmailLinkResource.CommentPost;
 							resourceId = notification.CommentIds.Single();
 						} else {
-							resource = ViewActionResource.SilentPost;
+							resource = EmailLinkResource.SilentPost;
 							resourceId = notification.SilentPostIds.Single();
 						}
 						break;
 					case NotificationEventType.Follower:
-						resource = ViewActionResource.Follower;
+						resource = EmailLinkResource.Follower;
 						resourceId = notification.FollowingIds.Single();
 						break;
 					default:
@@ -1094,7 +1097,7 @@ namespace api.Notifications {
 				);
 			}
 		}
-		public async Task ProcessPushRequest(
+		public async Task ProcessPushView(
 			long receiptId,
 			string url
 		) {

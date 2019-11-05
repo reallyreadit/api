@@ -98,28 +98,6 @@ namespace api.Controllers.Notifications {
 			return Ok();
 		}
 		[AllowAnonymous]
-		[HttpGet]
-		public async Task<IActionResult> Index(
-			[FromServices] NotificationService notificationService,
-			string tokenString
-		) {
-			var result = await notificationService.ProcessEmailRequest(tokenString);
-			if (result.HasValue) {
-				switch (result.Value.Action) {
-					case NotificationAction.Open:
-						return File(
-							fileContents: Convert.FromBase64String(
-								s: "R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
-							),
-							contentType: "image/gif"
-						);
-					case NotificationAction.View:
-						return Redirect(result.Value.RedirectUrl.ToString());		
-				}
-			}
-			return BadRequest();
-		}
-		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> LoopbackDigest(
 			[FromServices] IOptions<AuthenticationOptions> authOptions,
@@ -198,7 +176,7 @@ namespace api.Controllers.Notifications {
 			[FromServices] ObfuscationService obfuscation,
 			[FromBody] PushViewForm form
 		) {
-			await notificationService.ProcessPushRequest(
+			await notificationService.ProcessPushView(
 				receiptId: obfuscation.Decode(form.ReceiptId).Value,
 				url: form.Url
 			);

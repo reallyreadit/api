@@ -63,6 +63,30 @@ namespace api.Controllers.Email {
 			return BadRequest();
 		}
 		[AllowAnonymous]
+		public async Task<IActionResult> Link(
+			[FromServices] NotificationService notificationService,
+			string id
+		) {
+			return Json(
+				new {
+					Url = (await notificationService.ProcessEmailLink(id)).ToString()
+				}
+			);
+		}
+		[AllowAnonymous]
+		public async Task<FileResult> Open(
+			[FromServices] NotificationService notificationService,
+			string id
+		) {
+			await notificationService.ProcessEmailOpen(id);
+			return File(
+				fileContents: Convert.FromBase64String(
+					s: "R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw=="
+				),
+				contentType: "image/gif"
+			);
+		}
+		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> Reply(
 			[FromServices] NotificationService notificationService,
@@ -93,26 +117,15 @@ namespace api.Controllers.Email {
 									)
 									.Body
 								);
-							// TODO: trim quoted text
 							if (commentingService.IsCommentTextValid(mailContent)) {
-								var addressMatch = sesNotification.Mail.CommonHeaders.To
-									.Select(
-										toString => Regex.Match(
-											input: EmailFormatting.ExtractEmailAddress(toString),
-											pattern: @"^reply\+([^@]+)@"
-										)
-									)
+								var receiptId = sesNotification.Mail.CommonHeaders.To
+									.Select(notificationService.GetReceiptIdFromEmailReplyAddress)
 									.SingleOrDefault(
-										match => match.Success
+										receiptId => receiptId.HasValue
 									);
-								if (addressMatch != null) {
-									var receiptId = notificationService
-										.DecryptTokenString(
-											tokenString: addressMatch.Groups[1].Value
-										)
-										.ReceiptId;
+								if (receiptId.HasValue) {
 									using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-										var notification = await db.GetNotification(receiptId);
+										var notification = await db.GetNotification(receiptId.Value);
 										var parent = await db.GetComment(notification.CommentIds.Single());
 										var reply = await commentingService.PostComment(
 											dbConnection: db,
@@ -129,7 +142,7 @@ namespace api.Controllers.Email {
 										);
 										await notificationService.ProcessEmailReply(
 											userAccountId: notification.UserAccountId,
-											receiptId: receiptId,
+											receiptId: receiptId.Value,
 											replyId: reply.Id
 										);
 										return Ok();

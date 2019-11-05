@@ -399,7 +399,7 @@ namespace api.Controllers.Extension {
 		) {
 			return Redirect(
 				(
-					await notificationService.ProcessExtensionRequest(
+					await notificationService.ProcessExtensionView(
 						receiptId: obfuscationService.Decode(id).Value
 					)
 				)
