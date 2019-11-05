@@ -942,7 +942,7 @@ namespace api.Notifications {
 						name: dispatch.UserName,
 						address: dispatch.EmailAddress
 					),
-					subject: $"Welcome to Readup",
+					subject: $"Welcome to Readup!",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new ConfirmationEmailViewModel(
 						emailConfirmationUrl: CreateEmailConfirmationUrl(emailConfirmation.Id)
