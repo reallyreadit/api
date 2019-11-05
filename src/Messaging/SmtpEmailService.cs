@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using MimeKit;
 using MimeKit.Text;
 using Mvc.RenderViewToString;
+using api.BackgroundProcessing;
 
 namespace api.Messaging {
 	public class SmtpEmailService: EmailService {
@@ -14,13 +15,15 @@ namespace api.Messaging {
 			RazorViewToStringRenderer viewRenderer,
 			IOptions<EmailOptions> emailOpts,
 			IOptions<ServiceEndpointsOptions> serviceOpts,
-			IOptions<TokenizationOptions> tokenizationOptions
+			IOptions<TokenizationOptions> tokenizationOptions,
+			IBackgroundTaskQueue taskQueue
 		) : base(
 			dbOpts,
 			viewRenderer,
 			emailOpts,
 			serviceOpts,
-			tokenizationOptions
+			tokenizationOptions,
+			taskQueue
 		) {
 			smtpOptions = emailOpts.Value.SmtpServer;
 		}

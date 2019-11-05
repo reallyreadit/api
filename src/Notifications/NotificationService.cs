@@ -295,7 +295,7 @@ namespace api.Notifications {
 			var pushDevices = await db.GetRegisteredPushDevices(userAccountId);
 			if (pushDevices.Any()) {
 				var userAccount = await db.GetUserAccountById(userAccountId);
-				await apnsService.Send(
+				apnsService.Send(
 					new ApnsNotification(
 						payload: new ApnsPayload(
 							applePayload: new ApnsApplePayload(
@@ -345,7 +345,7 @@ namespace api.Notifications {
 				articles = await db.GetAotds(7);
 			}
 			if (dispatches.Any()) {
-				await emailService.SendAotdDigestNotifications(
+				emailService.SendAotdDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<ArticleViewModel[]>(
@@ -387,7 +387,7 @@ namespace api.Notifications {
 					subtitle: article.Title,
 					body: article.GetFormattedByline()
 				);
-				await apnsService.Send(
+				apnsService.Send(
 					dispatches
 						.Where(dispatch => dispatch.PushDeviceTokens.Any())
 						.Select(
@@ -402,7 +402,7 @@ namespace api.Notifications {
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
 				var learnMoreUrl = new Uri("https://blog.readup.com/?");
-				await emailService.SendAotdNotifications(
+				emailService.SendAotdNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
@@ -459,7 +459,7 @@ namespace api.Notifications {
 				}
 			}
 			if (dispatches.Any()) {
-				await emailService.SendCompanyUpdateNotifications(
+				emailService.SendCompanyUpdateNotifications(
 					dispatches
 						.Select(
 							dispatch => {
@@ -502,7 +502,7 @@ namespace api.Notifications {
 					passwordResetRequestId: null
 				);
 			}
-			await emailService.SendEmailConfirmationNotification(
+			emailService.SendEmailConfirmationNotification(
 				new EmailNotification<ConfirmationEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(
@@ -525,7 +525,7 @@ namespace api.Notifications {
 				dispatches = await db.CreateFollowerDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				await emailService.SendFollowerDigestNotifications(
+				emailService.SendFollowerDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<FollowerViewModel[]>(
@@ -572,7 +572,7 @@ namespace api.Notifications {
 				}
 			}
 			if (dispatch?.ViaEmail ?? false) {
-				await emailService.SendFollowerNotification(
+				emailService.SendFollowerNotification(
 					new EmailNotification<FollowerViewModel>(
 						userId: dispatch.UserAccountId,
 						to: new EmailMailbox(
@@ -589,7 +589,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatch?.PushDeviceTokens.Any() ?? false) {
-				await apnsService.Send(
+				apnsService.Send(
 					CreateApnsNotification(
 						alert: new ApnsAlert(
 							title: $"{followerUserName} is now following you"
@@ -608,7 +608,7 @@ namespace api.Notifications {
 				dispatches = await db.CreateLoopbackDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				await emailService.SendLoopbackDigestNotifications(
+				emailService.SendLoopbackDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<CommentViewModel[]>(
@@ -653,7 +653,7 @@ namespace api.Notifications {
 					title: $"{comment.UserAccount} commented on {comment.ArticleTitle}",
 					body: WebUtility.HtmlDecode(comment.Text)
 				);
-				await apnsService.Send(
+				apnsService.Send(
 					dispatches
 						.Where(dispatch => dispatch.PushDeviceTokens.Any())
 						.Select(
@@ -668,7 +668,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
-				await emailService.SendLoopbackNotifications(
+				emailService.SendLoopbackNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
@@ -711,7 +711,7 @@ namespace api.Notifications {
 					passwordResetRequestId: resetRequest.Id
 				);
 			}
-			await emailService.SendPasswordResetNotification(
+			emailService.SendPasswordResetNotification(
 				new EmailNotification<PasswordResetEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(
@@ -734,7 +734,7 @@ namespace api.Notifications {
 				dispatches = await db.CreatePostDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				await emailService.SendPostDigestNotifications(
+				emailService.SendPostDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<PostViewModel[]>(
@@ -786,7 +786,7 @@ namespace api.Notifications {
 					title: $"{userName} posted {articleTitle}",
 					body: WebUtility.HtmlDecode(commentText)
 				);
-				await apnsService.Send(
+				apnsService.Send(
 					dispatches
 						.Where(dispatch => dispatch.PushDeviceTokens.Any())
 						.Select(
@@ -801,7 +801,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
-				await emailService.SendPostNotifications(
+				emailService.SendPostNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
@@ -843,7 +843,7 @@ namespace api.Notifications {
 				dispatches = await db.CreateReplyDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				await emailService.SendReplyDigestNotifications(
+				emailService.SendReplyDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<CommentViewModel[]>(
@@ -884,7 +884,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatch?.ViaEmail ?? false) {
-				await emailService.SendReplyNotification(
+				emailService.SendReplyNotification(
 					new EmailNotification<CommentViewModel>(
 						userId: dispatch.UserAccountId,
 						replyTo: new EmailMailbox(
@@ -908,7 +908,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatch?.PushDeviceTokens.Any() ?? false) {
-				await apnsService.Send(
+				apnsService.Send(
 					CreateApnsNotification(
 						alert: new ApnsAlert(
 							title: $"{comment.UserAccount} replied to your comment",
@@ -935,7 +935,7 @@ namespace api.Notifications {
 					passwordResetRequestId: null
 				);
 			}
-			await emailService.SendWelcomeNotification(
+			emailService.SendWelcomeNotification(
 				new EmailNotification<ConfirmationEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(

@@ -27,6 +27,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Authorization;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
+using api.BackgroundProcessing;
 
 namespace api {
 	public class Startup {
@@ -60,12 +61,14 @@ namespace api {
 				.Configure<TokenizationOptions>(config.GetSection("Tokenization"));
 			// configure services
 			services
+				.AddHostedService<QueuedHostedService>()
 				.AddScoped<CaptchaService>()
 				.AddScoped<CommentingService>()
 				.AddScoped<NotificationService>()
 				.AddScoped<ObfuscationService>()
 				.AddTransient<RazorViewToStringRenderer>()
-				.AddScoped<ReadingVerificationService>();
+				.AddScoped<ReadingVerificationService>()
+				.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 			// configure headers
 			services.Configure<ForwardedHeadersOptions>(
 				options => {

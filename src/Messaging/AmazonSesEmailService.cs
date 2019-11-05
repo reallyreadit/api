@@ -8,6 +8,7 @@ using api.Configuration;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mvc.RenderViewToString;
+using api.BackgroundProcessing;
 
 namespace api.Messaging {
 	public class AmazonSesEmailService: EmailService {
@@ -19,13 +20,15 @@ namespace api.Messaging {
 			IOptions<EmailOptions> emailOpts,
 			IOptions<ServiceEndpointsOptions> serviceOpts,
 			IOptions<TokenizationOptions> tokenizationOptions,
-			ILogger<AmazonSesEmailService> logger
+			ILogger<AmazonSesEmailService> logger,
+			IBackgroundTaskQueue taskQueue
 		) : base(
 			dbOpts,
 			viewRenderer,
 			emailOpts,
 			serviceOpts,
-			tokenizationOptions
+			tokenizationOptions,
+			taskQueue
 		) {
 			regionEndpoint = RegionEndpoint.GetBySystemName(emailOpts.Value.AmazonSesRegionEndpoint);
 			this.logger = logger;
