@@ -9,6 +9,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Mvc.RenderViewToString;
 using api.BackgroundProcessing;
+using System;
 
 namespace api.Messaging {
 	public class AmazonSesEmailService: EmailService {
@@ -49,12 +50,22 @@ namespace api.Messaging {
 					if (message.ReplyTo != null) {
 						request.ReplyToAddresses.Add($"{message.ReplyTo.Name} <{message.ReplyTo.Address}>");
 					}
-					var response = await client.SendEmailAsync(request);
-					if (response.HttpStatusCode != HttpStatusCode.OK) {
+					// SendEmailAsync will throw an exception if the email address contains illegal characters
+					try {
+						var response = await client.SendEmailAsync(request);
+						if (response.HttpStatusCode != HttpStatusCode.OK) {
+							logger.LogError(
+								"Ses dispatch failed. Status code: {StatusCode} Ses response: {SesResponse} Sent to: {ToAddress}",
+								response.HttpStatusCode,
+								response.ResponseMetadata?.Metadata,
+								message.To.Address
+							);
+						}
+					} catch (Exception ex) {
 						logger.LogError(
-							"Ses dispatch failed. Status code: {StatusCode} Ses response: {SesResponse}",
-							response.HttpStatusCode,
-							response.ResponseMetadata?.Metadata
+							ex,
+							"Ses dispatch thew exception. Sent to: {ToAddress}",
+							message.To.Address
 						);
 					}
 				}
