@@ -62,7 +62,7 @@ namespace api.Notifications {
 			string category = null
 		) => (
 			new ApnsNotification(
-				receiptId: obfuscation.Encode(dispatch.ReceiptId),
+				receiptId: dispatch.ReceiptId,
 				payload: new ApnsPayload(
 					applePayload: new ApnsApplePayload(
 						alert: dispatch.ViaPush ? alert : null,
