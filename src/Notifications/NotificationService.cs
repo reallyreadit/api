@@ -345,7 +345,7 @@ namespace api.Notifications {
 				articles = await db.GetAotds(7);
 			}
 			if (dispatches.Any()) {
-				emailService.SendAotdDigestNotifications(
+				await emailService.SendAotdDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<ArticleViewModel[]>(
@@ -402,7 +402,7 @@ namespace api.Notifications {
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
 				var learnMoreUrl = new Uri("https://blog.readup.com/?");
-				emailService.SendAotdNotifications(
+				await emailService.SendAotdNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
@@ -459,7 +459,7 @@ namespace api.Notifications {
 				}
 			}
 			if (dispatches.Any()) {
-				emailService.SendCompanyUpdateNotifications(
+				await emailService.SendCompanyUpdateNotifications(
 					dispatches
 						.Select(
 							dispatch => {
@@ -502,7 +502,7 @@ namespace api.Notifications {
 					passwordResetRequestId: null
 				);
 			}
-			emailService.SendEmailConfirmationNotification(
+			await emailService.SendEmailConfirmationNotification(
 				new EmailNotification<ConfirmationEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(
@@ -525,7 +525,7 @@ namespace api.Notifications {
 				dispatches = await db.CreateFollowerDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				emailService.SendFollowerDigestNotifications(
+				await emailService.SendFollowerDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<FollowerViewModel[]>(
@@ -572,7 +572,7 @@ namespace api.Notifications {
 				}
 			}
 			if (dispatch?.ViaEmail ?? false) {
-				emailService.SendFollowerNotification(
+				await emailService.SendFollowerNotification(
 					new EmailNotification<FollowerViewModel>(
 						userId: dispatch.UserAccountId,
 						to: new EmailMailbox(
@@ -608,7 +608,7 @@ namespace api.Notifications {
 				dispatches = await db.CreateLoopbackDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				emailService.SendLoopbackDigestNotifications(
+				await emailService.SendLoopbackDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<CommentViewModel[]>(
@@ -668,7 +668,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
-				emailService.SendLoopbackNotifications(
+				await emailService.SendLoopbackNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
@@ -711,7 +711,7 @@ namespace api.Notifications {
 					passwordResetRequestId: resetRequest.Id
 				);
 			}
-			emailService.SendPasswordResetNotification(
+			await emailService.SendPasswordResetNotification(
 				new EmailNotification<PasswordResetEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(
@@ -734,7 +734,7 @@ namespace api.Notifications {
 				dispatches = await db.CreatePostDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				emailService.SendPostDigestNotifications(
+				await emailService.SendPostDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<PostViewModel[]>(
@@ -801,7 +801,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
-				emailService.SendPostNotifications(
+				await emailService.SendPostNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
@@ -843,7 +843,7 @@ namespace api.Notifications {
 				dispatches = await db.CreateReplyDigestNotifications(frequency);
 			}
 			if (dispatches.Any()) {
-				emailService.SendReplyDigestNotifications(
+				await emailService.SendReplyDigestNotifications(
 					dispatches
 						.Select(
 							dispatch => new EmailNotification<CommentViewModel[]>(
@@ -884,7 +884,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatch?.ViaEmail ?? false) {
-				emailService.SendReplyNotification(
+				await emailService.SendReplyNotification(
 					new EmailNotification<CommentViewModel>(
 						userId: dispatch.UserAccountId,
 						replyTo: new EmailMailbox(
@@ -935,7 +935,7 @@ namespace api.Notifications {
 					passwordResetRequestId: null
 				);
 			}
-			emailService.SendWelcomeNotification(
+			await emailService.SendWelcomeNotification(
 				new EmailNotification<ConfirmationEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(
