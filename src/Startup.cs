@@ -44,9 +44,11 @@ namespace api {
 			// configure options
 			IConfigurationSection
 				authOptsConfigSection = config.GetSection("Authentication"),
-				emailOptsConfigSection = config.GetSection("Email");
+				emailOptsConfigSection = config.GetSection("Email"),
+				pushOptsConfigSection = config.GetSection("PushNotifications");
 			var authOpts = authOptsConfigSection.Get<MyAuthenticationOptions>();
 			var emailOpts = emailOptsConfigSection.Get<EmailOptions>();
+			var pushOpts = pushOptsConfigSection.Get<PushNotificationsOptions>();
 			services
 				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
@@ -54,7 +56,7 @@ namespace api {
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(emailOptsConfigSection)
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
-				.Configure<PushNotificationsOptions>(config.GetSection("PushNotifications"))
+				.Configure<PushNotificationsOptions>(pushOptsConfigSection)
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ReadingVerificationOptions>(config.GetSection("ReadingVerification"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
@@ -62,6 +64,7 @@ namespace api {
 			// configure services
 			services
 				.AddHostedService<QueuedHostedService>()
+				.AddScoped<ApnsService>()
 				.AddScoped<CaptchaService>()
 				.AddScoped<CommentingService>()
 				.AddScoped<NotificationService>()
@@ -110,7 +113,16 @@ namespace api {
 			// configure http clients
 			services
 				.AddHttpClient()
-				.AddHttpClient<ApnsService>()
+				.AddHttpClient<ApnsHttpClient>(
+					client => {
+						client.BaseAddress = new Uri(
+							uriString: pushOpts.ApnsServer.CreateUrl()
+						);
+						client.DefaultRequestHeaders.Add("apns-push-type", "alert");
+						client.DefaultRequestHeaders.Add("apns-topic", pushOpts.ApnsTopic);
+						client.DefaultRequestVersion = new Version(2, 0);
+					}
+				)
 				.ConfigurePrimaryHttpMessageHandler(
 					() => new HttpClientHandler() {
 						ClientCertificates = {

@@ -8,7 +8,7 @@ namespace api.Notifications {
 			Tokens = tokens;
 		}
 		public ApnsNotification(
-			long receiptId,
+			string receiptId,
 			ApnsPayload payload,
 			string[] tokens
 		) {
@@ -16,7 +16,7 @@ namespace api.Notifications {
 			Payload = payload;
 			Tokens = tokens;
 		}
-		public long? ReceiptId { get; }
+		public string ReceiptId { get; }
 		public ApnsPayload Payload { get; }
 		public string[] Tokens { get; }
 	}
