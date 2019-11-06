@@ -44,9 +44,11 @@ namespace api {
 			// configure options
 			IConfigurationSection
 				authOptsConfigSection = config.GetSection("Authentication"),
-				emailOptsConfigSection = config.GetSection("Email");
+				emailOptsConfigSection = config.GetSection("Email"),
+				pushOptsConfigSection = config.GetSection("PushNotifications");
 			var authOpts = authOptsConfigSection.Get<MyAuthenticationOptions>();
 			var emailOpts = emailOptsConfigSection.Get<EmailOptions>();
+			var pushOpts = pushOptsConfigSection.Get<PushNotificationsOptions>();
 			services
 				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
@@ -54,7 +56,7 @@ namespace api {
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(emailOptsConfigSection)
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
-				.Configure<PushNotificationsOptions>(config.GetSection("PushNotifications"))
+				.Configure<PushNotificationsOptions>(pushOptsConfigSection)
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ReadingVerificationOptions>(config.GetSection("ReadingVerification"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
@@ -112,11 +114,17 @@ namespace api {
 				.AddHttpClient()
 				.AddHttpClient<ApnsService>()
 				.ConfigurePrimaryHttpMessageHandler(
-					() => new HttpClientHandler() {
-						ClientCertificates = {
-							new X509Certificate2(
-								fileName: $"apnsclient.{env.EnvironmentName}.p12"
-							)
+					() => {
+						using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
+							return new HttpClientHandler() {
+								ClientCertificates = {
+									store.Certificates.Find(
+										findType: X509FindType.FindByThumbprint,
+										findValue: pushOpts.ClientCertThumbprint,
+										validOnly: false
+									)[0]
+								}
+							};
 						}
 					}
 				);
