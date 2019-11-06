@@ -10,7 +10,8 @@ namespace api.Analytics {
 			new Tuple<string, ClientType>("ios/notification", ClientType.IosNotification),
 			new Tuple<string, ClientType>("web/app/client", ClientType.WebAppClient),
 			new Tuple<string, ClientType>("web/app/server", ClientType.WebAppServer),
-			new Tuple<string, ClientType>("web/extension", ClientType.WebExtension)
+			new Tuple<string, ClientType>("web/extension", ClientType.WebExtension),
+			new Tuple<string, ClientType>("mail", ClientType.Mail)
 		};
 		public static IDictionary<string, ClientType> StringToEnum => valuePairs.ToDictionary(pair => pair.Item1, pair => pair.Item2);
 		public static IDictionary<ClientType, string> EnumToString => valuePairs.ToDictionary(pair => pair.Item2, pair => pair.Item1);
