@@ -794,7 +794,7 @@ namespace api.Notifications {
 								alert: alert,
 								dispatch: dispatch,
 								url: CreatePostUrl(userName, commentId, silentPostId),
-								category: dispatch.IsReplyable ? "replyable" : null
+								category: commentId.HasValue && dispatch.HasRecipientReadArticle ? "replyable" : null
 							)
 						)
 						.ToArray()
@@ -805,31 +805,34 @@ namespace api.Notifications {
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)
 						.Select(
-							dispatch => new EmailNotification<PostEmailViewModel>(
-								userId: dispatch.UserAccountId,
-								replyTo: dispatch.IsReplyable ?
-									new EmailMailbox(
-										name: userName,
-										address: CreateEmailReplyAddress(dispatch)
-									) :
-									null,
-								to: new EmailMailbox(
-									name: dispatch.UserName,
-									address: dispatch.EmailAddress
-								),
-								subject: $"{userName} posted {articleTitle}",
-								openUrl: CreateEmailOpenUrl(dispatch),
-								content: new PostEmailViewModel(
-									post: new PostViewModel(
-										author: userName,
-										article: articleTitle,
-										text: commentText,
-										readArticleUrl: CreateArticleEmailUrl(dispatch, articleId),
-										viewPostUrl: CreatePostEmailUrl(dispatch, commentId, silentPostId)
+							dispatch => {
+								var isReplyable = commentId.HasValue && dispatch.HasRecipientReadArticle;
+								return new EmailNotification<PostEmailViewModel>(
+									userId: dispatch.UserAccountId,
+									replyTo: isReplyable ?
+										new EmailMailbox(
+											name: userName,
+											address: CreateEmailReplyAddress(dispatch)
+										) :
+										null,
+									to: new EmailMailbox(
+										name: dispatch.UserName,
+										address: dispatch.EmailAddress
 									),
-									isReplyable: dispatch.IsReplyable
-								)
-							)
+									subject: $"{userName} posted {articleTitle}",
+									openUrl: CreateEmailOpenUrl(dispatch),
+									content: new PostEmailViewModel(
+										post: new PostViewModel(
+											author: userName,
+											article: articleTitle,
+											text: commentText,
+											readArticleUrl: CreateArticleEmailUrl(dispatch, articleId),
+											viewPostUrl: CreatePostEmailUrl(dispatch, commentId, silentPostId)
+										),
+										isReplyable: isReplyable
+									)
+								);
+							}
 						)
 						.ToArray()
 				);
