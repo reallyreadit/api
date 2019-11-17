@@ -8,9 +8,15 @@ namespace api.Messaging.Views {
 			Article article,
 			Uri readArticleUrl,
 			Uri viewCommentsUrl,
+			Uri viewFirstPosterProfileUrl,
 			Uri learnMoreUrl
 		) {
-			Article = new ArticleViewModel(article, readArticleUrl, viewCommentsUrl);
+			Article = new ArticleViewModel(
+				article,
+				readArticleUrl,
+				viewCommentsUrl,
+				viewFirstPosterProfileUrl
+			);
 			LearnMoreUrl = learnMoreUrl.ToString();
 		}
 		public ArticleViewModel Article { get; }

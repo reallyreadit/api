@@ -5,6 +5,7 @@ namespace api.Notifications {
 		Comment = 2,
 		CommentPost = 3,
 		SilentPost = 4,
-		Follower = 5
+		Follower = 5,
+		FirstPoster = 6
 	}
 }

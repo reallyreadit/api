@@ -130,14 +130,21 @@ namespace api.Notifications {
 			);
 			return $"reply+{token}@api.readup.com";
 		}
-		private Uri CreateFollowerEmailUrl(INotificationDispatch dispatch, NotificationChannel channel, long followingId) => (
+		private Uri CreateFollowerEmailUrl(INotificationDispatch dispatch, long followingId) => (
 			CreateEmailUrl(
 				dispatch: dispatch,
 				resource: EmailLinkResource.Follower,
 				resourceId: followingId
 			)
 		);
-		private Uri CreateFollowerUrl(string name) {
+		private Uri CreateFirstPosterEmailUrl(INotificationDispatch dispatch, long articleId) => (
+			CreateEmailUrl(
+				dispatch: dispatch,
+				resource: EmailLinkResource.FirstPoster,
+				resourceId: articleId
+			)
+		);
+		private Uri CreateProfileUrl(string name) {
 			return new Uri(endpoints.WebServer.CreateUrl($"/@{name}"));
 		}
 		private async Task CreateOpenInteraction(
@@ -282,7 +289,12 @@ namespace api.Notifications {
 					var follower = await db.GetUserAccountById(
 						(await db.GetFollowing(resourceId)).FollowerUserAccountId
 					);
-					return CreateFollowerUrl(follower.Name);
+					return CreateProfileUrl(follower.Name);
+				case EmailLinkResource.FirstPoster:
+					var firstPoster = await db.GetUserAccountByName(
+						(await db.GetArticle(resourceId)).FirstPoster
+					);
+					return CreateProfileUrl(firstPoster.Name);
 				default:
 					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
 			}
@@ -362,7 +374,12 @@ namespace api.Notifications {
 										article => new ArticleViewModel(
 											article: article,
 											readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
-											viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id)
+											viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
+											viewFirstPosterProfileUrl: (
+												article.FirstPoster != null ?
+													CreateFirstPosterEmailUrl(dispatch, article.Id) :
+													null
+											)
 										)
 									)
 									.ToArray()
@@ -418,6 +435,11 @@ namespace api.Notifications {
 									article: article,
 									readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
 									viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
+									viewFirstPosterProfileUrl: (
+										article.FirstPoster != null ?
+											CreateFirstPosterEmailUrl(dispatch, article.Id) :
+											null
+									),
 									learnMoreUrl: learnMoreUrl
 								)
 							)
@@ -541,7 +563,7 @@ namespace api.Notifications {
 									.Select(
 										follower => new FollowerViewModel(
 											userName: follower.UserName,
-											viewProfileUrl: CreateFollowerEmailUrl(dispatch, NotificationChannel.Email, follower.FollowingId)
+											viewProfileUrl: CreateFollowerEmailUrl(dispatch, follower.FollowingId)
 										)
 									)
 									.ToArray()
@@ -583,7 +605,7 @@ namespace api.Notifications {
 						openUrl: CreateEmailOpenUrl(dispatch),
 						content: new FollowerViewModel(
 							userName: followerUserName,
-							viewProfileUrl: CreateFollowerEmailUrl(dispatch, NotificationChannel.Email, following.Id)
+							viewProfileUrl: CreateFollowerEmailUrl(dispatch, following.Id)
 						)
 					)
 				);
@@ -595,7 +617,7 @@ namespace api.Notifications {
 							title: $"{followerUserName} is now following you"
 						),
 						dispatch: dispatch,
-						url: CreateFollowerUrl(followerUserName)
+						url: CreateProfileUrl(followerUserName)
 					)
 				);
 			}
