@@ -465,5 +465,26 @@ namespace api.Controllers.Articles {
 				}
 			}
 		}
+		[HttpGet]
+		public async Task<IActionResult> AotdHistory(
+			[FromServices] ReadingVerificationService verificationService,
+			[FromQuery] ArticleQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccountId = this.User.GetUserAccountId();
+				return Json(
+					PageResult<Article>.Create(
+						await db.GetAotdHistory(
+							userAccountId: userAccountId,
+							pageNumber: query.PageNumber,
+							pageSize: 40,
+							minLength: query.MinLength,
+							maxLength: query.MaxLength
+						),
+						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+					)
+				);
+			}
+		}
 	}
 }

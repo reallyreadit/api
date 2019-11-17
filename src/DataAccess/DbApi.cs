@@ -870,6 +870,28 @@ namespace api.DataAccess {
 		#endregion
 
 		#region community_reads
+		public static async Task<PageResult<Article>> GetAotdHistory(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int pageNumber,
+			int pageSize,
+			int? minLength,
+			int? maxLength
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_aotd_history",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
 		public static async Task<IEnumerable<Article>> GetAotds(
 			this NpgsqlConnection conn,
 			int dayCount,
