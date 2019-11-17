@@ -193,6 +193,7 @@ namespace api {
 				}
 			);
 			// configure Npgsql
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<ArticleFlair>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SourceRuleAction>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<UserAccountRole>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationChannel>();

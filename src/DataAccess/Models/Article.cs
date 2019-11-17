@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using api.Formatting;
 
 namespace api.DataAccess.Models {
@@ -23,7 +24,13 @@ namespace api.DataAccess.Models {
 		public bool IsRead { get; set; }
 		public DateTime? DateStarred { get; set; }
 		public int? RatingScore { get; set; }
-		public DateTime? DatePosted { get; set; }
+		public DateTime? DatePosted => DatesPosted.Any() ? DatesPosted.Max() : new Nullable<DateTime>(); // backward compat hack
+		public DateTime[] DatesPosted { get; set; }
+		public int HotScore { get; set; }
+		public int HotVelocity { get; set; }
+		public int RatingCount { get; set; }
+		public string FirstPoster { get; set; }
+		public ArticleFlair Flair { get; set; }
 		public string ProofToken { get; set; }
 		public string GetFormattedByline(int maxAuthorCount = 3) {
 			var byline = Authors.ToListString();
