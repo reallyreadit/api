@@ -10,6 +10,7 @@ namespace api.DataAccess.Models {
 		public long? PostSilentPostId { get; set; }
 		public DateTime PostDateCreated { get; set; }
 		public string PostCommentText { get; set; }
+		public CommentAddendum[] PostCommentAddenda { get; set; }
 		public string PostAuthor { get; set; }
 		public long PostArticleId { get; set; }
 		public string PostArticleTitle { get; set; }

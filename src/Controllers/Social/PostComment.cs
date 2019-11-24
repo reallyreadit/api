@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using api.DataAccess.Models;
 using api.Encryption;
 using DbPost = api.DataAccess.Models.Post;
@@ -10,7 +11,13 @@ namespace api.Controllers.Social {
 			ObfuscationService obfuscationService
 		) {
 			Id = obfuscationService.Encode(comment.Id);
-			Text = comment.Text;
+			if (comment.DateDeleted.HasValue) {
+				Text = String.Empty;
+				Addenda = new CommentAddendum[0];
+			} else {
+				Text = comment.Text;
+				Addenda = comment.Addenda;
+			}
 		}
 		public PostComment(
 			DbPost post,
@@ -20,9 +27,18 @@ namespace api.Controllers.Social {
 				throw new ArgumentException("CommentId required", nameof(post));
 			}
 			Id = obfuscationService.Encode(post.CommentId.Value);
-			Text = post.CommentText;
+			if (post.DateDeleted.HasValue) {
+				Text = String.Empty;
+				Addenda = new CommentAddendum[0];
+			} else {
+				Text = post.CommentText;
+				Addenda = post.CommentAddenda
+					.OrderBy(addendum => addendum.DateCreated)
+					.ToArray();
+			}
 		}
 		public string Id { get; }
 		public string Text { get; }
+		public CommentAddendum[] Addenda { get; set; }
 	}
 }

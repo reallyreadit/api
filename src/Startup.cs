@@ -186,9 +186,22 @@ namespace api {
 			// configure mvc
 			app.UseEndpoints(
 				endpoints => {
+					endpoints.MapDefaultControllerRoute();
 					endpoints.MapControllerRoute(
-						name: "default",
-						pattern: "{controller=Home}/{action=Index}/{id?}"
+						name: "Articles/ListComments Redirect",
+						pattern: "Articles/ListComments",
+						defaults: new {
+							Action = "Comments",
+							Controller = "Social"
+						}
+					);
+					endpoints.MapControllerRoute(
+						name: "Articles/PostComment Redirect",
+						pattern: "Articles/PostComment",
+						defaults: new {
+							Action = "Comment",
+							Controller = "Social"
+						}
 					);
 				}
 			);
@@ -201,6 +214,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventFrequency>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventType>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationPushUnregistrationReason>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
 			// configure Dapper

@@ -132,24 +132,6 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<Comment> CreateComment(
-			this NpgsqlConnection conn,
-			string text,
-			long articleId,
-			long? parentCommentId,
-			long userAccountId,
-			RequestAnalytics analytics
-		) => await conn.QuerySingleOrDefaultAsync<Comment>(
-			sql: "article_api.create_comment",
-			param: new {
-				text,
-				article_id = articleId,
-				parent_comment_id = parentCommentId,
-				user_account_id = userAccountId,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
-			},
-			commandType: CommandType.StoredProcedure
-		);
 		public static Page CreatePage(this NpgsqlConnection conn, long articleId, int number, int wordCount, int readableWordCount, string url) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.create_page",
 			param: new {
@@ -238,11 +220,6 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public static async Task<Comment> GetComment(this NpgsqlConnection conn, long commentId) => await conn.QuerySingleOrDefaultAsync<Comment>(
-			sql: "article_api.get_comment",
-			param: new { comment_id = commentId },
-			commandType: CommandType.StoredProcedure
-		);
 		public static Page GetPage(this NpgsqlConnection conn, long pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
 			param: new { page_id = pageId },
@@ -289,24 +266,6 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static IEnumerable<Comment> ListComments(this NpgsqlConnection conn, long articleId) => conn.Query<Comment>(
-			sql: "article_api.list_comments",
-			param: new { article_id = articleId },
-			commandType: CommandType.StoredProcedure
-		);
-		public static PageResult<Comment> ListReplies(this NpgsqlConnection conn, long userAccountId, int pageNumber, int pageSize) => PageResult<Comment>.Create(
-			items: conn.Query<CommentPageResult>(
-				sql: "article_api.list_replies",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
 		public static Task<Rating> RateArticle(
 			this NpgsqlConnection conn,
 			long articleId,
@@ -319,11 +278,6 @@ namespace api.DataAccess {
 				user_account_id = userAccountId,
 				score
 			},
-			commandType: CommandType.StoredProcedure
-		);
-		public static void ReadComment(this NpgsqlConnection conn, long commentId) => conn.Execute(
-			sql: "article_api.read_comment",
-			param: new { comment_id = commentId },
 			commandType: CommandType.StoredProcedure
 		);
 		public static void StarArticle(this NpgsqlConnection conn, long userAccountId, long articleId) => conn.Execute(
@@ -1048,6 +1002,36 @@ namespace api.DataAccess {
 		#endregion
 
 		#region social
+		public static async Task<Comment> CreateComment(
+			this NpgsqlConnection conn,
+			string text,
+			long articleId,
+			long? parentCommentId,
+			long userAccountId,
+			RequestAnalytics analytics
+		) => await conn.QuerySingleOrDefaultAsync<Comment>(
+			sql: "social.create_comment",
+			param: new {
+				text,
+				article_id = articleId,
+				parent_comment_id = parentCommentId,
+				user_account_id = userAccountId,
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Comment> CreateCommentAddendum(
+			this NpgsqlConnection conn,
+			long commentId,
+			string textContent
+		) => await conn.QuerySingleOrDefaultAsync<Comment>(
+			sql: "social.create_comment_addendum",
+			param: new {
+				comment_id = commentId,
+				text_content = textContent
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<Following> CreateFollowing(
 			this NpgsqlConnection conn,
 			long followerUserId,
@@ -1073,6 +1057,36 @@ namespace api.DataAccess {
 				user_account_id = userAccountId,
 				article_id = articleId,
 				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Comment> DeleteComment(
+			this NpgsqlConnection conn,
+			long commentId
+		) => await conn.QuerySingleOrDefaultAsync<Comment>(
+			sql: "social.delete_comment",
+			param: new {
+				comment_id = commentId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Comment> GetComment(
+			this NpgsqlConnection conn,
+			long commentId
+		) => await conn.QuerySingleOrDefaultAsync<Comment>(
+			sql: "social.get_comment",
+			param: new {
+				comment_id = commentId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<Comment>> GetComments(
+			this NpgsqlConnection conn,
+			long articleId
+		) => await conn.QueryAsync<Comment>(
+			sql: "social.get_comments",
+			param: new {
+				article_id = articleId
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1193,6 +1207,18 @@ namespace api.DataAccess {
 			sql: "social.get_silent_post",
 			param: new {
 				id
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Comment> ReviseComment(
+			this NpgsqlConnection conn,
+			long commentId,
+			string revisedText
+		) => await conn.QuerySingleOrDefaultAsync<Comment>(
+			sql: "social.revise_comment",
+			param: new {
+				comment_id = commentId,
+				revised_text = revisedText
 			},
 			commandType: CommandType.StoredProcedure
 		);

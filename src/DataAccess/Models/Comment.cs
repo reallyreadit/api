@@ -11,6 +11,7 @@ namespace api.DataAccess.Models {
 		public long UserAccountId { get; set; }
 		public string UserAccount { get; set; }
 		public long? ParentCommentId { get; set; }
-		public DateTime? DateRead { get; set; }
+		public CommentAddendum[] Addenda { get; set; }
+		public DateTime? DateDeleted { get; set; }
 	}
 }

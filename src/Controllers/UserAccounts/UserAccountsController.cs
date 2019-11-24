@@ -17,7 +17,7 @@ using System.Net;
 using api.Authorization;
 using Npgsql;
 using api.Security;
-using api.ClientModels;
+using api.Commenting;
 using api.Analytics;
 using api.BackwardsCompatibility;
 using api.Notifications;
@@ -49,9 +49,6 @@ namespace api.Controllers.UserAccounts {
 			.Id;
 		// deprecated
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.ReadComment(reply.Id);
-			}
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl(RouteHelper.GetArticlePath(reply.ArticleSlug) + "/" + reply.Id.ToString()));
 		}
 		private bool IsPasswordValid(string password) =>
@@ -708,7 +705,6 @@ namespace api.Controllers.UserAccounts {
 				commentId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey));
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				db.ReadComment(commentId);
 				var comment = await db.GetComment(commentId);
 				return Json(new CommentThread(
 					comment: comment,

@@ -15,11 +15,29 @@ namespace api.Commenting {
 		) {
 			this.notificationService = notificationService;
 		}
+		public bool CanReviseComment(
+			Comment comment
+		) => (
+			DateTime.UtcNow.Subtract(comment.DateCreated) < TimeSpan.FromMinutes(3.5)
+		);
 		public bool IsCommentTextValid(
 			string text
 		) => (
 			!String.IsNullOrWhiteSpace(text)
 		);
+		public async Task<Comment> CreateAddendum(
+			NpgsqlConnection dbConnection,
+			long commentId,
+			string text
+		) {
+			return await dbConnection.CreateCommentAddendum(commentId, WebUtility.HtmlEncode(text));
+		}
+		public async Task<Comment> DeleteComment(
+			NpgsqlConnection dbConnection,
+			long commentId
+		) {
+			return await dbConnection.DeleteComment(commentId);
+		}
 		public async Task<Comment> PostComment(
 			NpgsqlConnection dbConnection,
 			string text,
@@ -54,6 +72,13 @@ namespace api.Commenting {
 				);
 			}
 			return comment;
+		}
+		public async Task<Comment> ReviseComment(
+			NpgsqlConnection dbConnection,
+			long commentId,
+			string text
+		) {
+			return await dbConnection.ReviseComment(commentId, WebUtility.HtmlEncode(text));
 		}
 	}
 }

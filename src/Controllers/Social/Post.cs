@@ -1,5 +1,4 @@
 using System;
-using api.ClientModels;
 using api.DataAccess.Models;
 using api.DataAccess.Stats;
 
@@ -12,14 +11,21 @@ namespace api.Controllers.Social {
 			Article article,
 			PostComment comment,
 			string silentPostId,
+			DateTime? dateDeleted,
 			bool hasAlert
 		) {
 			Date = date;
-			UserName = userName;
-			Badge = badge;
+			if (dateDeleted.HasValue) {
+				UserName = String.Empty;
+				Badge = LeaderboardBadge.None;
+			} else {
+				UserName = userName;
+				Badge = badge;
+			}
 			Article = article;
 			Comment = comment;
 			SilentPostId = silentPostId;
+			DateDeleted = dateDeleted;
 			HasAlert = hasAlert;
 		}
 		public DateTime Date { get; }
@@ -28,6 +34,7 @@ namespace api.Controllers.Social {
 		public Article Article { get; }
 		public PostComment Comment { get; }
 		public string SilentPostId { get; set; }
+		public DateTime? DateDeleted { get; set; }
 		public bool HasAlert { get; set; }
 	}
 }

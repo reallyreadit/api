@@ -8,20 +8,173 @@ using api.Authentication;
 using api.Analytics;
 using api.DataAccess.Models;
 using System;
-using System.Net;
-using api.ClientModels;
 using api.DataAccess.Stats;
 using api.Encryption;
 using Microsoft.AspNetCore.Authorization;
 using System.Linq;
 using api.Notifications;
 using api.Commenting;
+using api.ReadingVerification;
+using System.Collections.Generic;
 
 namespace api.Controllers.Social {
 	public class SocialController : Controller {
 		private DatabaseOptions dbOpts;
 		public SocialController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
+		}
+		[HttpPost]
+		public async Task<IActionResult> Comment(
+			[FromBody] CommentForm form,
+			[FromServices] CommentingService commentingService,
+			[FromServices] ObfuscationService obfuscationService,
+			[FromServices] ReadingVerificationService verificationService
+		) {
+			if (!String.IsNullOrWhiteSpace(form.Text)) {
+				var userAccountId = this.User.GetUserAccountId();
+				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+					var userArticle = await db.GetArticle(form.ArticleId, userAccountId);
+					if (userArticle.IsRead && commentingService.IsCommentTextValid(form.Text)) {
+						var commentThread = new CommentThread(
+							comment: await commentingService.PostComment(
+								dbConnection: db,
+								text: form.Text,
+								articleId: form.ArticleId,
+								parentCommentId: obfuscationService.Decode(form.ParentCommentId),
+								userAccountId: userAccountId,
+								analytics: this.GetRequestAnalytics()
+							),
+							badge: (
+									await db.GetUserLeaderboardRankings(
+										userAccountId: userAccountId
+									)
+								)
+								.GetBadge(),
+							obfuscationService: obfuscationService
+						);
+						if (
+							this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
+								{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
+								{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
+								{ ClientType.IosApp, new SemanticVersion("3.1.1") }
+							})
+						) {
+							return Json(new {
+								Article = verificationService.AssignProofToken(
+									article: await db.GetArticle(form.ArticleId, userAccountId),
+									userAccountId: userAccountId
+								),
+								Comment = commentThread
+							});
+						}
+						return Json(commentThread);
+					}
+				}
+			}
+			return BadRequest();
+		}
+		[HttpPost]
+		public async Task<IActionResult> CommentAddendum(
+			[FromBody] CommentAddendumForm form,
+			[FromServices] CommentingService commentingService,
+			[FromServices] ObfuscationService obfuscationService
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var comment = await db.GetComment(obfuscationService.Decode(form.CommentId).Value);
+				if (comment.UserAccountId == User.GetUserAccountId()) {
+					return Json(
+						new CommentThread(
+							await commentingService.CreateAddendum(db, comment.Id, form.Text),
+							(await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
+							obfuscationService
+						)
+					);
+				}
+			}
+			return BadRequest();
+		}
+		[HttpPost]
+		public async Task<IActionResult> CommentRevision(
+			[FromBody] CommentRevisionForm form,
+			[FromServices] CommentingService commentingService,
+			[FromServices] ObfuscationService obfuscationService
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var comment = await db.GetComment(obfuscationService.Decode(form.CommentId).Value);
+				if (
+					comment.UserAccountId == User.GetUserAccountId() &&
+					commentingService.CanReviseComment(comment)
+				) {
+					return Json(
+						new CommentThread(
+							await commentingService.ReviseComment(db, comment.Id, form.Text),
+							(await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
+							obfuscationService
+						)
+					);
+				}
+			}
+			return BadRequest();
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<IActionResult> Comments(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromServices] ReadingVerificationService verificationService,
+			[FromQuery] CommentsQuery query
+		) {
+			var userAccountId = User.GetUserAccountIdOrDefault();
+			CommentThread[] comments;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId ?? 0,
+					now: DateTime.UtcNow
+				);
+				comments = (
+						await db.GetComments(
+							db.FindArticle(query.Slug, userAccountId).Id
+						)
+					)
+					.Select(
+						comment => new CommentThread(
+							comment: comment,
+							badge: leaderboards.GetBadge(comment.UserAccount),
+							obfuscationService: obfuscationService
+						)
+					)
+					.ToArray();
+			}
+			foreach (var comment in comments.Where(c => c.ParentCommentId != null)) {
+				comments.Single(c => c.Id == comment.ParentCommentId).Children.Add(comment);
+			}
+			foreach (var comment in comments) {
+				comment.Children.Sort((a, b) => b.MaxDate.CompareTo(a.MaxDate));
+			}
+			return Json(
+				comments
+					.Where(c => c.ParentCommentId == null)
+					.OrderByDescending(c => c.MaxDate)
+			);
+		}
+		[HttpPost]
+		public async Task<IActionResult> CommentDeletion(
+			[FromBody] CommentDeletionForm form,
+			[FromServices] CommentingService commentingService,
+			[FromServices] ObfuscationService obfuscationService
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var comment = await db.GetComment(obfuscationService.Decode(form.CommentId).Value);
+				if (comment.UserAccountId == User.GetUserAccountId()) {
+					return Json(
+						new CommentThread(
+							await commentingService.DeleteComment(db, comment.Id),
+							LeaderboardBadge.None,
+							obfuscationService
+						)
+					);
+				}
+			}
+			return BadRequest();
 		}
 		[HttpPost]
 		public async Task<IActionResult> Follow(
@@ -97,6 +250,7 @@ namespace api.Controllers.Social {
 										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
 										null
 								),
+								dateDeleted: multimap.Post.DateDeleted,
 								hasAlert: multimap.Post.HasAlert
 							)
 						)
@@ -156,6 +310,7 @@ namespace api.Controllers.Social {
 										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
 										null
 								),
+								dateDeleted: multimap.Post.DateDeleted,
 								hasAlert: multimap.Post.HasAlert
 							)
 						)
@@ -244,6 +399,7 @@ namespace api.Controllers.Social {
 										obfuscationService: obfuscationService
 									),
 									silentPostId: null,
+									dateDeleted: comment.DateDeleted,
 									hasAlert: false
 								) :
 								new Post(
@@ -253,6 +409,7 @@ namespace api.Controllers.Social {
 									badge: badge,
 									comment: null,
 									silentPostId: obfuscationService.Encode(silentPost.Id),
+									dateDeleted: null,
 									hasAlert: false
 								)
 						)
@@ -341,7 +498,8 @@ namespace api.Controllers.Social {
 									multimap.Post.SilentPostId.HasValue ?
 										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
 										null
-								)
+								),
+								dateDeleted: multimap.Post.DateDeleted
 							)
 						)
 					)

@@ -9,6 +9,7 @@ namespace api.DataAccess.Models {
 		public long CommentId { get; set; }
 		public DateTime CommentDateCreated { get; set; }
 		public string CommentText { get; set; }
+		public CommentAddendum[] CommentAddenda { get; set; }
 		public string CommentAuthor { get; set; }
 		public long CommentArticleId { get; set; }
 		public string CommentArticleTitle { get; set; }
