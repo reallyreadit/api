@@ -503,6 +503,7 @@ namespace api.DataAccess {
 						id: row.CommentId,
 						dateCreated: row.CommentDateCreated,
 						text: row.CommentText,
+						addenda: row.CommentAddenda,
 						author: row.CommentAuthor,
 						articleId: row.CommentArticleId,
 						articleTitle: row.CommentArticleTitle
@@ -560,6 +561,7 @@ namespace api.DataAccess {
 						silentPostId: row.PostSilentPostId,
 						dateCreated: row.PostDateCreated,
 						commentText: row.PostCommentText,
+						commentAddenda: row.PostCommentAddenda,
 						author: row.PostAuthor,
 						articleId: row.PostArticleId,
 						articleTitle: row.PostArticleTitle
@@ -632,6 +634,7 @@ namespace api.DataAccess {
 						id: row.CommentId,
 						dateCreated: row.CommentDateCreated,
 						text: row.CommentText,
+						addenda: row.CommentAddenda,
 						author: row.CommentAuthor,
 						articleId: row.CommentArticleId,
 						articleTitle: row.CommentArticleTitle

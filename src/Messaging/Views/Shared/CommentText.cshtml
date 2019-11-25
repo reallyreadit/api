@@ -1,0 +1,11 @@
+@model api.Messaging.Views.Shared.CommentTextViewModel
+
+<div style="margin:1em 0;padding:0.75em;border-left:0.3em solid #ddd;border-radius:0.5em;background-color:#fafafa;">
+	@Html.Raw(Model.Text.Replace("\n", "<br />"))
+	@foreach (var addendum in Model.Addenda) {
+		<div style="margin:0.5em 0;">
+			<span style="font-weight:bold;">Update (@addendum.DateCreated): </span>
+			@Html.Raw(addendum.Text.Replace("\n", "<br />"))
+		</div>
+	}
+</div>

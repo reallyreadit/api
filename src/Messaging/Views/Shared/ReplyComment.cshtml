@@ -1,5 +1,5 @@
 @model api.Messaging.Views.Shared.CommentViewModel
 
 <div style="margin:1em 0;">@Model.Author replied to your comment on @await Html.PartialAsync("Shared/ArticleLink", (Title: Model.Article, Url: Model.ReadArticleUrl))</div>
-@await Html.PartialAsync("Shared/CommentQuote", Model.Text)
+@await Html.PartialAsync("Shared/CommentText", Model.CommentText)
 @await Html.PartialAsync("Shared/Button", (Text: "View on Readup", Url: Model.ViewCommentUrl))

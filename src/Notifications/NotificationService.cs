@@ -648,6 +648,7 @@ namespace api.Notifications {
 											author: comment.Author,
 											article: comment.ArticleTitle,
 											text: comment.Text,
+											addenda: comment.Addenda,
 											readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
 											viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 										)
@@ -710,6 +711,7 @@ namespace api.Notifications {
 									author: comment.UserAccount,
 									article: comment.ArticleTitle,
 									text: comment.Text,
+									addenda: comment.Addenda,
 									readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
 									viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 								)
@@ -774,6 +776,7 @@ namespace api.Notifications {
 											author: post.Author,
 											article: post.ArticleTitle,
 											text: post.CommentText,
+											addenda: post.CommentAddenda,
 											readArticleUrl: CreateArticleEmailUrl(dispatch, post.ArticleId),
 											viewPostUrl: CreatePostEmailUrl(dispatch, post.CommentId, post.SilentPostId)
 										)
@@ -848,6 +851,7 @@ namespace api.Notifications {
 											author: userName,
 											article: articleTitle,
 											text: commentText,
+											addenda: new CommentAddendum[0],
 											readArticleUrl: CreateArticleEmailUrl(dispatch, articleId),
 											viewPostUrl: CreatePostEmailUrl(dispatch, commentId, silentPostId)
 										),
@@ -886,6 +890,7 @@ namespace api.Notifications {
 											author: comment.Author,
 											article: comment.ArticleTitle,
 											text: comment.Text,
+											addenda: comment.Addenda,
 											readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
 											viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 										)
@@ -926,6 +931,7 @@ namespace api.Notifications {
 							author: comment.UserAccount,
 							article: comment.ArticleTitle,
 							text: comment.Text,
+							addenda: comment.Addenda,
 							readArticleUrl: CreateArticleEmailUrl(dispatch, comment.ArticleId),
 							viewCommentUrl: CreateCommentEmailUrl(dispatch, comment.Id)
 						)
