@@ -16,12 +16,18 @@ using api.Notifications;
 using api.Commenting;
 using api.ReadingVerification;
 using System.Collections.Generic;
+using Microsoft.Extensions.Logging;
 
 namespace api.Controllers.Social {
 	public class SocialController : Controller {
 		private DatabaseOptions dbOpts;
-		public SocialController(IOptions<DatabaseOptions> dbOpts) {
+		private ILogger<SocialController> logger;
+		public SocialController(
+			IOptions<DatabaseOptions> dbOpts,
+			[FromServices] ILogger<SocialController> logger
+		) {
 			this.dbOpts = dbOpts.Value;
+			this.logger = logger;
 		}
 		[HttpPost]
 		public async Task<IActionResult> Comment(
@@ -366,7 +372,8 @@ namespace api.Controllers.Social {
 								silentPostId: silentPost.Id
 							);
 						}
-					} catch {
+					} catch (Exception ex) {
+						logger.LogError(ex, "Failed to create new post.");
 						return BadRequest();
 					}
 					if (form.RatingScore.HasValue) {
