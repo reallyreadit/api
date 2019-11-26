@@ -10,14 +10,18 @@ namespace api.Messaging.Views.Shared {
 			IEnumerable<CommentAddendum> addenda
 		) {
 			Text = text;
-			Addenda = addenda
-				.OrderBy(
-					addendum => addendum.DateCreated
-				)
-				.Select(
-					addendum => new CommentAddendumViewModel(addendum)
-				)
-				.ToArray();
+			if (addenda != null) {
+				Addenda = addenda
+					.OrderBy(
+						addendum => addendum.DateCreated
+					)
+					.Select(
+						addendum => new CommentAddendumViewModel(addendum)
+					)
+					.ToArray();
+			} else {
+				Addenda = new CommentAddendumViewModel[0];
+			}
 		}
 		public string Text { get; }
 		public CommentAddendumViewModel[] Addenda { get; }
