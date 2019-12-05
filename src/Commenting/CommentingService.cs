@@ -1,5 +1,4 @@
 using System;
-using System.Net;
 using System.Threading.Tasks;
 using api.Analytics;
 using api.DataAccess;
@@ -30,7 +29,7 @@ namespace api.Commenting {
 			long commentId,
 			string text
 		) {
-			return await dbConnection.CreateCommentAddendum(commentId, WebUtility.HtmlEncode(text));
+			return await dbConnection.CreateCommentAddendum(commentId, text);
 		}
 		public async Task<Comment> DeleteComment(
 			NpgsqlConnection dbConnection,
@@ -47,7 +46,7 @@ namespace api.Commenting {
 			RequestAnalytics analytics
 		) {
 			var comment = await dbConnection.CreateComment(
-				text: WebUtility.HtmlEncode(text),
+				text: text,
 				articleId: articleId,
 				parentCommentId: parentCommentId,
 				userAccountId: userAccountId,
@@ -78,7 +77,7 @@ namespace api.Commenting {
 			long commentId,
 			string text
 		) {
-			return await dbConnection.ReviseComment(commentId, WebUtility.HtmlEncode(text));
+			return await dbConnection.ReviseComment(commentId, text);
 		}
 	}
 }
