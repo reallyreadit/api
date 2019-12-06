@@ -3,11 +3,26 @@ using System.Threading.Tasks;
 using api.Analytics;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Markdown;
 using api.Notifications;
+using Markdig;
 using Npgsql;
 
 namespace api.Commenting {
 	public class CommentingService {
+		private static MarkdownPipeline CommentTextMarkdownHtmlPipeline = new MarkdownPipelineBuilder()
+			.DisableNonHttpLinks()
+			.DisableHtml()
+			.UseAutoLinks()
+			.Build();
+		public static string RenderCommentTextToHtml(string commentText) =>
+			commentText != null ?
+				Markdig.Markdown.ToHtml(commentText, CommentTextMarkdownHtmlPipeline) :
+				null;
+		public static string RenderCommentTextToPlainText(string commentText) =>
+			commentText != null ?
+				Markdig.Markdown.ToPlainText(commentText) :
+				null;
 		private readonly NotificationService notificationService;
 		public CommentingService(
 			NotificationService notificationService

@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using api.Commenting;
 using api.DataAccess.Models;
+using api.Markdown;
+using Markdig;
 
 namespace api.Messaging.Views.Shared {
 	public class CommentTextViewModel {
@@ -9,7 +12,7 @@ namespace api.Messaging.Views.Shared {
 			string text,
 			IEnumerable<CommentAddendum> addenda
 		) {
-			Text = text;
+			TextHtml = CommentingService.RenderCommentTextToHtml(text);
 			if (addenda != null) {
 				Addenda = addenda
 					.OrderBy(
@@ -23,7 +26,7 @@ namespace api.Messaging.Views.Shared {
 				Addenda = new CommentAddendumViewModel[0];
 			}
 		}
-		public string Text { get; }
+		public string TextHtml { get; }
 		public CommentAddendumViewModel[] Addenda { get; }
 	}
 }

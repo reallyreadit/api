@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using api.Commenting;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
@@ -674,7 +675,7 @@ namespace api.Notifications {
 			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
 				var alert = new ApnsAlert(
 					title: $"{comment.UserAccount} commented on {comment.ArticleTitle}",
-					body: WebUtility.HtmlDecode(comment.Text)
+					body: CommentingService.RenderCommentTextToPlainText(comment.Text)
 				);
 				apnsService.Send(
 					dispatches
@@ -809,7 +810,7 @@ namespace api.Notifications {
 			if (dispatches.Any(dispatch => dispatch.PushDeviceTokens.Any())) {
 				var alert = new ApnsAlert(
 					title: $"{userName} posted {articleTitle}",
-					body: WebUtility.HtmlDecode(commentText)
+					body: CommentingService.RenderCommentTextToPlainText(commentText)
 				);
 				apnsService.Send(
 					dispatches
@@ -943,7 +944,7 @@ namespace api.Notifications {
 					CreateApnsNotification(
 						alert: new ApnsAlert(
 							title: $"{comment.UserAccount} replied to your comment",
-							body: WebUtility.HtmlDecode(comment.Text)
+							body: CommentingService.RenderCommentTextToPlainText(comment.Text)
 						),
 						dispatch: dispatch,
 						url: CreateCommentUrl(comment.ArticleSlug, comment.Id),

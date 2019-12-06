@@ -1,3 +1,4 @@
+using api.Commenting;
 using api.DataAccess.Models;
 
 namespace api.Messaging.Views.Shared {
@@ -6,9 +7,9 @@ namespace api.Messaging.Views.Shared {
 			CommentAddendum addendum
 		) {
 			DateCreated = addendum.DateCreated.ToShortDateString();
-			Text = addendum.TextContent;
+			TextHtml = CommentingService.RenderCommentTextToHtml(addendum.TextContent);
 		}
 		public string DateCreated { get; }
-		public string Text { get; }
+		public string TextHtml { get; }
 	}
 }

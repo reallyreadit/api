@@ -1,7 +1,7 @@
 @model api.Messaging.Views.Shared.PostViewModel
 
 <div style="margin:1em 0;">@Model.Author posted @await Html.PartialAsync("Shared/ArticleLink", (Title: Model.Article, Url: Model.ReadArticleUrl))</div>
-@if (!String.IsNullOrWhiteSpace(Model.CommentText.Text)) {
+@if (!String.IsNullOrWhiteSpace(Model.CommentText.TextHtml)) {
 	await Html.RenderPartialAsync("Shared/CommentText", Model.CommentText);
 }
 @await Html.PartialAsync("Shared/Button", (Text: "View on Readup", Url: Model.ViewPostUrl))
