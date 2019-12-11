@@ -100,6 +100,16 @@ namespace api.Notifications {
 								if (apnsResponseParseException != null) {
 									logger.LogError(apnsResponseParseException, "Failed to parse APNs response");
 								}
+								// temporarily log all messages sent to jeff's devices to debug badge count issue
+							} else if (
+								token == "8d2ee02a00de0321b2305db98ca9e6735e46757bcd13b3194405ebd37f5cfc4b" ||
+								token == "2d993aefe7045cba0d3cdab8df62b58047cf9947298b0b1bd991ff7be22108f9"
+							) {
+								logger.LogError(
+									"APNs dispatch to Jeff's device with token: {Token} With badge count: {BadgeCount}",
+									token,
+									notification.Payload.Aps.Badge.ToString()
+								);
 							}
 						}
 					}
