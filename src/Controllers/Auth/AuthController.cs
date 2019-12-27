@@ -19,7 +19,7 @@ namespace api.Controllers.Auth {
 					"error: " + form.error + "\n"
 				)
 			);
-			return Ok();
+			return Redirect("https://readup.com/?apple-sign-in=success");
 		}
 	}
 }
