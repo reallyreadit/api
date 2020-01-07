@@ -334,7 +334,10 @@ namespace api.Notifications {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				foreach (var type in types) {
 					if (type == NotificationEventType.Aotd) {
-						clearedReceipts.Add(await db.ClearAotdAlert(userAccountId));
+						var receipt = await db.ClearAotdAlert(userAccountId);
+						if (receipt != null) {
+							clearedReceipts.Add(receipt);
+						}
 					} else {
 						clearedReceipts.AddRange(await db.ClearAllAlerts(type, userAccountId));
 					}

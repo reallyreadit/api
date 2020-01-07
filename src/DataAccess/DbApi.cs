@@ -829,7 +829,7 @@ namespace api.DataAccess {
 		#region community_reads
 		public static async Task<PageResult<Article>> GetAotdHistory(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			int? minLength,
@@ -863,7 +863,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetHighestRatedArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			DateTime? sinceDate,
@@ -887,7 +887,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetHotArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			int? minLength,
@@ -909,7 +909,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetMostCommentedArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			DateTime? sinceDate,
@@ -933,7 +933,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetMostReadArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			DateTime? sinceDate,
@@ -957,7 +957,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetTopArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			int? minLength,
