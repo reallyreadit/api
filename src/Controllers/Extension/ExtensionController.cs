@@ -95,9 +95,15 @@ namespace api.Controllers.Extension {
 					// update the page if either the wordCount or readableWordCount has increased.
 					// we're assuming that the article has been updated with additional text
 					// and always storing the largest counts in the global record.
+					// 2020-01-11: this is causing some serious issues due to the extension parser
+					// picking up lots of extra noise. only increase the word count if the current
+					// count is 2 minutes or less to fix soft paywalled articles
 					if (
-						binder.WordCount > page.WordCount ||
-						binder.ReadableWordCount > page.ReadableWordCount
+						(
+							binder.WordCount > page.WordCount ||
+							binder.ReadableWordCount > page.ReadableWordCount
+						) &&
+						page.WordCount <= (184 * 2)
 					) {
 						page = db.UpdatePage(
 							pageId: page.Id,
