@@ -7,5 +7,6 @@ namespace api.DataAccess.Models {
 		public long UserAccountId { get; set; }
 		public string EmailAddress { get; set; }
 		public DateTime? DateCompleted { get; set; }
+		public long? AuthServiceAuthenticationId { get; set; }
 	}
 }

@@ -1,3 +1,6 @@
+using api.Analytics;
+using api.Notifications;
+
 namespace api.Controllers.UserAccounts {
 	public class UserAccountForm {
 		public string Name { get; set; }
@@ -5,9 +8,7 @@ namespace api.Controllers.UserAccounts {
 		public string Password { get; set; }
 		public string CaptchaResponse { get; set; }
 		public string TimeZoneName { get; set; }
-		public int MarketingScreenVariant { get; set; }
-		public string ReferrerUrl { get; set; }
-		public string InitialPath { get; set; }
+		public SignUpAnalyticsForm Analytics { get; set; }
 		public PushDeviceForm PushDevice { get; set; }
 	}
 }

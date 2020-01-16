@@ -48,7 +48,7 @@ namespace api.Controllers.Social {
 								articleId: form.ArticleId,
 								parentCommentId: obfuscationService.Decode(form.ParentCommentId),
 								userAccountId: userAccountId,
-								analytics: this.GetRequestAnalytics()
+								analytics: this.GetClientAnalytics()
 							),
 							badge: (
 									await db.GetUserLeaderboardRankings(
@@ -192,7 +192,7 @@ namespace api.Controllers.Social {
 					following: await db.CreateFollowing(
 						followerUserId: User.GetUserAccountId(),
 						followeeUserName: form.UserName,
-						analytics: this.GetRequestAnalytics()
+						analytics: this.GetClientAnalytics()
 					)
 				);
 				return Ok();
@@ -332,7 +332,7 @@ namespace api.Controllers.Social {
 			[FromBody] PostForm form
 		) {
 			var userAccountId = User.GetUserAccountId();
-			var analytics = this.GetRequestAnalytics();
+			var analytics = this.GetClientAnalytics();
 			Comment comment;
 			SilentPost silentPost;
 			string userName;
@@ -457,7 +457,7 @@ namespace api.Controllers.Social {
 				await db.Unfollow(
 					followerUserId: User.GetUserAccountId(),
 					followeeUserName: form.UserName,
-					analytics: this.GetRequestAnalytics()
+					analytics: this.GetClientAnalytics()
 				);
 				return Ok();
 			}

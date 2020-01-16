@@ -123,7 +123,7 @@ namespace api.Controllers.Extension {
 							articleId: page.ArticleId,
 							userAccountId: userAccountId,
 							readableWordCount: userReadableWordCount,
-							analytics: this.GetRequestAnalytics()
+							analytics: this.GetClientAnalytics()
 						);
 					} else if (
 						!userArticle.DateCompleted.HasValue &&
@@ -208,7 +208,7 @@ namespace api.Controllers.Extension {
 						articleId: page.ArticleId,
 						userAccountId: userAccountId,
 						readableWordCount: binder.ReadableWordCount,
-						analytics: this.GetRequestAnalytics()
+						analytics: this.GetClientAnalytics()
 					);
 				}
 				if (binder.Star) {
@@ -266,7 +266,7 @@ namespace api.Controllers.Extension {
 					db.UpdateReadProgress(	
 						userArticleId: binder.UserPageId,
 						readState: binder.ReadState,
-						analytics: this.GetRequestAnalytics()
+						analytics: this.GetClientAnalytics()
 					);
 					return Json(
 						verificationService.AssignProofToken(

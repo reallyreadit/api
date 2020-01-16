@@ -25,7 +25,7 @@ namespace api.Controllers.Analytics {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				await db.LogClientErrorReport(
 					content: await bodyReader.ReadToEndAsync(),
-					analytics: this.GetRequestAnalytics()
+					analytics: this.GetClientAnalytics()
 				);
 				return Ok();
 			}
