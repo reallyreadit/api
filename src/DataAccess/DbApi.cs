@@ -11,12 +11,13 @@ using api.DataAccess.Serialization;
 using api.DataAccess.Stats;
 using System.Text.RegularExpressions;
 using System.Linq;
+using api.Authentication;
 
 namespace api.DataAccess {
     public static class DbApi {
 		private static string ConvertEnumToString(Enum value) => (
-			Regex
-				.Replace(
+			value != null ?
+				Regex.Replace(
 					input: value.ToString(),
 					pattern: "([a-z])?([A-Z])",
 					evaluator: match => (
@@ -25,7 +26,8 @@ namespace api.DataAccess {
 								String.Empty
 						) +
 						match.Groups[2].Value.ToLower()
-				)
+				) :
+				null
 		);
 		#region analytics
 		public static Task<IEnumerable<KeyMetricsReportRow>> GetKeyMetrics(
@@ -55,12 +57,12 @@ namespace api.DataAccess {
 		public static Task LogClientErrorReport(
 			this NpgsqlConnection conn,
 			string content,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => conn.ExecuteAsync(
 			sql: "analytics.log_client_error_report",
 			param: new {
 				content,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -153,14 +155,14 @@ namespace api.DataAccess {
 			long articleId,
 			long userAccountId,
 			int readableWordCount,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => conn.QuerySingleOrDefault<UserArticle>(
 			sql: "article_api.create_user_article",
 			param: new {
 				article_id = articleId,
 				user_account_id = userAccountId,
 				readable_word_count = readableWordCount,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -309,13 +311,13 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long userArticleId,
 			int[] readState,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => conn.QuerySingleOrDefault<UserArticle>(
 			sql: "article_api.update_read_progress",
 			param: new {
 				user_article_id = userArticleId,
 				read_state = readState,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -829,7 +831,7 @@ namespace api.DataAccess {
 		#region community_reads
 		public static async Task<PageResult<Article>> GetAotdHistory(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			int? minLength,
@@ -863,7 +865,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetHighestRatedArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			DateTime? sinceDate,
@@ -887,7 +889,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetHotArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			int? minLength,
@@ -909,7 +911,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetMostCommentedArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			DateTime? sinceDate,
@@ -933,7 +935,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetMostReadArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			DateTime? sinceDate,
@@ -957,7 +959,7 @@ namespace api.DataAccess {
 		);
 		public static async Task<PageResult<Article>> GetTopArticles(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int pageNumber,
 			int pageSize,
 			int? minLength,
@@ -1011,7 +1013,7 @@ namespace api.DataAccess {
 			long articleId,
 			long? parentCommentId,
 			long userAccountId,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => await conn.QuerySingleOrDefaultAsync<Comment>(
 			sql: "social.create_comment",
 			param: new {
@@ -1019,7 +1021,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				parent_comment_id = parentCommentId,
 				user_account_id = userAccountId,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1039,13 +1041,13 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long followerUserId,
 			string followeeUserName,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => await conn.QuerySingleAsync<Following>(
 			sql: "social.create_following",
 			param: new {
 				follower_user_id = followerUserId,
 				followee_user_name = followeeUserName,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1053,13 +1055,13 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long userAccountId,
 			long articleId,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => await conn.QuerySingleAsync<SilentPost>(
 			sql: "social.create_silent_post",
 			param: new {
 				user_account_id = userAccountId,
 				article_id = articleId,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1229,13 +1231,13 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long followerUserId,
 			string followeeUserName,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) => await conn.ExecuteAsync(
 			sql: "social.unfollow",
 			param: new {
 				follower_user_id = followerUserId,
 				followee_user_name = followeeUserName,
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1364,6 +1366,22 @@ namespace api.DataAccess {
 		#endregion
 
 		#region user_account_api
+		public static async Task<AuthServiceAccount> AssociateAuthServiceAccount(
+			this NpgsqlConnection conn,
+			long identityId,
+			long authenticationId,
+			long userAccountId,
+			AuthServiceAssociationMethod associationMethod
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
+			sql: "user_account_api.associate_auth_service_account",
+			param: new {
+				identity_id = identityId,
+				authentication_id = authenticationId,
+				user_account_id = userAccountId,
+				association_method = ConvertEnumToString(associationMethod)
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static void ChangeEmailAddress(this NpgsqlConnection conn, long userAccountId, string email) {
 			try {
 				conn.Execute(
@@ -1397,6 +1415,50 @@ namespace api.DataAccess {
 			param: new { email_confirmation_id = emailConfirmationId },
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<AuthServiceAuthentication> CreateAuthServiceAuthentication(
+			this NpgsqlConnection conn,
+			long identityId,
+			string sessionId
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAuthentication>(
+			sql: "user_account_api.create_auth_service_authentication",
+			param: new {
+				identity_id = identityId,
+				session_id = sessionId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAccount> CreateAuthServiceIdentity(
+			this NpgsqlConnection conn,
+			AuthServiceProvider provider,
+			string providerUserId,
+			string providerUserEmailAddress,
+			bool isEmailAddressPrivate,
+			AppleRealUserRating? realUserRating,
+			UserAccountCreationAnalytics analytics
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
+			sql: "user_account_api.create_auth_service_identity",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_user_id = providerUserId,
+				provider_user_email_address = providerUserEmailAddress,
+				is_email_address_private = isEmailAddressPrivate,
+				real_user_rating = ConvertEnumToString(realUserRating),
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceRefreshToken> CreateAuthServiceRefreshToken(
+			this NpgsqlConnection conn,
+			long identityId,
+			string rawValue
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceRefreshToken>(
+			sql: "user_account_api.create_auth_service_refresh_token",
+			param: new {
+				identity_id = identityId,
+				raw_value = rawValue
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static void CreateCaptchaResponse(this NpgsqlConnection conn, string actionVerified, CaptchaVerificationResponse response) => conn.Execute(
 			sql: "user_account_api.create_captcha_response",
 			param: new {
@@ -1415,12 +1477,19 @@ namespace api.DataAccess {
 			param: new { user_account_id = userAccountId },
 			commandType: CommandType.StoredProcedure
 		);
-		public static PasswordResetRequest CreatePasswordResetRequest(this NpgsqlConnection conn, long userAccountId) => conn.QuerySingleOrDefault<PasswordResetRequest>(
+		public static async Task<PasswordResetRequest> CreatePasswordResetRequest(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			long? authServiceAuthenticationId
+		) => await conn.QuerySingleOrDefaultAsync<PasswordResetRequest>(
 			sql: "user_account_api.create_password_reset_request",
-			param: new { user_account_id = userAccountId },
+			param: new {
+				user_account_id = userAccountId,
+				auth_service_authentication_id = authServiceAuthenticationId
+			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserAccount CreateUserAccount(
+		public static async Task<UserAccount> CreateUserAccount(
 			this NpgsqlConnection conn,
 			string name,
 			string email,
@@ -1428,17 +1497,34 @@ namespace api.DataAccess {
 			byte[] passwordSalt,
 			long timeZoneId,
 			UserAccountCreationAnalytics analytics
+		) => await CreateUserAccount(
+			conn,
+			name,
+			email,
+			passwordHash,
+			passwordSalt,
+			timeZoneId,
+			PostgresJsonSerialization.Serialize(analytics)
+		);
+		public static async Task<UserAccount> CreateUserAccount(
+			this NpgsqlConnection conn,
+			string name,
+			string email,
+			byte[] passwordHash,
+			byte[] passwordSalt,
+			long timeZoneId,
+			string analytics
 		) {
 			try {
-				return conn.QuerySingleOrDefault<UserAccount>(
+				return await conn.QuerySingleOrDefaultAsync<UserAccount>(
 					sql: "user_account_api.create_user_account",
 					param: new {
-						name = name,
-						email = email,
+						name,
+						email,
 						password_hash = passwordHash,
 						password_salt = passwordSalt,
 						time_zone_id = timeZoneId,
-						analytics = PostgresJsonSerialization.Serialize(analytics)
+						analytics
 					},
 					commandType: CommandType.StoredProcedure
 				);
@@ -1452,6 +1538,48 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
+		public static async Task<AuthServiceAccount> GetAuthServiceAccountByIdentityId(
+			this NpgsqlConnection conn,
+			long identityId
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
+			sql: "user_account_api.get_auth_service_account_by_identity_id",
+			param: new {
+				identity_id = identityId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAccount> GetAuthServiceAccountByProviderUserId(
+			this NpgsqlConnection conn,
+			AuthServiceProvider provider,
+			string providerUserId
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
+			sql: "user_account_api.get_auth_service_account_by_provider_user_id",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_user_id = providerUserId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<AuthServiceAccount>> GetAuthServiceAccountsForUserAccount(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QueryAsync<AuthServiceAccount>(
+			sql: "user_account_api.get_auth_service_accounts_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAuthentication> GetAuthServiceAuthenticationById(
+			this NpgsqlConnection conn,
+			long authenticationId
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAuthentication>(
+			sql: "user_account_api.get_auth_service_authentication_by_id",
+			param: new {
+				authentication_id = authenticationId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static EmailConfirmation GetEmailConfirmation(this NpgsqlConnection conn, long emailConfirmationId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.get_email_confirmation",
 			param: new { email_confirmation_id = emailConfirmationId },
@@ -1516,6 +1644,20 @@ namespace api.DataAccess {
 		);
 		public static IEnumerable<UserAccount> GetUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
 			sql: "user_account_api.get_user_accounts",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAccount> UpdateAuthServiceAccountEmailAddress(
+			this NpgsqlConnection conn,
+			long identityId,
+			string emailAddress,
+			bool isPrivate
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
+			sql: "user_account_api.update_auth_service_account_email_address",
+			param: new {
+				identity_id = identityId,
+				email_address = emailAddress,
+				is_private = isPrivate
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static UserAccount UpdateTimeZone(

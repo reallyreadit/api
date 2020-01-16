@@ -11,7 +11,6 @@ using Microsoft.Extensions.Options;
 using api.Configuration;
 using System.Collections.Generic;
 using api.Encryption;
-using Microsoft.AspNetCore.Authentication;
 using api.DataAccess.Models;
 using System.Net;
 using api.Authorization;
@@ -24,9 +23,14 @@ using api.Notifications;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
-		private DatabaseOptions dbOpts;
-		public UserAccountsController(IOptions<DatabaseOptions> dbOpts) {
+		private readonly DatabaseOptions dbOpts;
+		private readonly TokenizationOptions tokenOpts;
+		public UserAccountsController(
+			IOptions<DatabaseOptions> dbOpts,
+			IOptions<TokenizationOptions> tokenOpts
+		) {
 			this.dbOpts = dbOpts.Value;
+			this.tokenOpts = tokenOpts.Value;
 		}
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
@@ -55,8 +59,10 @@ namespace api.Controllers.UserAccounts {
 			!String.IsNullOrWhiteSpace(password) &&
 			password.Length >= 8 &&
 			password.Length <= 256;
-		private bool IsCorrectPassword(UserAccount userAccount, string password) =>
-			userAccount.PasswordHash.SequenceEqual(HashPassword(password, userAccount.PasswordSalt));
+		private bool IsCorrectPassword(UserAccount userAccount, string password) => (
+			userAccount.IsPasswordSet &&
+			userAccount.PasswordHash.SequenceEqual(HashPassword(password, userAccount.PasswordSalt))
+		);
 		private bool IsEmailConfirmationRateExceeded(EmailConfirmation latestUnconfirmedConfirmation) =>
 			latestUnconfirmedConfirmation != null ?
 				DateTime.UtcNow.Subtract(latestUnconfirmedConfirmation.DateCreated).TotalMinutes < 5 :
@@ -102,27 +108,13 @@ namespace api.Controllers.UserAccounts {
 				)
 			)
 		);
-		private async Task SignInUser(
-			UserAccount user,
-			PushDeviceForm pushDeviceForm,
-			NpgsqlConnection db
-		) {
-			await HttpContext.SignInAsync(user);
-			if (pushDeviceForm?.IsValid() ?? false) {
-				await db.RegisterNotificationPushDevice(
-					userAccountId: user.Id,
-					installationId: pushDeviceForm.InstallationId,
-					name: pushDeviceForm.Name,
-					token: pushDeviceForm.Token
-				);
-			}
-		}
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
-			[FromBody] UserAccountForm form,
+			[FromServices] AuthenticationService authenticationService,
+			[FromServices] CaptchaService captchaService,
 			[FromServices] NotificationService notificationService,
-			[FromServices] CaptchaService captchaService
+			[FromBody] UserAccountForm form
 		) {
 			if (!IsPasswordValid(form.Password)) {
 				return BadRequest();
@@ -134,25 +126,84 @@ namespace api.Controllers.UserAccounts {
 				}
 				try {
 					var salt = GenerateSalt();
-					var userAccount = db.CreateUserAccount(
+					var userAccount = await db.CreateUserAccount(
 						name: form.Name,
 						email: form.Email,
 						passwordHash: HashPassword(form.Password, salt),
 						passwordSalt: salt,
 						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
-						analytics: new UserAccountCreationAnalytics() {
-							Client = this.GetRequestAnalytics().Client,
-							MarketingScreenVariant = form.MarketingScreenVariant,
-							ReferrerUrl = form.ReferrerUrl,
-							InitialPath = form.InitialPath
-						}
+						analytics: new UserAccountCreationAnalytics(
+							client: this.GetClientAnalytics(),
+							marketingVariant: form.Analytics.MarketingVariant,
+							referrerUrl: form.Analytics.ReferrerUrl,
+							initialPath: form.Analytics.InitialPath,
+							currentPath: form.Analytics.CurrentPath,
+							action: form.Analytics.Action
+						)
 					);
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
-					await SignInUser(
+					await authenticationService.SignIn(userAccount, form.PushDevice);
+					return await JsonUser(
 						user: userAccount,
-						pushDeviceForm: form.PushDevice,
 						db: db
 					);
+				} catch (Exception ex) {
+					return BadRequest((ex as ValidationException)?.Errors);
+				}
+			}
+      }
+		private long ParseAuthServiceToken(string rawValue) => (
+			Int64.Parse(
+				StringEncryption.Decrypt(
+					text: rawValue,
+					key: tokenOpts.EncryptionKey
+				)
+			)
+		);
+		private string ValidateAuthServiceAuthenticationForAssociation(
+			AuthServiceAuthentication authentication
+		) {
+			if (HttpContext.GetSessionId() != authentication.SessionId) {
+				return "InvalidSessionId";
+			}
+			if (DateTime.UtcNow.Subtract(authentication.DateAuthenticated) > TimeSpan.FromMinutes(5)) {
+				return "AuthenticationExpired";
+			}
+			return null;
+		}
+		[AllowAnonymous]
+		[HttpPost]
+      public async Task<IActionResult> AuthServiceAccount(
+			[FromServices] AuthenticationService authenticationService,
+			[FromServices] NotificationService notificationService,
+			[FromBody] AuthServiceAccountForm form
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var authentication = await db.GetAuthServiceAuthenticationById(
+					ParseAuthServiceToken(form.Token)
+				);
+				var validationError = ValidateAuthServiceAuthenticationForAssociation(authentication);
+				if (validationError != null) {
+					return BadRequest(new [] { validationError });
+				}
+				var authServiceAccount = await db.GetAuthServiceAccountByIdentityId(authentication.IdentityId);
+				try {
+					var userAccount = await db.CreateUserAccount(
+						name: form.Name,
+						email: authServiceAccount.ProviderUserEmailAddress,
+						passwordHash: null,
+						passwordSalt: null,
+						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
+						analytics: authServiceAccount.IdentityCreationAnalytics
+					);
+					await db.AssociateAuthServiceAccount(
+						identityId: authServiceAccount.IdentityId,
+						authenticationId: authentication.Id,
+						userAccountId: userAccount.Id,
+						associationMethod: AuthServiceAssociationMethod.Manual
+					);
+					await notificationService.CreateWelcomeNotification(userAccount.Id);
+					await authenticationService.SignIn(userAccount, form.PushDevice);
 					return await JsonUser(
 						user: userAccount,
 						db: db
@@ -167,10 +218,9 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult ConfirmEmail(
 			string token,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
-			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey));
+			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey));
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var confirmation = db.GetEmailConfirmation(emailConfirmationId);
 				var resultBaseUrl = serviceOpts.Value.WebServer.CreateUrl("/email/confirm");
@@ -217,11 +267,11 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> ResetPassword(
-			[FromBody] PasswordResetForm form,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
+			[FromServices] AuthenticationService authenticationService,
+			[FromBody] PasswordResetForm form
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey)));
+				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(form.Token, tokenOpts.EncryptionKey)));
 				if (request == null) {
 					return BadRequest(new[] { "RequestNotFound" });
 				}
@@ -232,12 +282,24 @@ namespace api.Controllers.UserAccounts {
 					var salt = GenerateSalt();
 					db.ChangePassword(request.UserAccountId, HashPassword(form.Password, salt), salt);
 					db.CompletePasswordResetRequest(request.Id);
+					if (request.AuthServiceAuthenticationId.HasValue) {
+						var authentication = await db.GetAuthServiceAuthenticationById(request.AuthServiceAuthenticationId.Value);
+						try {
+							await db.AssociateAuthServiceAccount(
+								identityId: authentication.IdentityId,
+								authenticationId: authentication.Id,
+								userAccountId: request.UserAccountId,
+								associationMethod: AuthServiceAssociationMethod.Manual
+							);
+						} catch (NpgsqlException ex) when (
+								ex.Data.Contains("ConstraintName") &&
+								String.Equals(ex.Data["ConstraintName"], "auth_service_association_unique_associated_identity_id")
+							) {
+								// another association was completed before this password reset
+						}
+					}
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
-					await SignInUser(
-						user: userAccount,
-						pushDeviceForm: form.PushDevice,
-						db: db
-					);
+					await authenticationService.SignIn(userAccount, form.PushDevice);
 					return await JsonUser(
 						user: userAccount,
 						db: db
@@ -290,16 +352,16 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> RequestPasswordReset(
-			[FromBody] PasswordResetRequestBinder binder,
+			[FromBody] PasswordResetRequestForm form,
 			[FromServices] NotificationService notificationService,
 			[FromServices] CaptchaService captchaService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var captchaResponse = await captchaService.Verify(binder.CaptchaResponse);
+				var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
 				if (captchaResponse != null) {
 					db.CreateCaptchaResponse("requestPasswordReset", captchaResponse);
 				}
-				var userAccount = db.GetUserAccountByEmail(binder.Email);
+				var userAccount = db.GetUserAccountByEmail(form.Email);
 				if (userAccount == null) {
 					return BadRequest(new[] { "UserAccountNotFound" });
 				}
@@ -307,7 +369,30 @@ namespace api.Controllers.UserAccounts {
 				if (IsPasswordResetRequestValid(latestRequest)) {
 					return BadRequest(new[] { "RequestLimitExceeded" });
 				}
-				await notificationService.CreatePasswordResetNotification(userAccount.Id);
+				var request = await db.CreatePasswordResetRequest(
+					userAccount.Id,
+					form.AuthServiceToken != null ?
+						new Nullable<Int64>(ParseAuthServiceToken(form.AuthServiceToken)) :
+						null
+				);
+				await notificationService.CreatePasswordResetNotification(request);
+			}
+			return Ok();
+		}
+		[HttpPost]
+		public async Task<IActionResult> PasswordCreationEmailDispatch(
+			[FromServices] NotificationService notificationService
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var latestRequest = db.GetLatestPasswordResetRequest(User.GetUserAccountId());
+				if (IsPasswordResetRequestValid(latestRequest)) {
+					return BadRequest(new[] { "RequestLimitExceeded" });
+				}
+				var request = await db.CreatePasswordResetRequest(
+					userAccountId: User.GetUserAccountId(),
+					authServiceAuthenticationId: null
+				);
+				await notificationService.CreatePasswordResetNotification(request);
 			}
 			return Ok();
 		}
@@ -341,6 +426,7 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignIn(
+			[FromServices] AuthenticationService authenticationService,
 			[FromBody] SignInForm form
 		) {
 			// rate limit
@@ -354,11 +440,22 @@ namespace api.Controllers.UserAccounts {
 				if (!IsCorrectPassword(userAccount, form.Password)) {
 					return BadRequest(new[] { "IncorrectPassword" });
 				}
-				await SignInUser(
-					user: userAccount,
-					pushDeviceForm: form.PushDevice,
-					db: db
-				);
+				if (form.AuthServiceToken != null) {
+					var authentication = await db.GetAuthServiceAuthenticationById(
+						ParseAuthServiceToken(form.AuthServiceToken)
+					);
+					var validationError = ValidateAuthServiceAuthenticationForAssociation(authentication);
+					if (validationError != null) {
+						return BadRequest(new[] { validationError });
+					}
+					await db.AssociateAuthServiceAccount(
+						identityId: authentication.IdentityId,
+						authenticationId: authentication.Id,
+						userAccountId: userAccount.Id,
+						associationMethod: AuthServiceAssociationMethod.Manual
+					);
+				}
+				await authenticationService.SignIn(userAccount, form.PushDevice);
 				return await JsonUser(
 					user: userAccount,
 					db: db
@@ -368,20 +465,10 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> SignOut(
+			[FromServices] AuthenticationService authenticationService,
 			[FromBody] SignOutForm form
 		) {
-			if (
-				User.Identity.IsAuthenticated &&
-				!String.IsNullOrWhiteSpace(form?.InstallationId)
-			) {
-				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					await db.UnregisterNotificationPushDeviceByInstallationId(
-						installationId: form.InstallationId,
-						reason: NotificationPushUnregistrationReason.SignOut
-					);
-				}
-			}
-			await this.HttpContext.SignOutAsync();
+			await authenticationService.SignOut(form.InstallationId);
 			return Ok();
 		}
 		// deprecated
@@ -457,12 +544,11 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<JsonResult> EmailSubscriptions(
-			string token,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
+			string token
 		) {
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
+				userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey)));
 				if (userAccount != null) {
 					return Json(
 						new {
@@ -484,12 +570,11 @@ namespace api.Controllers.UserAccounts {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> UpdateEmailSubscriptions(
-			[FromBody] UpdateEmailSubscriptionsBinder binder,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions
+			[FromBody] UpdateEmailSubscriptionsBinder binder
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var preference = await db.GetNotificationPreference(
-					userAccountId: Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenizationOptions.Value.EncryptionKey))
+					userAccountId: Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenOpts.EncryptionKey))
 				);
 				if (preference != null) {
 					await db.SetNotificationPreference(
@@ -506,12 +591,11 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult PasswordResetRequest(
 			string token,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			PasswordResetRequest request;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
+				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey)));
 			}
 			if (request == null) {
 				return Redirect(serviceOpts.Value.WebServer.CreateUrl("/password/reset/not-found"));
@@ -526,12 +610,11 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public async Task<IActionResult> ViewReply(
 			string token,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return ReadReplyAndRedirectToArticle(
-					reply: await db.GetComment(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey))),
+					reply: await db.GetComment(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey))),
 					serviceOpts: serviceOpts
 				);
 			}
@@ -622,7 +705,16 @@ namespace api.Controllers.UserAccounts {
 								)
 								.DisplayName :
 								null
-						)
+						),
+						AuthServiceAccounts = (await db.GetAuthServiceAccountsForUserAccount(user.Id))
+							.OrderByDescending(account => account.DateUserAccountAssociated)
+							.Select(
+								account => new {
+									DateAssociated = account.DateUserAccountAssociated,
+									EmailAddress = account.ProviderUserEmailAddress,
+									Provider = account.Provider
+								}
+							)
 					}
 				);
 			}
@@ -648,10 +740,9 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public IActionResult ConfirmEmail2(
 			[FromBody] ConfirmEmailForm form,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
-			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey));
+			var emailConfirmationId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenOpts.EncryptionKey));
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var confirmation = db.GetEmailConfirmation(emailConfirmationId);
 				if (confirmation == null) {
@@ -671,12 +762,11 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public IActionResult PasswordResetRequest2(
 			string token,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
 		) {
 			PasswordResetRequest request;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, tokenizationOptions.Value.EncryptionKey)));
+				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey)));
 			}
 			if (request == null) {
 				return BadRequest("NotFound");
@@ -690,7 +780,6 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<IActionResult> ViewReply2(
 			[FromBody] ViewReplyForm form,
-			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts,
 			[FromServices] ObfuscationService obfuscationService
 		) {
@@ -702,7 +791,7 @@ namespace api.Controllers.UserAccounts {
 					return BadRequest();
 				}
 			} else {
-				commentId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenizationOptions.Value.EncryptionKey));
+				commentId = Int64.Parse(StringEncryption.Decrypt(form.Token, tokenOpts.EncryptionKey));
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var comment = await db.GetComment(commentId);

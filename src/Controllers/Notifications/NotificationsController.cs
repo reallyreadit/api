@@ -153,11 +153,9 @@ namespace api.Controllers.Notifications {
 							articleId: parent.ArticleId,
 							parentCommentId: parent.Id,
 							userAccountId: notification.UserAccountId,
-							analytics: new RequestAnalytics(
-								client: new ClientAnalytics(
-									type: ClientType.IosNotification,
-									version: new SemanticVersion(0, 0, 0)
-								)
+							analytics: new ClientAnalytics(
+								type: ClientType.IosNotification,
+								version: new SemanticVersion(0, 0, 0)
 							)
 						);
 						await notificationService.ProcessPushReply(

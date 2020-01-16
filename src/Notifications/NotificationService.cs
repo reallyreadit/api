@@ -334,7 +334,10 @@ namespace api.Notifications {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				foreach (var type in types) {
 					if (type == NotificationEventType.Aotd) {
-						clearedReceipts.Add(await db.ClearAotdAlert(userAccountId));
+						var receipt = await db.ClearAotdAlert(userAccountId);
+						if (receipt != null) {
+							clearedReceipts.Add(receipt);
+						}
 					} else {
 						clearedReceipts.AddRange(await db.ClearAllAlerts(type, userAccountId));
 					}
@@ -723,17 +726,15 @@ namespace api.Notifications {
 			}
 		}
 		public async Task CreatePasswordResetNotification(
-			long userAccountId
+			PasswordResetRequest request
 		) {
-			PasswordResetRequest resetRequest;
 			NotificationEmailDispatch dispatch;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				resetRequest = db.CreatePasswordResetRequest(userAccountId);
 				dispatch = await db.CreateTransactionalNotification(
-					userAccountId: userAccountId,
+					userAccountId: request.UserAccountId,
 					eventType: NotificationEventType.PasswordReset,
 					emailConfirmationId: null,
-					passwordResetRequestId: resetRequest.Id
+					passwordResetRequestId: request.Id
 				);
 			}
 			await emailService.SendPasswordResetNotification(
@@ -746,7 +747,7 @@ namespace api.Notifications {
 					subject: $"Password Reset",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new PasswordResetEmailViewModel(
-						passwordResetUrl: CreatePasswordResetUrl(resetRequest.Id)
+						passwordResetUrl: CreatePasswordResetUrl(request.Id)
 					)
 				)
 			);
@@ -1151,6 +1152,17 @@ namespace api.Notifications {
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				await db.RegisterNotificationPushDevice(userAccountId, installationId, name, token);
+			}
+		}
+		public async Task UnregisterPushDevice(
+			string installationId,
+			NotificationPushUnregistrationReason reason
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				await db.UnregisterNotificationPushDeviceByInstallationId(
+					installationId: installationId,
+					reason: reason
+				);
 			}
 		}
 	}

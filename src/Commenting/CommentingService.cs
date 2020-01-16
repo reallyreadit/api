@@ -58,7 +58,7 @@ namespace api.Commenting {
 			long articleId,
 			long? parentCommentId,
 			long userAccountId,
-			RequestAnalytics analytics
+			ClientAnalytics analytics
 		) {
 			var comment = await dbConnection.CreateComment(
 				text: text,

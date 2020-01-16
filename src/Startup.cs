@@ -28,6 +28,12 @@ using Microsoft.AspNetCore.Authorization;
 using System.Net.Http;
 using System.Security.Cryptography.X509Certificates;
 using api.BackgroundProcessing;
+using api.Authentication;
+using api.Serialization;
+using System.Linq;
+using Microsoft.IdentityModel.Tokens;
+using System.Security.Cryptography;
+using Microsoft.Extensions.Logging;
 
 namespace api {
 	public class Startup {
@@ -62,14 +68,42 @@ namespace api {
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
 				.Configure<TokenizationOptions>(config.GetSection("Tokenization"));
 			// configure services
+			var appleAuthClientSecretSigningKey = new SigningCredentials(
+				new ECDsaSecurityKey(
+					new ECDsaCng(
+						CngKey.Import(
+							Convert.FromBase64String(
+								PemParser
+									.Parse(
+										File.ReadAllText(authOpts.AppleAuth.ClientSecretSigningKeyPath)
+									)
+									.Single()
+									.EncodedBody
+							),
+							CngKeyBlobFormat.Pkcs8PrivateBlob
+						)
+					)
+				),
+				SecurityAlgorithms.EcdsaSha256
+			);
 			services
 				.AddHostedService<QueuedHostedService>()
+				.AddScoped<AuthenticationService>()
 				.AddScoped<CaptchaService>()
 				.AddScoped<CommentingService>()
 				.AddScoped<NotificationService>()
 				.AddScoped<ObfuscationService>()
 				.AddTransient<RazorViewToStringRenderer>()
 				.AddScoped<ReadingVerificationService>()
+				.AddTransient<AppleAuthService>(
+					services => new AppleAuthService(
+						appleAuthClientSecretSigningKey,
+						services.GetService<IHttpClientFactory>(),
+						services.GetService<IOptions<MyAuthenticationOptions>>(),
+						services.GetService<IOptions<DatabaseOptions>>(),
+						services.GetService<ILogger<AppleAuthService>>()
+					)
+				)
 				.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 			// configure headers
 			services.Configure<ForwardedHeadersOptions>(
@@ -110,24 +144,24 @@ namespace api {
 				}
 			);
 			// configure http clients
+			X509Certificate2 apnsClientCert;
+			using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
+				apnsClientCert = store.Certificates.Find(
+					findType: X509FindType.FindByThumbprint,
+					findValue: pushOpts.ClientCertThumbprint,
+					validOnly: false
+				)[0];
+			}
 			services
 				.AddHttpClient()
 				.AddHttpClient<ApnsService>()
 				.ConfigurePrimaryHttpMessageHandler(
-					() => {
-						using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
-							return new HttpClientHandler() {
-								ClientCertificates = {
-									store.Certificates.Find(
-										findType: X509FindType.FindByThumbprint,
-										findValue: pushOpts.ClientCertThumbprint,
-										validOnly: false
-									)[0]
-								}
-							};
-						}
+					() => new HttpClientHandler() {
+						ClientCertificates = { apnsClientCert }
 					}
 				);
+			// configure http context
+			services.AddHttpContextAccessor();
 			// configure email service
 			switch (emailOpts.DeliveryMethod) {
 				case EmailDeliveryMethod.AmazonSes:
@@ -163,8 +197,9 @@ namespace api {
 			IApplicationBuilder app,
 			IOptions<CorsOptions> corsOpts
 		) {
-			// use dev exception page until the db connection leak issue is solved and we have reliable logging
-			app.UseDeveloperExceptionPage();
+			if (env.IsDevelopment()) {
+				app.UseDeveloperExceptionPage();
+			}
 			// configure forwarded headers
 			app.UseForwardedHeaders(new ForwardedHeadersOptions() {
 				RequireHeaderSymmetry = false
@@ -207,6 +242,7 @@ namespace api {
 			);
 			// configure Npgsql
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<ArticleFlair>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthServiceProvider>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SourceRuleAction>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<UserAccountRole>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationChannel>();

@@ -53,6 +53,7 @@ namespace api.Controllers.Articles {
 		) {
 			return await CommunityReads(verificationService, pageNumber, pageSize, CommunityReadSort.Hot);
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> CommunityReads(
 			[FromServices] ReadingVerificationService verificationService,
@@ -64,7 +65,7 @@ namespace api.Controllers.Articles {
 			int? maxLength = null
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId();
+				var userAccountId = this.User.GetUserAccountIdOrDefault();
 				PageResult<Article> articles;
 				if (sort == CommunityReadSort.Hot || sort == CommunityReadSort.Top) {
 					switch (sort) {
@@ -147,12 +148,12 @@ namespace api.Controllers.Articles {
 							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
 					}
 				}
-				var aotd = verificationService.AssignProofToken((await db.GetAotds(1, userAccountId)).Single(), userAccountId);
-				var articlePageResult = PageResult<Article>.Create(
-					articles,
-					items => items.Select(article => verificationService.AssignProofToken(article, userAccountId))
+				var aotd = (await db.GetAotds(1, userAccountId)).Single();
+				var userReadCount = (
+					userAccountId.HasValue ?
+						await db.GetUserReadCount(userAccountId: userAccountId.Value) :
+						0
 				);
-				var userReadCount = await db.GetUserReadCount(userAccountId: userAccountId);
 				if (this.ClientVersionIsGreaterThanOrEqualTo(
 					new Dictionary<ClientType, SemanticVersion>() {
 						{ ClientType.WebAppServer, new SemanticVersion("1.4.0") },
@@ -163,14 +164,16 @@ namespace api.Controllers.Articles {
 						new {
 							Aotd = aotd,
 							AotdHasAlert = (
-								(
-									await db.GetUserAccountById(
-										userAccountId: userAccountId
+								userAccountId.HasValue ?
+									(	
+										await db.GetUserAccountById(
+											userAccountId: userAccountId.Value
+										)
 									)
-								)
-								.AotdAlert
+									.AotdAlert :
+									false
 							),
-							Articles = articlePageResult,
+							Articles = articles,
 							UserReadCount = userReadCount
 						}
 					);
@@ -178,7 +181,7 @@ namespace api.Controllers.Articles {
 					return Json(
 						new {
 							Aotd = aotd,
-							Articles = articlePageResult,
+							Articles = articles,
 							UserStats = new {
 								ReadCount = userReadCount
 							}
@@ -336,23 +339,20 @@ namespace api.Controllers.Articles {
 				}
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> AotdHistory(
 			[FromServices] ReadingVerificationService verificationService,
 			[FromQuery] ArticleQuery query
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccountId = this.User.GetUserAccountId();
 				return Json(
-					PageResult<Article>.Create(
-						await db.GetAotdHistory(
-							userAccountId: userAccountId,
-							pageNumber: query.PageNumber,
-							pageSize: 40,
-							minLength: query.MinLength,
-							maxLength: query.MaxLength
-						),
-						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+					await db.GetAotdHistory(
+						userAccountId: this.User.GetUserAccountIdOrDefault(),
+						pageNumber: query.PageNumber,
+						pageSize: 40,
+						minLength: query.MinLength,
+						maxLength: query.MaxLength
 					)
 				);
 			}

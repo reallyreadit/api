@@ -10,8 +10,8 @@ namespace api.DataAccess.Serialization {
 					NamingStrategy = new SnakeCaseNamingStrategy()
 				},
 				Converters = {
-					new ClientJsonConverter(),
-					new ClientTypeJsonConverter()
+					new ClientTypeJsonConverter(),
+					new SemanticVersionJsonConverter()
 				}
 			}
 		);
