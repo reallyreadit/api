@@ -357,5 +357,23 @@ namespace api.Controllers.Articles {
 				);
 			}
 		}
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<IActionResult> Publisher(
+			[FromQuery] PublisherArticleQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					await db.GetArticlesBySourceSlug(
+						slug: query.Slug,
+						userAccountId: this.User.GetUserAccountIdOrDefault(),
+						pageNumber: query.PageNumber,
+						pageSize: query.PageSize,
+						minLength: query.MinLength,
+						maxLength: query.MaxLength
+					)
+				);
+			}
+		}
 	}
 }

@@ -863,6 +863,30 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<PageResult<Article>> GetArticlesBySourceSlug(
+			this NpgsqlConnection conn,
+			string slug,
+			long? userAccountId,
+			int pageNumber,
+			int pageSize,
+			int? minLength,
+			int? maxLength
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_articles_by_source_slug",
+				param: new {
+					slug,
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
 		public static async Task<PageResult<Article>> GetHighestRatedArticles(
 			this NpgsqlConnection conn,
 			long? userAccountId,
