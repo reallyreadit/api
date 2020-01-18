@@ -11,6 +11,7 @@ using System;
 using api.Analytics;
 using api.DataAccess.Stats;
 using System.Linq;
+using Microsoft.AspNetCore.Authorization;
 
 namespace api.Controllers.Stats {
 	public class StatsController : Controller {
@@ -165,6 +166,7 @@ namespace api.Controllers.Stats {
 				}
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> UserCount() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
