@@ -10,6 +10,7 @@ using Microsoft.Extensions.Options;
 using Mvc.RenderViewToString;
 using api.BackgroundProcessing;
 using System;
+using System.Linq;
 
 namespace api.Messaging {
 	public class AmazonSesEmailService: EmailService {
@@ -36,7 +37,7 @@ namespace api.Messaging {
 		}
 		protected override async Task Send(params EmailMessage[] messages) {
 			using (var client = new AmazonSimpleEmailServiceClient(regionEndpoint)) {
-				foreach (var message in messages) {
+				foreach (var message in messages.Where(m => !m.To.Address.Split('@').ElementAtOrDefault(1).Contains(","))) {
 					var request = new SendEmailRequest(
 						source: $"{message.From.Name} <{message.From.Address}>",
 						destination: new Destination(new List<string>() { $"{message.To.Name} <{message.To.Address}>" }),
