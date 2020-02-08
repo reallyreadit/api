@@ -19,6 +19,7 @@ using api.Encryption;
 using System.Collections.Generic;
 using api.BackwardsCompatibility;
 using api.Notifications;
+using api.Formatting;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -35,6 +36,8 @@ namespace api.Controllers.Extension {
 			if (title == null) {
 				return title;
 			}
+			// remove control characters
+			title = title.RemoveControlCharacters();
 			// trim whitespace
 			title = title.Trim();
 			// check for double title

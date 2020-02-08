@@ -1,25 +1,29 @@
+using api.Formatting;
+
 namespace api.Notifications {
 	public class ApnsAlert {
 		public ApnsAlert(
 			string title
 		) {
-			Title = title;
+			Title = title.RemoveControlCharacters();
 		}
 		public ApnsAlert(
 			string title,
 			string body
+		) : this(
+			title
 		) {
-			Title = title;
 			Body = body;
 		}
 		public ApnsAlert(
 			string title,
 			string subtitle,
 			string body
+		) : this(
+			title,
+			body
 		) {
-			Title = title;
-			Subtitle = subtitle;
-			Body = body;
+			Subtitle = subtitle.RemoveControlCharacters();
 		}
 		public string Title { get; }
 		public string Subtitle { get; }

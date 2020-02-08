@@ -1,4 +1,5 @@
 using System;
+using api.Formatting;
 
 namespace api.Messaging {
 	public class EmailNotification<TContent> {
@@ -11,7 +12,7 @@ namespace api.Messaging {
 		) {
 			UserId = userId;
 			To = to;
-			Subject = subject;
+			Subject = subject.RemoveControlCharacters();
 			OpenUrl = openUrl;
 			Content = content;
 		}
@@ -22,13 +23,14 @@ namespace api.Messaging {
 			string subject,
 			Uri openUrl,
 			TContent content
+		) : this(
+			userId,
+			to,
+			subject,
+			openUrl,
+			content
 		) {
-			UserId = userId;
 			ReplyTo = replyTo;
-			To = to;
-			Subject = subject;
-			OpenUrl = openUrl;
-			Content = content;
 		}
 		public long UserId { get; }
 		public EmailMailbox ReplyTo { get; }
