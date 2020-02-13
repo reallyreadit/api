@@ -104,6 +104,62 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task LogOrientationAnalytics(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			int trackingPlayCount,
+			bool trackingSkipped,
+			int trackingDuration,
+			int importPlayCount,
+			bool importSkipped,
+			int importDuration,
+			NotificationAuthorizationRequestResult notificationsResult,
+			bool notificationsSkipped,
+			int notificationsDuration,
+			Guid? shareResultId,
+			bool shareSkipped,
+			int shareDuration
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_orientation_analytics",
+			param: new {
+				user_account_id = userAccountId,
+				tracking_play_count = trackingPlayCount,
+				tracking_skipped = trackingSkipped,
+				tracking_duration = trackingDuration,
+				import_play_count = importPlayCount,
+				import_skipped = importSkipped,
+				import_duration = importDuration,
+				notifications_result = ConvertEnumToString(notificationsResult),
+				notifications_skipped = notificationsSkipped,
+				notifications_duration = notificationsDuration,
+				share_result_id = shareResultId,
+				share_skipped = shareSkipped,
+				share_duration = shareDuration
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task LogShareResult(
+			this NpgsqlConnection conn,
+			Guid id,
+			ClientType clientType,
+			long? userAccountId,
+			string action,
+			string activityType,
+			bool? completed,
+			string error
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_share_result",
+			param: new {
+				id,
+				client_type = ConvertEnumToString(clientType),
+				user_account_id = userAccountId,
+				action,
+				activity_type = activityType,
+				completed,
+				error
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		#endregion
 		#region article_api
 		public static long CreateArticle(
