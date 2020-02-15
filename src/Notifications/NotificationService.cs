@@ -969,7 +969,7 @@ namespace api.Notifications {
 				);
 			}
 			await emailService.SendWelcomeNotification(
-				new EmailNotification<ConfirmationEmailViewModel>(
+				new EmailNotification<WelcomeEmailViewModel>(
 					userId: dispatch.UserAccountId,
 					to: new EmailMailbox(
 						name: dispatch.UserName,
@@ -977,7 +977,9 @@ namespace api.Notifications {
 					),
 					subject: $"Welcome to Readup!",
 					openUrl: CreateEmailOpenUrl(dispatch),
-					content: new ConfirmationEmailViewModel(
+					content: new WelcomeEmailViewModel(
+						profileUrl: CreateProfileUrl(dispatch.UserName),
+						importScreenshotUrl: endpoints.StaticContentServer.CreateUrl("/email/import-screenshot.png"),
 						emailConfirmationUrl: CreateEmailConfirmationUrl(emailConfirmation.Id)
 					)
 				)

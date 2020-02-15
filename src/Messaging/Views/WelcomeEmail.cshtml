@@ -1,17 +1,33 @@
-@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.ConfirmationEmailViewModel>
+@model api.Messaging.Views.LayoutViewModel<api.Messaging.Views.WelcomeEmailViewModel>
 
 @{ Layout = "Layout"; }
 
 <div style="margin:1em 0;">Dear Reader,</div>
-<div style="margin:1em 0;">Humans today spend an unprecedented amount of time online. In 2018, the average American spent over six hours per day looking at digital media. It’s hard to say exactly what this screen-centric way of life is doing to our brains (not to mention our emotions and relationships) but many of us can feel the impact: <span style="font-weight:bold;">The more time we spend online, the harder it is to focus, concentrate, and read.</span></div>
-<div style="margin:1em 0;"><span style="font-weight:bold;">Readup solves this problem. Here’s how it works: </span></div>
+<div style="margin:1em 0;">Welcome! You’re now a member of the Readup community.</div>
+<div style="margin:1em 0;">To get up and running:</div>
+<ol style="margin:1em 0;padding:0 0 0 1.5em;">
+	<li style="margin:0 0 0.5em 0;padding:0;">Read a few articles (Don’t worry, nobody can see what you’re reading.)</li>
+	<li style="margin:0 0 0.5em 0;padding:0;">Post your favorites (This makes them public.)</li>
+	<li style="margin:0 0 0.5em 0;padding:0;">Follow at least three other readers.</li>
+	<li style="margin:0;padding:0;">And try to get some followers of your own!</li>
+</ol>
+<div style="margin:1em 0;text-align:center;">
+	<div style="margin:0 0 0.25em 0;font-weight:bold;font-style:italic;">To get some followers, here’s a link that you can share:</div>
+	<a href="@Model.Content.ProfileUrl">@Model.Content.ProfileLinkText</a>
+</div>
+<div style="margin:1em 0;">And finally, some reminders:</div>
 <ul style="margin:1em 0;padding:0 0 0 1.5em;">
-	<li style="margin:0 0 1em 0;padding:0;"><span style="font-weight:bold;">Distraction-free reading.</span> Readup kills all ads and links. On the iOS app, it happens automatically, whenever you click into an article. On Chrome, click the browser button to enable “Reader Mode.”</li>
-	<li style="margin:0 0 1em 0;padding:0;"><span style="font-weight:bold;">The best articles on the planet.</span> Readup organizes articles based on feedback from verified readers, so you only see the best of the best. The Article of the Day (AOTD) is crowdsourced by readers and always worth your time.</li>
-	<li style="margin:0;padding:0;"><span style="font-weight:bold;">Speak your mind.</span> Don’t be shy. Post articles and make comments. Remember that nobody can comment on anything that they haven’t fully read which creates space to get vulnerable, honest and real.</li>
+	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Take your time.</span> Reading isn’t a race. Find <span style="font-style:italic;">your</span> happy pace. :)</li>
+	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Speak your mind.</span> Don’t hold back. Everyone wants to hear what you have to say. </li>
+	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Be respectful.</span> Because obviously. We’re all human.</li>
+	<li style="margin:0 0 0.5em 0;padding:0;">
+		<span style="font-weight:bold;">Remember that you can import anything you want to Readup.</span> Use this button to add articles and stories to your starred reading list:
+		<img src="@Model.Content.ImportScreenshotUrl" alt="Article Import How-To Screenshot" style="display:block;margin:1em auto;width:80%;max-width:320px;border: 1px solid #e0e0e0;" />
+	</li>
+	<li style="margin:0;padding:0;">
+		Oh, and last thing: click the button below to confirm your email address:
+		@await Html.PartialAsync("Shared/Button", (Text: "Confirm Email Address", Url: Model.Content.EmailConfirmationUrl))
+	</li>
 </ul>
-<div style="margin:1em 0;">Reading isn’t always easy. Like all good things in life, it requires some discipline and work. Make the commitment to finish a few articles every day and over time you’ll get better at “relaxing into” the text and “getting lost” in stories.</div>
-<div style="margin:1em 0;">Oh, and one more thing: Click the button below to confirm your email address.</div>
-@await Html.PartialAsync("Shared/Button", (Text: "Confirm Email Address", Url: Model.Content.EmailConfirmationUrl))
 <div style="margin:1em 0;">See you in the comments!</div>
 <div style="margin:1em 0;">-Bill & Jeff</div>

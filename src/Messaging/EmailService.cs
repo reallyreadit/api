@@ -140,7 +140,7 @@ namespace api.Messaging {
 		public async Task SendReplyNotification(EmailNotification<CommentViewModel> notification) {
 			await Send("ReplyEmail", "replies to your comments", notification);
 		}
-		public async Task SendWelcomeNotification(EmailNotification<ConfirmationEmailViewModel> notification) {
+		public async Task SendWelcomeNotification(EmailNotification<WelcomeEmailViewModel> notification) {
 			await Send("WelcomeEmail", null, notification);
 		}
 	}
