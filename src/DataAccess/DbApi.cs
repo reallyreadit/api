@@ -104,6 +104,20 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static Task LogNewPlatformNotificationRequest(
+			this NpgsqlConnection conn,
+			string emailAddress,
+			string ipAddress,
+			string userAgent
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_new_platform_notification_request",
+			param: new {
+				email_address = emailAddress,
+				ip_address = ipAddress,
+				user_agent = userAgent
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Task LogOrientationAnalytics(
 			this NpgsqlConnection conn,
 			long userAccountId,

@@ -36,6 +36,20 @@ namespace api.Controllers.Analytics {
 				return Json(await db.GetKeyMetrics(startDate, endDate));
 			}
 		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> NewPlatformNotificationRequest(
+			[FromBody] NewPlatformNotificationRequestForm form
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				await db.LogNewPlatformNotificationRequest(
+					emailAddress: form.EmailAddress,
+					ipAddress: Request.HttpContext.Connection.RemoteIpAddress.ToString(),
+					userAgent: Request.Headers?["User-Agent"] ?? String.Empty
+				);
+			}
+			return Ok();
+		}
 		[HttpPost]
 		public async Task<IActionResult> Orientation(
 			[FromBody] OrientationForm form
