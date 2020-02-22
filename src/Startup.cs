@@ -34,6 +34,7 @@ using System.Linq;
 using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
+using System.Net;
 
 namespace api {
 	public class Startup {
@@ -105,12 +106,6 @@ namespace api {
 					)
 				)
 				.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
-			// configure headers
-			services.Configure<ForwardedHeadersOptions>(
-				options => {
-					options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-				}
-			);
 			// configure authentication and authorization
 			services
 				.AddAuthentication(defaultScheme: authOpts.Scheme)
@@ -201,9 +196,26 @@ namespace api {
 				app.UseDeveloperExceptionPage();
 			}
 			// configure forwarded headers
-			app.UseForwardedHeaders(new ForwardedHeadersOptions() {
-				RequireHeaderSymmetry = false
-			});
+			app.UseForwardedHeaders(
+				new ForwardedHeadersOptions() {
+					ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
+					KnownNetworks = {
+						new IPNetwork(
+							prefix: new IPAddress(
+								new byte[] { 172, 31, 10, 0 }
+							),
+							prefixLength: 24
+						),
+						new IPNetwork(
+							prefix: new IPAddress(
+								new byte[] { 172, 31, 11, 0 }
+							),
+							prefixLength: 24
+						)
+					},
+					RequireHeaderSymmetry = false
+				}
+			);
 			// configure routing
 			app.UseRouting();
 			// configure cors
