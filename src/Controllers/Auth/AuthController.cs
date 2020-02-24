@@ -115,7 +115,7 @@ namespace api.Controllers.Auth {
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl(form.State.CurrentPath) + "?message=" + GetErrorMessage(error));
 		}
 		[AllowAnonymous]
-		[HttpPost]
+		[HttpGet]
 		public async Task<IActionResult> TwitterWeb(
 			[FromQuery] TwitterWebForm form
 		) {
