@@ -114,5 +114,19 @@ namespace api.Controllers.Auth {
 			}
 			return Redirect(serviceOpts.Value.WebServer.CreateUrl(form.State.CurrentPath) + "?message=" + GetErrorMessage(error));
 		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> TwitterWeb(
+			[FromQuery] TwitterWebForm form
+		) {
+			await System.IO.File.WriteAllTextAsync(
+				path: @"logs\" + System.IO.Path.GetRandomFileName(),
+				contents: (
+					"oauth_token: " + form.OAuthToken + "\n" +
+					"oauth_verifier: " + form.OAuthVerifier + "\n"
+				)
+			);
+			return Redirect("https://readup.com/settings");
+		}
 	}
 }
