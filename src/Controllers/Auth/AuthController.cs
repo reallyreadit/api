@@ -123,10 +123,11 @@ namespace api.Controllers.Auth {
 				path: @"logs\" + System.IO.Path.GetRandomFileName(),
 				contents: (
 					"oauth_token: " + form.OAuthToken + "\n" +
-					"oauth_verifier: " + form.OAuthVerifier + "\n"
+					"oauth_verifier: " + form.OAuthVerifier + "\n" +
+					"readup_redirect_path: " + form.ReadupRedirectPath + "\n"
 				)
 			);
-			return Redirect("https://readup.com/settings");
+			return Redirect("https://readup.com" + form.ReadupRedirectPath);
 		}
 	}
 }
