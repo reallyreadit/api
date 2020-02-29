@@ -116,14 +116,16 @@ namespace api.Controllers.Auth {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public async Task<IActionResult> TwitterWeb(
-			[FromQuery] TwitterWebForm form
+		public async Task<IActionResult> TwitterBrowserVerification(
+			[FromQuery] TwitterBrowserVerificationForm form
 		) {
 			await System.IO.File.WriteAllTextAsync(
 				path: @"logs\" + System.IO.Path.GetRandomFileName(),
 				contents: (
+					"denied: " + form.Denied + "\n" +
 					"oauth_token: " + form.OAuthToken + "\n" +
 					"oauth_verifier: " + form.OAuthVerifier + "\n" +
+					"readup_integrations: " + form.ReadupIntegrations + "\n" +
 					"readup_redirect_path: " + form.ReadupRedirectPath + "\n"
 				)
 			);
