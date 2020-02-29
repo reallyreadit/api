@@ -128,7 +128,6 @@ namespace api.Controllers.Email {
 										var notification = await db.GetNotification(receiptId.Value);
 										var parent = await db.GetComment(notification.CommentIds.Single());
 										var reply = await commentingService.PostComment(
-											dbConnection: db,
 											text: mailContent,
 											articleId: parent.ArticleId,
 											parentCommentId: parent.Id,

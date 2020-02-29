@@ -1562,14 +1562,16 @@ namespace api.DataAccess {
 			long identityId,
 			long? commentId,
 			long? silentPostId,
-			string content
+			string content,
+			string providerPostId
 		) => await conn.QuerySingleOrDefaultAsync<AuthServicePost>(
 			sql: "user_account_api.create_auth_service_post",
 			param: new {
 				identity_id = identityId,
 				comment_id = commentId,
 				silent_post_id = silentPostId,
-				content
+				content,
+				provider_post_id = providerPostId
 			},
 			commandType: CommandType.StoredProcedure
 		);

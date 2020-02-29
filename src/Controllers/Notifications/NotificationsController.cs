@@ -148,7 +148,6 @@ namespace api.Controllers.Notifications {
 					);
 					if (article.IsRead) {
 						var reply = await commentingService.PostComment(
-							dbConnection: db,
 							text: form.Text,
 							articleId: parent.ArticleId,
 							parentCommentId: parent.Id,

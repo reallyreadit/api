@@ -145,20 +145,18 @@ namespace api.Controllers.Auth {
 			[FromBody] TwitterCredentialAuthForm form
 		) {
 			var (authServiceAccount, authentication, user, error) = await twitterAuth.AuthenticateAsync(
-					sessionId: HttpContext.GetSessionId(),
-					requestTokenValue: form.OAuthToken,
-					requestVerifier: form.OAuthVerifier,
-					signUpAnalytics: new UserAccountCreationAnalytics(
-						client: this.GetClientAnalytics(),
-						form: form.Analytics
-					)
-				);
-			if (authServiceAccount != null && form.Integrations != AuthServiceIntegration.None) {
-				await twitterAuth.SetIntegrationPreferenceAsync(
-					identityId: authServiceAccount.IdentityId,
-					integrations: form.Integrations
-				);
-			}
+				sessionId: HttpContext.GetSessionId(),
+				requestTokenValue: form.OAuthToken,
+				requestVerifier: form.OAuthVerifier,
+				signUpAnalytics: new UserAccountCreationAnalytics(
+					client: this.GetClientAnalytics(),
+					form: form.Analytics
+				)
+			);
+			await twitterAuth.SetIntegrationPreferenceAsync(
+				identityId: authServiceAccount.IdentityId,
+				integrations: form.Integrations
+			);
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
 				return Json(
@@ -228,12 +226,10 @@ namespace api.Controllers.Auth {
 					userAccountId: User.GetUserAccountId()
 				);
 				if (authServiceAccount != null) {
-					if (form.ReadupIntegrations != AuthServiceIntegration.None) {
-						await twitterAuth.SetIntegrationPreferenceAsync(
-							identityId: authServiceAccount.IdentityId,
-							integrations: form.ReadupIntegrations
-						);
-					}
+					await twitterAuth.SetIntegrationPreferenceAsync(
+						identityId: authServiceAccount.IdentityId,
+						integrations: form.ReadupIntegrations
+					);
 					return RedirectToWebServer(form.ReadupRedirectPath);
 				}
 				return RedirectWithError(form.ReadupRedirectPath, GetErrorMessage(error));
@@ -244,12 +240,10 @@ namespace api.Controllers.Auth {
 					requestVerifier: form.OAuthVerifier,
 					signUpAnalytics: null
 				);
-				if (authServiceAccount != null && form.ReadupIntegrations != AuthServiceIntegration.None) {
-					await twitterAuth.SetIntegrationPreferenceAsync(
-						identityId: authServiceAccount.IdentityId,
-						integrations: form.ReadupIntegrations
-					);
-				}
+				await twitterAuth.SetIntegrationPreferenceAsync(
+					identityId: authServiceAccount.IdentityId,
+					integrations: form.ReadupIntegrations
+				);
 				if (user != null) {
 					await authService.SignIn(user, PushDeviceForm.Blank);
 					return RedirectToWebServer(form.ReadupRedirectPath);
@@ -288,12 +282,10 @@ namespace api.Controllers.Auth {
 				userAccountId: User.GetUserAccountId()
 			);
 			if (authServiceAccount != null) {
-				if (form.Integrations != AuthServiceIntegration.None) {
-					authServiceAccount = await twitterAuth.SetIntegrationPreferenceAsync(
-						identityId: authServiceAccount.IdentityId,
-						integrations: form.Integrations
-					);
-				}
+				authServiceAccount = await twitterAuth.SetIntegrationPreferenceAsync(
+					identityId: authServiceAccount.IdentityId,
+					integrations: form.Integrations
+				);
 				return Json(
 					new AuthServiceAccountAssociation(authServiceAccount)
 				);

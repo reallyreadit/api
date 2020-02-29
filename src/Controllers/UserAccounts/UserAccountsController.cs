@@ -20,6 +20,7 @@ using api.Commenting;
 using api.Analytics;
 using api.BackwardsCompatibility;
 using api.Notifications;
+using api.Routing;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -52,8 +53,8 @@ namespace api.Controllers.UserAccounts {
 			.First()
 			.Id;
 		// deprecated
-		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, IOptions<ServiceEndpointsOptions> serviceOpts) {
-			return Redirect(serviceOpts.Value.WebServer.CreateUrl(RouteHelper.GetArticlePath(reply.ArticleSlug) + "/" + reply.Id.ToString()));
+		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, RoutingService routingService) {
+			return Redirect(routingService.CreateCommentUrl(reply.ArticleSlug, reply.Id).ToString());
 		}
 		private bool IsPasswordValid(string password) =>
 			!String.IsNullOrWhiteSpace(password) &&
@@ -606,12 +607,12 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public async Task<IActionResult> ViewReply(
 			string token,
-			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+			[FromServices] RoutingService routingService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return ReadReplyAndRedirectToArticle(
 					reply: await db.GetComment(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey))),
-					serviceOpts: serviceOpts
+					routingService: routingService
 				);
 			}
 		}
@@ -619,12 +620,12 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public async Task<IActionResult> ViewReplyFromDesktopNotification(
 			long id,
-			[FromServices] IOptions<ServiceEndpointsOptions> serviceOpts
+			[FromServices] RoutingService routingService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return ReadReplyAndRedirectToArticle(
 					reply: await db.GetComment(id),
-					serviceOpts: serviceOpts
+					routingService: routingService
 				);
 			}
 		}
@@ -703,6 +704,9 @@ namespace api.Controllers.UserAccounts {
 								null
 						),
 						AuthServiceAccounts = (await db.GetAuthServiceAccountsForUserAccount(user.Id))
+							.Where(
+								account => account.Provider == AuthServiceProvider.Apple || account.AccessTokenValue != null
+							)
 							.OrderByDescending(
 								account => account.DateUserAccountAssociated
 							)

@@ -35,6 +35,7 @@ using Microsoft.IdentityModel.Tokens;
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using System.Net;
+using api.Routing;
 
 namespace api {
 	public class Startup {
@@ -105,6 +106,7 @@ namespace api {
 						services.GetService<ILogger<AppleAuthService>>()
 					)
 				)
+				.AddTransient<RoutingService>()
 				.AddTransient<TwitterAuthService>()
 				.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 			// configure authentication and authorization

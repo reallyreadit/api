@@ -12,6 +12,7 @@ using api.Encryption;
 using api.Messaging;
 using api.Messaging.Views;
 using api.Messaging.Views.Shared;
+using api.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -25,6 +26,7 @@ namespace api.Notifications {
 		private readonly EmailService emailService;
 		private readonly ObfuscationService obfuscation;
 		private readonly ILogger<NotificationService> logger;
+		private readonly RoutingService routing;
 		public NotificationService(
 			ApnsService apnsService,
 			IOptions<DatabaseOptions> databaseOptions,
@@ -32,7 +34,8 @@ namespace api.Notifications {
 			IOptions<ServiceEndpointsOptions> endpoints,
 			EmailService emailService,
 			ObfuscationService obfuscation,
-			ILogger<NotificationService> logger
+			ILogger<NotificationService> logger,
+			RoutingService routing
 		) {
 			this.apnsService = apnsService;
 			this.databaseOptions = databaseOptions.Value;
@@ -41,6 +44,7 @@ namespace api.Notifications {
 			this.emailService = emailService;
 			this.obfuscation = obfuscation;
 			this.logger = logger;
+			this.routing = routing;
 		}
 		private async Task ClearAlert(
 			NpgsqlConnection db,
@@ -83,10 +87,6 @@ namespace api.Notifications {
 				resourceId: articleId
 			)
 		);
-		private Uri CreateArticleUrl(string slug) {
-			var slugParts = slug.Split('_');
-			return new Uri(endpoints.WebServer.CreateUrl($"/read/{slugParts[0]}/{slugParts[1]}"));
-		}
 		private Uri CreateCommentEmailUrl(INotificationDispatch dispatch, long commentId) => (
 			CreateEmailUrl(
 				dispatch: dispatch,
@@ -94,10 +94,6 @@ namespace api.Notifications {
 				resourceId: commentId
 			)
 		);
-		private Uri CreateCommentUrl(string slug, long commentId) {
-			var slugParts = slug.Split('_');
-			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(commentId)}"));
-		}
 		private Uri CreateCommentsEmailUrl(INotificationDispatch dispatch, long articleId) => (
 			CreateEmailUrl(
 				dispatch: dispatch,
@@ -105,10 +101,6 @@ namespace api.Notifications {
 				resourceId: articleId
 			)
 		);
-		private Uri CreateCommentsUrl(string slug) {
-			var slugParts = slug.Split('_');
-			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}"));
-		}
 		private Uri CreateEmailConfirmationUrl(long emailConfirmationId) {
 			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(emailConfirmationId.ToString(), tokenizationOptions.EncryptionKey));
 			return new Uri(endpoints.WebServer.CreateUrl($"/confirmEmail?token={token}"));
@@ -145,9 +137,6 @@ namespace api.Notifications {
 				resourceId: articleId
 			)
 		);
-		private Uri CreateProfileUrl(string name) {
-			return new Uri(endpoints.WebServer.CreateUrl($"/@{name}"));
-		}
 		private async Task CreateOpenInteraction(
 			NpgsqlConnection db,
 			long receiptId
@@ -163,10 +152,6 @@ namespace api.Notifications {
 			) {
 				// swallow duplicate open exception
 			}
-		}
-		private Uri CreatePasswordResetUrl(long resetRequestId) {
-			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(resetRequestId.ToString(), tokenizationOptions.EncryptionKey));
-			return new Uri(endpoints.WebServer.CreateUrl($"/resetPassword?token={token}"));
 		}
 		private Uri CreatePostEmailUrl(INotificationDispatch dispatch, long? commentId, long? silentPostId) {
 			if (
@@ -187,21 +172,6 @@ namespace api.Notifications {
 				resource: EmailLinkResource.SilentPost,
 				resourceId: silentPostId.Value
 			);
-		}
-		private Uri CreatePostUrl(string authorName, long? commentId, long? silentPostId) {
-			if (
-				(!commentId.HasValue && !silentPostId.HasValue) ||
-				(commentId.HasValue && silentPostId.HasValue)
-			) {
-				throw new ArgumentException("Post must have only commentId or silentPostId");
-			}
-			string path;
-			if (commentId.HasValue) {
-				path = $"/@{authorName}/comment/{obfuscation.Encode(commentId.Value)}";
-			} else {
-				path = $"/@{authorName}/post/{obfuscation.Encode(silentPostId.Value)}";
-			}
-			return new Uri(endpoints.WebServer.CreateUrl(path));
 		}
 		private Uri CreateEmailUrl(
 			INotificationDispatch dispatch,
@@ -271,31 +241,31 @@ namespace api.Notifications {
 				case EmailLinkResource.Comments:
 					var article = await db.GetArticle(resourceId);
 					if (resource == EmailLinkResource.Article) {
-						return CreateArticleUrl(article.Slug);
+						return routing.CreateArticleUrl(article.Slug);
 					} else {
-						return CreateCommentsUrl(article.Slug);
+						return routing.CreateCommentsUrl(article.Slug);
 					}
 				case EmailLinkResource.Comment:
 					var comment = await db.GetComment(resourceId);
-					return CreateCommentUrl(comment.ArticleSlug, comment.Id);
+					return routing.CreateCommentUrl(comment.ArticleSlug, comment.Id);
 				case EmailLinkResource.CommentPost:
 					var postComment = await db.GetComment(resourceId);
 					var commentPoster = await db.GetUserAccountById(postComment.UserAccountId);
-					return CreatePostUrl(commentPoster.Name, postComment.Id, null);
+					return routing.CreatePostUrl(commentPoster.Name, postComment.Id, null);
 				case EmailLinkResource.SilentPost:
 					var silentPost = await db.GetSilentPost(resourceId);
 					var silentPoster = await db.GetUserAccountById(silentPost.UserAccountId);
-					return CreatePostUrl(silentPoster.Name, null, silentPost.Id);
+					return routing.CreatePostUrl(silentPoster.Name, null, silentPost.Id);
 				case EmailLinkResource.Follower:
 					var follower = await db.GetUserAccountById(
 						(await db.GetFollowing(resourceId)).FollowerUserAccountId
 					);
-					return CreateProfileUrl(follower.Name);
+					return routing.CreateProfileUrl(follower.Name);
 				case EmailLinkResource.FirstPoster:
 					var firstPoster = await db.GetUserAccountByName(
 						(await db.GetArticle(resourceId)).FirstPoster
 					);
-					return CreateProfileUrl(firstPoster.Name);
+					return routing.CreateProfileUrl(firstPoster.Name);
 				default:
 					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
 			}
@@ -415,7 +385,7 @@ namespace api.Notifications {
 							dispatch => CreateApnsNotification(
 								alert: alert,
 								dispatch: dispatch,
-								url: CreateArticleUrl(article.Slug)
+								url: routing.CreateArticleUrl(article.Slug)
 							)
 						)
 						.ToArray()
@@ -621,7 +591,7 @@ namespace api.Notifications {
 							title: $"{followerUserName} is now following you"
 						),
 						dispatch: dispatch,
-						url: CreateProfileUrl(followerUserName)
+						url: routing.CreateProfileUrl(followerUserName)
 					)
 				);
 			}
@@ -687,7 +657,7 @@ namespace api.Notifications {
 							dispatch => CreateApnsNotification(
 								alert: alert,
 								dispatch: dispatch,
-								url: CreateCommentUrl(comment.ArticleSlug, comment.Id),
+								url: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id),
 								category: "replyable"
 							)
 						)
@@ -747,7 +717,7 @@ namespace api.Notifications {
 					subject: $"Password Reset",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new PasswordResetEmailViewModel(
-						passwordResetUrl: CreatePasswordResetUrl(request.Id)
+						passwordResetUrl: routing.CreatePasswordResetUrl(request.Id)
 					)
 				)
 			);
@@ -820,7 +790,7 @@ namespace api.Notifications {
 							dispatch => CreateApnsNotification(
 								alert: alert,
 								dispatch: dispatch,
-								url: CreatePostUrl(userName, commentId, silentPostId),
+								url: routing.CreatePostUrl(userName, commentId, silentPostId),
 								category: commentId.HasValue && dispatch.HasRecipientReadArticle ? "replyable" : null
 							)
 						)
@@ -948,7 +918,7 @@ namespace api.Notifications {
 							body: CommentingService.RenderCommentTextToPlainText(comment.Text)
 						),
 						dispatch: dispatch,
-						url: CreateCommentUrl(comment.ArticleSlug, comment.Id),
+						url: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id),
 						category: "replyable"
 					)
 				);
@@ -978,7 +948,7 @@ namespace api.Notifications {
 					subject: $"Welcome to Readup!",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new WelcomeEmailViewModel(
-						profileUrl: CreateProfileUrl(dispatch.UserName),
+						profileUrl: routing.CreateProfileUrl(dispatch.UserName),
 						importScreenshotUrl: endpoints.StaticContentServer.CreateUrl("/email/import-screenshot.png"),
 						emailConfirmationUrl: CreateEmailConfirmationUrl(emailConfirmation.Id)
 					)

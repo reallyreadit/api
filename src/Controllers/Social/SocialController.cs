@@ -43,7 +43,6 @@ namespace api.Controllers.Social {
 					if (userArticle.IsRead && commentingService.IsCommentTextValid(form.Text)) {
 						var commentThread = new CommentThread(
 							comment: await commentingService.PostComment(
-								dbConnection: db,
 								text: form.Text,
 								articleId: form.ArticleId,
 								parentCommentId: obfuscationService.Decode(form.ParentCommentId),
@@ -90,7 +89,7 @@ namespace api.Controllers.Social {
 				if (comment.UserAccountId == User.GetUserAccountId()) {
 					return Json(
 						new CommentThread(
-							await commentingService.CreateAddendum(db, comment.Id, form.Text),
+							await commentingService.CreateAddendum(comment.Id, form.Text),
 							(await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
 							obfuscationService
 						)
@@ -113,7 +112,7 @@ namespace api.Controllers.Social {
 				) {
 					return Json(
 						new CommentThread(
-							await commentingService.ReviseComment(db, comment.Id, form.Text),
+							await commentingService.ReviseComment(comment.Id, form.Text),
 							(await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
 							obfuscationService
 						)
@@ -173,7 +172,7 @@ namespace api.Controllers.Social {
 				if (comment.UserAccountId == User.GetUserAccountId()) {
 					return Json(
 						new CommentThread(
-							await commentingService.DeleteComment(db, comment.Id),
+							await commentingService.DeleteComment(comment.Id),
 							LeaderboardBadge.None,
 							obfuscationService
 						)
@@ -345,7 +344,6 @@ namespace api.Controllers.Social {
 					try {
 						if (commentingService.IsCommentTextValid(form.CommentText)) {
 							comment = await commentingService.PostComment(
-								dbConnection: db,
 								text: form.CommentText,
 								articleId: form.ArticleId,
 								parentCommentId: null,
@@ -355,9 +353,10 @@ namespace api.Controllers.Social {
 							silentPost = null;
 							userName = comment.UserAccount;
 						} else {
-							silentPost = await db.CreateSilentPost(
-								userAccountId: userAccountId,
+							silentPost = await commentingService.PostSilentPost(
 								articleId: form.ArticleId,
+								articleSlug: article.Slug,
+								userAccountId: userAccountId,
 								analytics: analytics
 							);
 							comment = null;

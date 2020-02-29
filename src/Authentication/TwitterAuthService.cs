@@ -9,9 +9,11 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
+using api.BackgroundProcessing;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Routing;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -22,16 +24,22 @@ namespace api.Authentication {
 		private readonly TwitterAuthOptions authOptions;
 		private readonly DatabaseOptions databaseOptions;
 		private readonly ILogger<AppleAuthService> logger;
+		private readonly RoutingService routing;
+		private readonly IBackgroundTaskQueue taskQueue;
 		public TwitterAuthService(
 			IHttpClientFactory httpClientFactory,
 			IOptions<AuthenticationOptions> authOptions,
 			IOptions<DatabaseOptions> databaseOptions,
-			ILogger<AppleAuthService> logger
+			ILogger<AppleAuthService> logger,
+			RoutingService routing,
+			IBackgroundTaskQueue taskQueue
 		) {
 			this.httpClientFactory = httpClientFactory;
 			this.authOptions = authOptions.Value.TwitterAuth;
 			this.databaseOptions = databaseOptions.Value;
 			this.logger = logger;
+			this.routing = routing;
+			this.taskQueue = taskQueue;
 		}
 		private string CreateAlphanumericNonce(int byteCount) {
 			var bytes = new byte[byteCount];
@@ -86,7 +94,7 @@ namespace api.Authentication {
 			IEnumerable<KeyValuePair<string, string>> queryStringParameters,
 			IEnumerable<KeyValuePair<string, string>> bodyParameters,
 			IDictionary<string, string> oauthParameters,
-			TwitterAccessToken accessToken
+			TwitterToken accessToken
 		) {
 			// check for null arguments
 			if (queryStringParameters == null) {
@@ -290,6 +298,113 @@ namespace api.Authentication {
 					kvp => kvp.Value
 				)
 		);
+		private async Task Tweet(
+			string status,
+			long? commentId,
+			long? silentPostId,
+			long userAccountId
+		) {
+			IEnumerable<AuthServiceAccount> activeAccounts;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				var integrations = await db.GetAuthServiceAccountsForUserAccount(
+					userAccountId: userAccountId
+				);
+				activeAccounts = integrations
+					.Where(
+						integration => (
+							integration.Provider == AuthServiceProvider.Twitter &&
+							integration.AccessTokenValue != null &&
+							integration.AccessTokenSecret != null &&
+							integration.IsPostIntegrationEnabled
+						)
+					)
+					.ToArray();
+			}
+			if (activeAccounts.Any()) {
+				taskQueue.QueueBackgroundWorkItem(
+					async cancellationToken => {
+						var tweets = new List<( long IdentityId, TwitterTweet Tweet )>();
+						foreach (var account in activeAccounts) {
+							var tweet = await TweetAsync(
+								status: status,
+								accessToken: new TwitterToken(
+									oauthToken: account.AccessTokenValue,
+									oauthTokenSecret: account.AccessTokenSecret
+								)
+							);
+							if (tweet != null) {
+								tweets.Add(
+									(
+										account.IdentityId,
+										tweet
+									)
+								);
+							}
+						}
+						if (tweets.Any()) {
+							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+								foreach (var tweet in tweets) {
+									await db.CreateAuthServicePost(
+										identityId: tweet.IdentityId,
+										commentId: commentId,
+										silentPostId: silentPostId,
+										content: status,
+										providerPostId: tweet.Tweet.Id.ToString()
+									);
+								}
+							}
+						}
+					}
+				);
+			}
+		}
+		private async Task<TwitterTweet> TweetAsync(
+			string status,
+			TwitterToken accessToken
+		) {
+			var message = CreateRequestMessage(
+				method: HttpMethod.Post,
+				uri: new Uri("https://api.twitter.com/1.1/statuses/update.json"),
+				queryStringParameters: new Dictionary<string, string>() {
+					{ "status", status }
+				},
+				bodyParameters: null,
+				oauthParameters: null,
+				accessToken: accessToken
+			);
+			string responseContent;
+			using (var client = httpClientFactory.CreateClient())
+			using (var response = await client.SendAsync(message)) {
+				responseContent = await response.Content.ReadAsStringAsync();
+				if (!response.IsSuccessStatusCode) {
+					logger.LogError("Twitter status update failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+					try {
+						var errorResponse = JsonSerializer.Deserialize<TwitterErrorResponse>(
+							responseContent,
+							new JsonSerializerOptions() {
+								AllowTrailingCommas = true,
+								PropertyNameCaseInsensitive = true
+							}
+						);
+						if (errorResponse.Errors.Any(error => error.Code == 89)) {
+							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+								await db.RevokeAuthServiceAccessToken(accessToken.OAuthToken);
+							}
+						}
+					} catch {
+						// swallow
+					}
+					return null;
+				}
+			}
+			return JsonSerializer.Deserialize<TwitterTweet>(
+				responseContent,
+				new JsonSerializerOptions() {
+					AllowTrailingCommas = true,
+					PropertyNameCaseInsensitive = true
+				}
+			);
+		}
 		private async Task<( AuthServiceAccount account, AuthServiceAuthentication authentication, TwitterTokenAuthenticationError? error )> VerifyRequestTokenAsync(
 			string sessionId,
 			AuthServiceRequestToken requestToken,
@@ -529,6 +644,34 @@ namespace api.Authentication {
 					isPostEnabled: integrations == AuthServiceIntegration.Post
 				);
 			}
+		}
+		public async Task TweetAsync(
+			Comment comment
+		) {
+			var tweetText = comment.Text;
+			var urlLength = 23;
+			var tweetLimit = 280;
+			if (tweetText.Length > tweetLimit - urlLength - 1) {
+				tweetText = tweetText.Substring(0, tweetLimit - urlLength - 5) + " ...";
+			}
+			tweetText += " " + routing.CreateCommentUrl(comment.ArticleSlug, comment.Id).ToString();
+			await Tweet(
+				status: tweetText,
+				commentId: comment.Id,
+				silentPostId: null,
+				userAccountId: comment.UserAccountId
+			);
+		}
+		public async Task TweetAsync(
+			SilentPost silentPost,
+			string articleSlug
+		) {
+			await Tweet(
+				status: routing.CreateCommentsUrl(articleSlug).ToString(),
+				commentId: null,
+				silentPostId: silentPost.Id,
+				userAccountId: silentPost.UserAccountId
+			);
 		}
 	}
 }

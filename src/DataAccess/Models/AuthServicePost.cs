@@ -8,5 +8,6 @@ namespace api.DataAccess.Models {
 		public long? CommentId { get; set; }
 		public long? SilentPostId { get; set; }
 		public string Content { get; set; }
+		public string ProviderPostId { get; set; }
 	}
 }
