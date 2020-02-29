@@ -4,18 +4,14 @@ namespace api.DataAccess.Models {
 	public class UserAccountCreationAnalytics : SignUpAnalyticsForm {
 		public UserAccountCreationAnalytics(
 			ClientAnalytics client,
-			int marketingVariant,
-			string referrerUrl,
-			string initialPath,
-			string currentPath,
-			string action
+			SignUpAnalyticsForm form
 		) {
 			Client = client;
-			MarketingVariant = marketingVariant;
-			ReferrerUrl = referrerUrl;
-			InitialPath = initialPath;
-			CurrentPath = currentPath;
-			Action = action;
+			MarketingVariant = form.MarketingVariant;
+			ReferrerUrl = form.ReferrerUrl;
+			InitialPath = form.InitialPath;
+			CurrentPath = form.CurrentPath;
+			Action = form.Action;
 		}
 		public ClientAnalytics Client { get; }
 	}

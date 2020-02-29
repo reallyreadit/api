@@ -134,11 +134,7 @@ namespace api.Controllers.UserAccounts {
 						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
 						analytics: new UserAccountCreationAnalytics(
 							client: this.GetClientAnalytics(),
-							marketingVariant: form.Analytics.MarketingVariant,
-							referrerUrl: form.Analytics.ReferrerUrl,
-							initialPath: form.Analytics.InitialPath,
-							currentPath: form.Analytics.CurrentPath,
-							action: form.Analytics.Action
+							form: form.Analytics
 						)
 					);
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
@@ -194,7 +190,7 @@ namespace api.Controllers.UserAccounts {
 						passwordHash: null,
 						passwordSalt: null,
 						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
-						analytics: authServiceAccount.IdentityCreationAnalytics
+						analytics: authServiceAccount.IdentitySignUpAnalytics
 					);
 					await db.AssociateAuthServiceAccount(
 						identityId: authServiceAccount.IdentityId,
@@ -707,13 +703,11 @@ namespace api.Controllers.UserAccounts {
 								null
 						),
 						AuthServiceAccounts = (await db.GetAuthServiceAccountsForUserAccount(user.Id))
-							.OrderByDescending(account => account.DateUserAccountAssociated)
+							.OrderByDescending(
+								account => account.DateUserAccountAssociated
+							)
 							.Select(
-								account => new {
-									DateAssociated = account.DateUserAccountAssociated,
-									EmailAddress = account.ProviderUserEmailAddress,
-									Provider = account.Provider
-								}
+								account => new AuthServiceAccountAssociation(account)
 							)
 					}
 				);
@@ -733,6 +727,27 @@ namespace api.Controllers.UserAccounts {
 					)
 				);
 			}
+		}
+		[HttpPost]
+		public async Task<IActionResult> AuthServiceIntegrationPreference(
+			[FromServices] TwitterAuthService twitterAuth,
+			[FromBody] AuthServiceIntegrationPreferenceForm form
+		) {
+			AuthServiceAccount authServiceAccount;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				authServiceAccount = await db.GetAuthServiceAccountByIdentityId(form.IdentityId);
+			}
+			if (authServiceAccount.AssociatedUserAccountId != User.GetUserAccountId()) {
+				return BadRequest();
+			}
+			return Json(
+				new AuthServiceAccountAssociation(
+					await twitterAuth.SetIntegrationPreferenceAsync(
+						identityId: form.IdentityId,
+						integrations: form.Integration
+					)
+				)
+			);
 		}
 
 		// new versions

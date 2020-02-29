@@ -1490,6 +1490,16 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
+		public static async Task<AuthServiceRequestToken> CancelAuthServiceRequestToken(
+			this NpgsqlConnection conn,
+			string tokenValue
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceRequestToken>(
+			sql: "user_account_api.cancel_auth_service_request_token",
+			param: new {
+				token_value = tokenValue
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static void ChangePassword(this NpgsqlConnection conn, long userAccountId, byte[] passwordHash, byte[] passwordSalt) => conn.Execute(
 			sql: "user_account_api.change_password",
 			param: new {
@@ -1527,8 +1537,10 @@ namespace api.DataAccess {
 			string providerUserId,
 			string providerUserEmailAddress,
 			bool isEmailAddressPrivate,
-			AppleRealUserRating? realUserRating,
-			UserAccountCreationAnalytics analytics
+			string providerUserName,
+			string providerUserHandle,
+			AuthServiceRealUserRating? realUserRating,
+			UserAccountCreationAnalytics signUpAnalytics
 		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
 			sql: "user_account_api.create_auth_service_identity",
 			param: new {
@@ -1536,8 +1548,28 @@ namespace api.DataAccess {
 				provider_user_id = providerUserId,
 				provider_user_email_address = providerUserEmailAddress,
 				is_email_address_private = isEmailAddressPrivate,
+				provider_user_name = providerUserName,
+				provider_user_handle = providerUserHandle,
 				real_user_rating = ConvertEnumToString(realUserRating),
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				sign_up_analytics = signUpAnalytics != null ?
+					PostgresJsonSerialization.Serialize(signUpAnalytics) :
+					null
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServicePost> CreateAuthServicePost(
+			this NpgsqlConnection conn,
+			long identityId,
+			long? commentId,
+			long? silentPostId,
+			string content
+		) => await conn.QuerySingleOrDefaultAsync<AuthServicePost>(
+			sql: "user_account_api.create_auth_service_post",
+			param: new {
+				identity_id = identityId,
+				comment_id = commentId,
+				silent_post_id = silentPostId,
+				content
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1550,6 +1582,24 @@ namespace api.DataAccess {
 			param: new {
 				identity_id = identityId,
 				raw_value = rawValue
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceRequestToken> CreateAuthServiceRequestToken(
+			this NpgsqlConnection conn,
+			AuthServiceProvider provider,
+			string tokenValue,
+			string tokenSecret,
+			UserAccountCreationAnalytics signUpAnalytics
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceRequestToken>(
+			sql: "user_account_api.create_auth_service_request_token",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				token_value = tokenValue,
+				token_secret = tokenSecret,
+				sign_up_analytics = signUpAnalytics != null ?
+					PostgresJsonSerialization.Serialize(signUpAnalytics) :
+					null
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1674,6 +1724,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<AuthServiceRequestToken> GetAuthServiceRequestToken(
+			this NpgsqlConnection conn,
+			string tokenValue
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceRequestToken>(
+			sql: "user_account_api.get_auth_service_request_token",
+			param: new {
+				token_value = tokenValue
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static EmailConfirmation GetEmailConfirmation(this NpgsqlConnection conn, long emailConfirmationId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.get_email_confirmation",
 			param: new { email_confirmation_id = emailConfirmationId },
@@ -1740,17 +1800,59 @@ namespace api.DataAccess {
 			sql: "user_account_api.get_user_accounts",
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<AuthServiceAccount> UpdateAuthServiceAccountEmailAddress(
+		public static async Task<AuthServiceAccessToken> RevokeAuthServiceAccessToken(
+			this NpgsqlConnection conn,
+			string tokenValue
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccessToken>(
+			sql: "user_account_api.revoke_auth_service_access_token",
+			param: new {
+				token_value = tokenValue
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAccount> SetAuthServiceAccountIntegrationPreference(
+			this NpgsqlConnection conn,
+			long identityId,
+			bool isPostEnabled
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
+			sql: "user_account_api.set_auth_service_account_integration_preference",
+			param: new {
+				identity_id = identityId,
+				is_post_enabled = isPostEnabled
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAccessToken> StoreAuthServiceAccessToken(
+			this NpgsqlConnection conn,
+			long identityId,
+			long requestId,
+			string tokenValue,
+			string tokenSecret
+		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccessToken>(
+			sql: "user_account_api.store_auth_service_access_token",
+			param: new {
+				identity_id = identityId,
+				request_id = requestId,
+				token_value = tokenValue,
+				token_secret = tokenSecret
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<AuthServiceAccount> UpdateAuthServiceAccountUser(
 			this NpgsqlConnection conn,
 			long identityId,
 			string emailAddress,
-			bool isPrivate
+			bool isEmailAddressPrivate,
+			string name,
+			string handle
 		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
-			sql: "user_account_api.update_auth_service_account_email_address",
+			sql: "user_account_api.update_auth_service_account_user",
 			param: new {
 				identity_id = identityId,
 				email_address = emailAddress,
-				is_private = isPrivate
+				is_email_address_private = isEmailAddressPrivate,
+				name,
+				handle
 			},
 			commandType: CommandType.StoredProcedure
 		);

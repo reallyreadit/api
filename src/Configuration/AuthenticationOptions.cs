@@ -8,5 +8,6 @@ namespace api.Configuration {
 		public string CookieName { get; set; }
 		public string CookieDomain { get; set; }
 		public CookieSecurePolicy CookieSecure { get; set; }
+		public TwitterAuthOptions TwitterAuth { get; set; }
 	}
 }

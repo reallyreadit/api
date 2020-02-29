@@ -105,6 +105,7 @@ namespace api {
 						services.GetService<ILogger<AppleAuthService>>()
 					)
 				)
+				.AddTransient<TwitterAuthService>()
 				.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 			// configure authentication and authorization
 			services

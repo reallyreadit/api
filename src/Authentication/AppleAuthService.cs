@@ -151,8 +151,8 @@ namespace api.Authentication {
 			string rawIdToken,
 			string authCode,
 			string emailAddress,
-			AppleRealUserRating? realUserRating,
-			UserAccountCreationAnalytics analytics,
+			AppleRealUserRating? appleRealUserRating,
+			UserAccountCreationAnalytics signUpAnalytics,
 			AppleClient client
 		) {
 			// check the session id
@@ -189,21 +189,40 @@ namespace api.Authentication {
 					// update the email address if necessary
 					if (authServiceAccount.ProviderUserEmailAddress != providerUserEmail) {
 						// update email address
-						authServiceAccount = await db.UpdateAuthServiceAccountEmailAddress(
+						authServiceAccount = await db.UpdateAuthServiceAccountUser(
 							identityId: authServiceAccount.IdentityId,
 							emailAddress: providerUserEmail,
-							isPrivate: isProviderUserEmailPrivate
+							isEmailAddressPrivate: isProviderUserEmailPrivate,
+							name: null,
+							handle: null
 						);
 					}
 				} else {
 					// create a new identity
+					AuthServiceRealUserRating? realUserRating;
+					switch (appleRealUserRating) {
+						case AppleRealUserRating.LikelyReal:
+							realUserRating = AuthServiceRealUserRating.LikelyReal;
+							break;
+						case AppleRealUserRating.Unknown:
+							realUserRating = AuthServiceRealUserRating.Unknown;
+							break;
+						case AppleRealUserRating.Unsupported:
+							realUserRating = AuthServiceRealUserRating.Unsupported;
+							break;
+						default:
+							realUserRating = null;
+							break;
+					}
 					authServiceAccount = await db.CreateAuthServiceIdentity(
 						provider: AuthServiceProvider.Apple,
 						providerUserId: providerUserId,
 						providerUserEmailAddress: providerUserEmail,
 						isEmailAddressPrivate: isProviderUserEmailPrivate,
+						providerUserName: null,
+						providerUserHandle: null,
 						realUserRating: realUserRating,
-						analytics: analytics
+						signUpAnalytics: signUpAnalytics
 					);
 				}
 				// create authentication
