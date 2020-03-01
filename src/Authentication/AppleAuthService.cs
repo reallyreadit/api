@@ -47,7 +47,7 @@ namespace api.Authentication {
 					new Claim(JwtRegisteredClaimNames.Sub, sub)
 				},
 				notBefore: null,
-				expires: now.AddMonths(6),
+				expires: now.AddMonths(5),
 				issuedAt: now
 			);
 			return new JwtSecurityToken(header, payload);
