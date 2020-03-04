@@ -181,7 +181,7 @@ namespace api.DataAccess {
 			long? commentId,
 			string content,
 			string tweetId
-		) => await conn.QuerySingleOrDefaultAsync(
+		) => await conn.QuerySingleOrDefaultAsync<TwitterBotTweet>(
 			sql: "analytics.log_twitter_bot_tweet",
 			param: new {
 				handle,
