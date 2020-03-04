@@ -49,6 +49,32 @@ namespace api.Controllers.Extension {
 			}
 			return title;
 		}
+		private static PageInfoBinder.ArticleBinder.AuthorBinder[] PrepareAuthors(PageInfoBinder.ArticleBinder.AuthorBinder[] authors) => (
+			authors
+				.Where(
+					author => !String.IsNullOrWhiteSpace(author.Name)
+				)
+				.Select(
+					author => new PageInfoBinder.ArticleBinder.AuthorBinder() {
+						Name = author.Name
+							.RemoveControlCharacters()
+							.Trim()
+							.MergeContiguousWhitespace(),
+						Url = author.Url
+					}
+				)
+				.GroupBy(
+					author => author.Name.ToLower()
+				)
+				.Select(
+					group => group
+						.OrderByDescending(
+							author => author.Url?.Length ?? 0
+						)
+						.First()
+				)
+				.ToArray()
+		);
 		private static DateTime? ParseArticleDate(string dateString) {
 			DateTime date;
 			if (DateTime.TryParse(dateString, out date)) {
@@ -183,7 +209,7 @@ namespace api.Controllers.Extension {
 					}
 					var title = PrepareArticleTitle(Decode(binder.Article.Title));
 					// temp workaround to circumvent npgsql type mapping bug
-					var authors = binder.Article.Authors.Distinct().ToArray();
+					var authors = PrepareAuthors(binder.Article.Authors);
 					var articleId = db.CreateArticle(
 						title,
 						slug: source.Slug + "_" + CreateSlug(title),
