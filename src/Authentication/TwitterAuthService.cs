@@ -236,13 +236,46 @@ namespace api.Authentication {
 			return message;
 		}
 		private string CreateTruncatedTweetText(
-			string text,
+			string[] segments,
+			int shrinkableSegmentIndex,
 			Uri uri
 		) {
-			var urlLength = 23;
 			var tweetLimit = 280;
-			if (text.Length > tweetLimit - urlLength - 1) {
-				text = text.Substring(0, tweetLimit - urlLength - 5) + " ...";
+			var urlLength = 23;
+			var textLimit = tweetLimit - urlLength - 1;
+			// clean up segments
+			segments = segments
+				.Where(
+					segment => !String.IsNullOrWhiteSpace(segment)
+				)
+				.ToArray();
+			shrinkableSegmentIndex = Math.Min(shrinkableSegmentIndex, segments.Length - 1);
+			var text = String.Join(' ', segments);
+			if (text.Length > textLimit) {
+				// shrink the shrinkable segment to a minimum of 20 chars plus ellipses
+				var shrinkableMinLength = 20;
+				var ellipses = "...";
+				var shrinkable = segments[shrinkableSegmentIndex];
+				if (shrinkable.Length > shrinkableMinLength + ellipses.Length) {
+					segments[shrinkableSegmentIndex] = (
+						shrinkable.Substring(
+							0,
+							Math.Min(
+								Math.Max(
+									shrinkable.Length - (text.Length - textLimit) - ellipses.Length,
+									shrinkableMinLength
+								),
+								shrinkable.Length
+							)
+						) +
+						ellipses
+					);
+					text = String.Join(' ', segments);
+				}
+				// if we're still over the limit just truncate the entire text
+				if (text.Length > textLimit) {
+					text = text.Substring(0, textLimit - ellipses.Length) + ellipses;
+				}
 			}
 			return text + ' ' + uri.ToString();
 		}
@@ -395,23 +428,27 @@ namespace api.Authentication {
 			}
 			taskQueue.QueueBackgroundWorkItem(
 				async cancellationToken => {
-					var targets = await AcquireBotTweetTargets(
-						articleId: comment.ArticleId
-					);
-					var title = comment.UserAccount + " posted " + comment.ArticleTitle + ": ";
-					var tweetText = targets + CreateTruncatedTweetText(
-						(targets.Length > 0 ? " " : null) + title + comment.Text,
-						routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
+					var tweetText = CreateTruncatedTweetText(
+						segments: new[] {
+							comment.UserAccount + " posted " + comment.ArticleTitle + ": " + comment.Text,
+							await AcquireBotTweetTargets(
+								articleId: comment.ArticleId
+							)
+						},
+						shrinkableSegmentIndex: 0,
+						uri: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
 					);
 					var tweet = await Tweet(tweetText, authOptions.Bots.CommentStreamBot);
-					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-						await db.LogTwitterBotTweet(
-							handle: authOptions.Bots.CommentStreamBot.Handle,
-							articleId: null,
-							commentId: comment.Id,
-							content: tweetText,
-							tweetId: tweet.Id.ToString()
-						);
+					if (tweet != null) {
+						using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+							await db.LogTwitterBotTweet(
+								handle: authOptions.Bots.CommentStreamBot.Handle,
+								articleId: null,
+								commentId: comment.Id,
+								content: tweetText,
+								tweetId: tweet.Id.ToString()
+							);
+						}
 					}
 				}
 			);
@@ -762,18 +799,21 @@ namespace api.Authentication {
 					var targets = await AcquireBotTweetTargets(
 						articleId: article.Id
 					);
+					var openingSegment = "🏆";
 					if (targets.Length > 0) {
-						var prefix = "🏆 Congratulations";
-						var tweetText = CreateTruncatedTweetText(
-							$"{prefix} {article.Title} won Article of the Day!",
-							routing.CreateCommentsUrl(article.Slug)
-						);
-						tweetText = Regex.Replace(
-							input: tweetText,
-							pattern: $"^{prefix}",
-							replacement: prefix + ' ' + targets
-						);
-						var tweet = await Tweet(tweetText, authOptions.Bots.AotdBot);
+						openingSegment += " Congratulations " + targets;
+					}
+					var tweetText = CreateTruncatedTweetText(
+						segments: new[] {
+							openingSegment,
+							article.Title,
+							"won Article of the Day!"
+						},
+						shrinkableSegmentIndex: 1,
+						uri: routing.CreateCommentsUrl(article.Slug)
+					);
+					var tweet = await Tweet(tweetText, authOptions.Bots.AotdBot);
+					if (tweet != null) {
 						using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 							await db.LogTwitterBotTweet(
 								handle: authOptions.Bots.AotdBot.Handle,
@@ -792,7 +832,10 @@ namespace api.Authentication {
 		) {
 			await TweetForUserIntegrations(
 				status: CreateTruncatedTweetText(
-					comment.Text,
+					segments: new [] {
+						comment.Text
+					},
+					shrinkableSegmentIndex: 0,
 					uri: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
 				),
 				commentId: comment.Id,
