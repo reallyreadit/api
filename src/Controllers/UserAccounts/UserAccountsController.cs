@@ -746,7 +746,7 @@ namespace api.Controllers.UserAccounts {
 			}
 			return Json(
 				new AuthServiceAccountAssociation(
-					await twitterAuth.SetIntegrationPreferenceAsync(
+					await twitterAuth.SetIntegrationPreference(
 						identityId: form.IdentityId,
 						integrations: form.Integration
 					)

@@ -265,6 +265,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventFrequency>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventType>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationPushUnregistrationReason>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<TwitterHandleAssignment>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();

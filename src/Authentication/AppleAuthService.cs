@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
@@ -117,23 +118,12 @@ namespace api.Authentication {
 						new FormUrlEncodedContent(requestFormValues)
 					)
 				) {
-					var snakeCaseSettings = new Newtonsoft.Json.JsonSerializerSettings() {
-						ContractResolver = new Newtonsoft.Json.Serialization.DefaultContractResolver() {
-							NamingStrategy = new Newtonsoft.Json.Serialization.SnakeCaseNamingStrategy()
-						}
-					};
 					var content = await response.Content.ReadAsStringAsync();
 					if (response.IsSuccessStatusCode) {
-						var tokenResponse = Newtonsoft.Json.JsonConvert.DeserializeObject<AppleTokenResponse>(
-							content,
-							snakeCaseSettings
-						);
+						var tokenResponse = JsonSnakeCaseSerializer.Deserialize<AppleTokenResponse>(content);
 						return tokenResponse;
 					} else {
-						var errorResponse = Newtonsoft.Json.JsonConvert.DeserializeObject<AppleErrorResponse>(
-							content,
-							snakeCaseSettings
-						);
+						var errorResponse = JsonSnakeCaseSerializer.Deserialize<AppleErrorResponse>(content);
 						logger.LogError(
 							"Error verifying Apple ID token. Error: {Error} Token value: {TokenValue}",
 							errorResponse.Error,

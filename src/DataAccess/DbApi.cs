@@ -174,8 +174,54 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<TwitterBotTweet> LogTwitterBotTweet(
+			this NpgsqlConnection conn,
+			string handle,
+			long? articleId,
+			long? commentId,
+			string content,
+			string tweetId
+		) => await conn.QuerySingleOrDefaultAsync(
+			sql: "analytics.log_twitter_bot_tweet",
+			param: new {
+				handle,
+				article_id = articleId,
+				comment_id = commentId,
+				content,
+				tweet_id = tweetId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		#endregion
 		#region article_api
+		public static async Task<Author> AssignTwitterHandleToAuthor(
+			this NpgsqlConnection conn,
+			long authorId,
+			string twitterHandle,
+			TwitterHandleAssignment twitterHandleAssignment
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "article_api.assign_twitter_handle_to_author",
+			param: new {
+				author_id = authorId,
+				twitter_handle = twitterHandle,
+				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Source> AssignTwitterHandleToSource(
+			this NpgsqlConnection conn,
+			long sourceId,
+			string twitterHandle,
+			TwitterHandleAssignment twitterHandleAssignment
+		) => await conn.QuerySingleOrDefaultAsync<Source>(
+			sql: "article_api.assign_twitter_handle_to_source",
+			param: new {
+				source_id = sourceId,
+				twitter_handle = twitterHandle,
+				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static long CreateArticle(
 			this NpgsqlConnection conn,
 			string title,
@@ -292,9 +338,29 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
+		public static async Task<IEnumerable<Author>> GetAuthorsOfArticle(
+			this NpgsqlConnection conn,
+			long articleId
+		) => await conn.QueryAsync<Author>(
+			sql: "article_api.get_authors_of_article",
+			param: new {
+				article_id = articleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Page GetPage(this NpgsqlConnection conn, long pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
 			param: new { page_id = pageId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Source> GetSourceOfArticle(
+			this NpgsqlConnection conn,
+			long articleId
+		) => await conn.QuerySingleOrDefaultAsync<Source>(
+			sql: "article_api.get_source_of_article",
+			param: new {
+				article_id = articleId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static IEnumerable<SourceRule> GetSourceRules(this NpgsqlConnection conn) => conn.Query<SourceRule>(

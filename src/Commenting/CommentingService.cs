@@ -97,7 +97,7 @@ namespace api.Commenting {
 					commentText: comment.Text,
 					silentPostId: null
 				);
-				await twitterAuth.TweetAsync(comment);
+				await twitterAuth.TweetPostComment(comment);
 			}
 			return comment;
 		}
@@ -115,7 +115,7 @@ namespace api.Commenting {
 					analytics: analytics
 				);
 			}
-			await twitterAuth.TweetAsync(
+			await twitterAuth.TweetSilentPost(
 				silentPost: post,
 				articleSlug: articleSlug
 			);

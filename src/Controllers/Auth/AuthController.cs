@@ -144,7 +144,7 @@ namespace api.Controllers.Auth {
 			[FromServices] TwitterAuthService twitterAuth,
 			[FromBody] TwitterCredentialAuthForm form
 		) {
-			var (authServiceAccount, authentication, user, error) = await twitterAuth.AuthenticateAsync(
+			var (authServiceAccount, authentication, user, error) = await twitterAuth.Authenticate(
 				sessionId: HttpContext.GetSessionId(),
 				requestTokenValue: form.OAuthToken,
 				requestVerifier: form.OAuthVerifier,
@@ -153,7 +153,7 @@ namespace api.Controllers.Auth {
 					form: form.Analytics
 				)
 			);
-			await twitterAuth.SetIntegrationPreferenceAsync(
+			await twitterAuth.SetIntegrationPreference(
 				identityId: authServiceAccount.IdentityId,
 				integrations: form.Integrations
 			);
@@ -187,7 +187,7 @@ namespace api.Controllers.Auth {
 			[FromServices] TwitterAuthService twitterAuth,
 			[FromBody] TwitterBrowserRequestForm form
 		) {
-			var token = await twitterAuth.GetBrowserRequestTokenAsync(
+			var token = await twitterAuth.GetBrowserRequestToken(
 				redirectPath: form.RedirectPath,
 				integrations: form.Integrations,
 				signUpAnalytics: form.SignUpAnalytics != null ?
@@ -219,14 +219,14 @@ namespace api.Controllers.Auth {
 				return RedirectToWebServer(form.ReadupRedirectPath);
 			}
 			if (User.Identity.IsAuthenticated) {
-				var (authServiceAccount, error) = await twitterAuth.LinkAsync(
+				var (authServiceAccount, error) = await twitterAuth.LinkAccount(
 					sessionId: HttpContext.GetSessionId(),
 					requestTokenValue: form.OAuthToken,
 					requestVerifier: form.OAuthVerifier,
 					userAccountId: User.GetUserAccountId()
 				);
 				if (authServiceAccount != null) {
-					await twitterAuth.SetIntegrationPreferenceAsync(
+					await twitterAuth.SetIntegrationPreference(
 						identityId: authServiceAccount.IdentityId,
 						integrations: form.ReadupIntegrations
 					);
@@ -234,13 +234,13 @@ namespace api.Controllers.Auth {
 				}
 				return RedirectWithError(form.ReadupRedirectPath, GetErrorMessage(error));
 			} else {
-				var (authServiceAccount, authentication, user, error) = await twitterAuth.AuthenticateAsync(
+				var (authServiceAccount, authentication, user, error) = await twitterAuth.Authenticate(
 					sessionId: HttpContext.GetSessionId(),
 					requestTokenValue: form.OAuthToken,
 					requestVerifier: form.OAuthVerifier,
 					signUpAnalytics: null
 				);
-				await twitterAuth.SetIntegrationPreferenceAsync(
+				await twitterAuth.SetIntegrationPreference(
 					identityId: authServiceAccount.IdentityId,
 					integrations: form.ReadupIntegrations
 				);
@@ -259,7 +259,7 @@ namespace api.Controllers.Auth {
 		public async Task<IActionResult> TwitterWebViewRequest(
 			[FromServices] TwitterAuthService twitterAuth
 		) {
-			var token = await twitterAuth.GetWebViewRequestTokenAsync();
+			var token = await twitterAuth.GetWebViewRequestToken();
 			if (token != null) {
 				return Json(
 					new {
@@ -275,14 +275,14 @@ namespace api.Controllers.Auth {
 			[FromServices] TwitterAuthService twitterAuth,
 			[FromBody] TwitterCredentialLinkForm form
 		) {
-			var (authServiceAccount, error) = await twitterAuth.LinkAsync(
+			var (authServiceAccount, error) = await twitterAuth.LinkAccount(
 				sessionId: HttpContext.GetSessionId(),
 				requestTokenValue: form.OAuthToken,
 				requestVerifier: form.OAuthVerifier,
 				userAccountId: User.GetUserAccountId()
 			);
 			if (authServiceAccount != null) {
-				authServiceAccount = await twitterAuth.SetIntegrationPreferenceAsync(
+				authServiceAccount = await twitterAuth.SetIntegrationPreference(
 					identityId: authServiceAccount.IdentityId,
 					integrations: form.Integrations
 				);

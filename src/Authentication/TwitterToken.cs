@@ -1,5 +1,5 @@
 namespace api.Authentication {
-	public class TwitterToken {
+	public class TwitterToken : ITwitterToken {
 		public TwitterToken(
 			string oauthToken,
 			string oauthTokenSecret
