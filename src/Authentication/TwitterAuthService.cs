@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 using api.BackgroundProcessing;
+using api.Commenting;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
@@ -430,7 +431,7 @@ namespace api.Authentication {
 				async cancellationToken => {
 					var tweetText = CreateTruncatedTweetText(
 						segments: new[] {
-							comment.UserAccount + " posted " + comment.ArticleTitle + ": " + comment.Text,
+							comment.UserAccount + " posted " + comment.ArticleTitle + ": " + CommentingService.RenderCommentTextToPlainText(comment.Text),
 							await AcquireBotTweetTargets(
 								articleId: comment.ArticleId
 							)
@@ -833,7 +834,7 @@ namespace api.Authentication {
 			await TweetForUserIntegrations(
 				status: CreateTruncatedTweetText(
 					segments: new [] {
-						comment.Text
+						CommentingService.RenderCommentTextToPlainText(comment.Text)
 					},
 					shrinkableSegmentIndex: 0,
 					uri: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
