@@ -42,6 +42,9 @@ namespace api.Authentication {
 			this.routing = routing;
 			this.taskQueue = taskQueue;
 		}
+		// 2020-03-11: still searching and assigning the twitter handle for the source
+		// but no longer returning it as a target in order to hopefully not get
+		// our api account muzzled again
 		private async Task<string> AcquireBotTweetTargets(
 			long articleId
 		) {
@@ -86,11 +89,6 @@ namespace api.Authentication {
 					authors
 						.Select(
 							author => author.TwitterHandle
-						)
-						.Concat(
-							new[] {
-								source.TwitterHandle
-							}
 						)
 						.Where(
 							twitterHandle => !String.IsNullOrWhiteSpace(twitterHandle)
@@ -424,17 +422,26 @@ namespace api.Authentication {
 		private void TweetForCommentStreamBot(
 			Comment comment
 		) {
-			if (!authOptions.Bots.CommentStreamBot.IsEnabled) {
+			// 2020-03-11: only tweet longer comments in order to cut down
+			// on overall volume for better twitter rules compliance
+			if (
+				!authOptions.Bots.CommentStreamBot.IsEnabled ||
+				comment.Text.Length < 140
+			) {
 				return;
 			}
 			taskQueue.QueueBackgroundWorkItem(
 				async cancellationToken => {
+					var targets = await AcquireBotTweetTargets(
+						articleId: comment.ArticleId
+					);
+					if (String.IsNullOrWhiteSpace(targets)) {
+						return;
+					}
 					var tweetText = CreateTruncatedTweetText(
 						segments: new[] {
 							comment.UserAccount + " posted " + comment.ArticleTitle + ": " + CommentingService.RenderCommentTextToPlainText(comment.Text),
-							await AcquireBotTweetTargets(
-								articleId: comment.ArticleId
-							)
+							targets
 						},
 						shrinkableSegmentIndex: 0,
 						uri: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
