@@ -799,41 +799,41 @@ namespace api.Authentication {
 		public void TweetAotd(
 			Article article
 		) {
-			if (!authOptions.Bots.AotdBot.IsEnabled) {
-				return;
-			}
-			taskQueue.QueueBackgroundWorkItem(
-				async cancellationToken => {
-					var targets = await AcquireBotTweetTargets(
-						articleId: article.Id
-					);
-					var openingSegment = "🏆";
-					if (targets.Length > 0) {
-						openingSegment += " Congratulations " + targets;
-					}
-					var tweetText = CreateTruncatedTweetText(
-						segments: new[] {
-							openingSegment,
-							article.Title,
-							"won Article of the Day!"
-						},
-						shrinkableSegmentIndex: 1,
-						uri: routing.CreateCommentsUrl(article.Slug)
-					);
-					var tweet = await Tweet(tweetText, authOptions.Bots.AotdBot);
-					if (tweet != null) {
-						using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-							await db.LogTwitterBotTweet(
-								handle: authOptions.Bots.AotdBot.Handle,
-								articleId: article.Id,
-								commentId: null,
-								content: tweetText,
-								tweetId: tweet.Id.ToString()
-							);
-						}
-					}
-				}
-			);
+			// if (!authOptions.Bots.AotdBot.IsEnabled) {
+			// 	return;
+			// }
+			// taskQueue.QueueBackgroundWorkItem(
+			// 	async cancellationToken => {
+			// 		var targets = await AcquireBotTweetTargets(
+			// 			articleId: article.Id
+			// 		);
+			// 		var openingSegment = "🏆";
+			// 		if (targets.Length > 0) {
+			// 			openingSegment += " Congratulations " + targets;
+			// 		}
+			// 		var tweetText = CreateTruncatedTweetText(
+			// 			segments: new[] {
+			// 				openingSegment,
+			// 				article.Title,
+			// 				"won Article of the Day!"
+			// 			},
+			// 			shrinkableSegmentIndex: 1,
+			// 			uri: routing.CreateCommentsUrl(article.Slug)
+			// 		);
+			// 		var tweet = await Tweet(tweetText, authOptions.Bots.AotdBot);
+			// 		if (tweet != null) {
+			// 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+			// 				await db.LogTwitterBotTweet(
+			// 					handle: authOptions.Bots.AotdBot.Handle,
+			// 					articleId: article.Id,
+			// 					commentId: null,
+			// 					content: tweetText,
+			// 					tweetId: tweet.Id.ToString()
+			// 				);
+			// 			}
+			// 		}
+			// 	}
+			// );
 		}
 		public async Task TweetPostComment(
 			Comment comment
@@ -850,9 +850,9 @@ namespace api.Authentication {
 				silentPostId: null,
 				userAccountId: comment.UserAccountId
 			);
-			TweetForCommentStreamBot(
-				comment: comment
-			);
+			// TweetForCommentStreamBot(
+			// 	comment: comment
+			// );
 		}
 		public async Task TweetSilentPost(
 			SilentPost silentPost,
