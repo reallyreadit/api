@@ -117,6 +117,16 @@ namespace api.Controllers.Extension {
 				);
 			}
 		}
+		[HttpGet]
+		public IActionResult Blacklist() {
+			return Json(
+				new [] {
+					@"https://www\.fastmail\.com/",
+					@"https://docs\.google\.com/",
+					@"https://mail\.google\.com/"
+				}
+			);
+		}
 		[HttpPost]
 		public async Task<IActionResult> GetUserArticle(
 			[FromServices] ReadingVerificationService verificationService,
