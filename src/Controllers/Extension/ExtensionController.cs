@@ -20,12 +20,18 @@ using System.Collections.Generic;
 using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Formatting;
+using Microsoft.Extensions.Logging;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
 		private DatabaseOptions dbOpts;
-		public ExtensionController(IOptions<DatabaseOptions> dbOpts) {
+		private readonly ILogger<ExtensionController> logger;
+		public ExtensionController(
+			IOptions<DatabaseOptions> dbOpts,
+			ILogger<ExtensionController> logger
+		) {
 			this.dbOpts = dbOpts.Value;
+			this.logger = logger;
 		}
 		private static string CreateSlug(string value) {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
@@ -199,29 +205,90 @@ namespace api.Controllers.Extension {
 					var source = db.FindSource(sourceUri.Host);
 					if (source == null) {
 						// create source
-						var sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty);
-						source = db.CreateSource(
-							name: sourceName,
-							url: sourceUri.ToString(),
-							hostname: sourceUri.Host,
-							slug: CreateSlug(sourceName)
-						);
+						string
+							sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty),
+							sourceSlug = CreateSlug(sourceName);
+						try {
+							source = db.CreateSource(
+								name: sourceName,
+								url: sourceUri.ToString(),
+								hostname: sourceUri.Host,
+								slug: sourceSlug
+							);
+						} catch (NpgsqlException ex) when (
+							ex.Data.Contains("ConstraintName") &&
+							(
+								String.Equals(ex.Data["ConstraintName"], "source_hostname_key") ||
+								String.Equals(ex.Data["ConstraintName"], "source_slug_key")
+							)
+						) {
+							if (
+								this.ClientVersionIsGreaterThanOrEqualTo(
+									new Dictionary<ClientType, SemanticVersion>() {
+										{ ClientType.IosExtension, new SemanticVersion(0, 0, 0) },
+										{ ClientType.WebExtension, new SemanticVersion(3, 0, 0) }
+									}
+								)
+							) {
+								logger.LogError(
+									"Duplicate source. Name: {Name} Url: {Url} Hostname: {Hostname} Slug: {Slug}",
+									sourceName,
+									sourceUri.ToString(),
+									sourceUri.Host,
+									sourceSlug
+								);
+							}
+							return BadRequest(
+								new [] {
+									"DuplicateSource"
+								}
+							);
+						}
 					}
-					var title = PrepareArticleTitle(Decode(binder.Article.Title));
+					string
+						title = PrepareArticleTitle(Decode(binder.Article.Title)),
+						slug = source.Slug + "_" + CreateSlug(title);
 					// temp workaround to circumvent npgsql type mapping bug
 					var authors = PrepareAuthors(binder.Article.Authors);
-					var articleId = db.CreateArticle(
-						title,
-						slug: source.Slug + "_" + CreateSlug(title),
-						sourceId: source.Id,
-						datePublished: ParseArticleDate(binder.Article.DatePublished),
-						dateModified: ParseArticleDate(binder.Article.DateModified),
-						section: Decode(binder.Article.Section),
-						description: Decode(binder.Article.Description),
-						authorNames: authors.Select(author => author.Name).ToArray(),
-						authorUrls: authors.Select(author => author.Url).ToArray(),
-						tags: binder.Article.Tags.Distinct().ToArray()
-					);
+					long articleId;
+					try {
+						articleId = db.CreateArticle(
+							title,
+							slug,
+							sourceId: source.Id,
+							datePublished: ParseArticleDate(binder.Article.DatePublished),
+							dateModified: ParseArticleDate(binder.Article.DateModified),
+							section: Decode(binder.Article.Section),
+							description: Decode(binder.Article.Description),
+							authorNames: authors.Select(author => author.Name).ToArray(),
+							authorUrls: authors.Select(author => author.Url).ToArray(),
+							tags: binder.Article.Tags.Distinct().ToArray()
+						);
+					} catch (NpgsqlException ex) when (
+						ex.Data.Contains("ConstraintName") &&
+						String.Equals(ex.Data["ConstraintName"], "article_slug_key")
+					) {
+						if (
+							this.ClientVersionIsGreaterThanOrEqualTo(
+								new Dictionary<ClientType, SemanticVersion>() {
+									{ ClientType.IosExtension, new SemanticVersion(0, 0, 0) },
+									{ ClientType.WebExtension, new SemanticVersion(3, 0, 0) }
+								}
+							)
+						) {
+							logger.LogError(
+								"Duplicate article. Title: {Title} Url: {Url} Slug: {Slug}",
+								title,
+								binder.Url,
+								slug
+							);
+						}
+						return BadRequest(
+							new [] {
+								"DuplicateArticle"
+							}
+						);
+					}
 					page = db.CreatePage(
 						articleId: articleId,
 						number: binder.Number ?? 1,
