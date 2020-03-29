@@ -60,7 +60,6 @@ namespace api {
 			services
 				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
-				.Configure<CorsOptions>(config.GetSection("Cors"))
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(emailOptsConfigSection)
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
@@ -192,8 +191,7 @@ namespace api {
 			);
 		}
 		public void Configure(
-			IApplicationBuilder app,
-			IOptions<CorsOptions> corsOpts
+			IApplicationBuilder app
 		) {
 			if (env.IsDevelopment()) {
 				app.UseDeveloperExceptionPage();
@@ -224,7 +222,9 @@ namespace api {
 			// configure cors
 			app.UseCors(
 				cors => cors
-					.WithOrigins(corsOpts.Value.Origins)
+					.SetIsOriginAllowed(
+						_ => true
+					)
 					.AllowCredentials()
 					.AllowAnyHeader()
 					.AllowAnyMethod()
