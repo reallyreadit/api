@@ -193,9 +193,9 @@ namespace api {
 		public void Configure(
 			IApplicationBuilder app
 		) {
-			if (env.IsDevelopment()) {
+			//if (env.IsDevelopment()) {
 				app.UseDeveloperExceptionPage();
-			}
+			//}
 			// configure forwarded headers
 			app.UseForwardedHeaders(
 				new ForwardedHeadersOptions() {
