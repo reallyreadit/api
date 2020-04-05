@@ -73,7 +73,7 @@ namespace api.Messaging {
 								model: new LayoutViewModel<TContent>(
 									title: notification.Subject,
 									homeUrl: serviceOpts.WebServer.CreateUrl(),
-									logoUrl: serviceOpts.StaticContentServer.CreateUrl("/email/logo.png"),
+									imageBaseUrl: serviceOpts.StaticContentServer.CreateUrl("/email/"),
 									openImageUrl: notification.OpenUrl.ToString(),
 									subscription: subscription,
 									subscriptionsUrl: (
