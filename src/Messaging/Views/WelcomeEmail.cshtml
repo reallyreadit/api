@@ -20,10 +20,7 @@
 	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Take your time.</span> Reading isn’t a race. Find <span style="font-style:italic;">your</span> happy pace. :)</li>
 	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Speak your mind.</span> Don’t hold back. Everyone wants to hear what you have to say. </li>
 	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Be respectful.</span> Because obviously. We’re all human.</li>
-	<li style="margin:0 0 0.5em 0;padding:0;">
-		<span style="font-weight:bold;">Remember that you can import anything you want to Readup.</span> Use this button to add articles and stories to your starred reading list:
-		<img src="@Model.Content.ImportScreenshotUrl" alt="Article Import How-To Screenshot" style="display:block;margin:1em auto;width:80%;max-width:320px;border: 1px solid #e0e0e0;" />
-	</li>
+	<li style="margin:0 0 0.5em 0;padding:0;"><span style="font-weight:bold;">Remember that you can import anything you want to Readup.</span></li>
 	<li style="margin:0;padding:0;">
 		Oh, and last thing: click the button below to confirm your email address:
 		@await Html.PartialAsync("Shared/Button", (Text: "Confirm Email Address", Url: Model.Content.EmailConfirmationUrl))

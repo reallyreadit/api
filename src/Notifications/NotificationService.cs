@@ -949,7 +949,6 @@ namespace api.Notifications {
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new WelcomeEmailViewModel(
 						profileUrl: routing.CreateProfileUrl(dispatch.UserName),
-						importScreenshotUrl: endpoints.StaticContentServer.CreateUrl("/email/import-screenshot.png"),
 						emailConfirmationUrl: CreateEmailConfirmationUrl(emailConfirmation.Id)
 					)
 				)
