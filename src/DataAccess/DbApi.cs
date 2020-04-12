@@ -30,24 +30,36 @@ namespace api.DataAccess {
 				null
 		);
 		#region analytics
-		public static Task<IEnumerable<KeyMetricsReportRow>> GetKeyMetrics(
+		public static async Task<IEnumerable<ConversionsReportRow>> GetConversions(
 			this NpgsqlConnection conn,
 			DateTime startDate,
 			DateTime endDate
-		) => conn.QueryAsync<KeyMetricsReportRow>(
-			sql: "analytics.get_key_metrics",
+		) => await conn.QueryAsync<ConversionsReportRow>(
+			sql: "analytics.get_conversions",
 			param: new {
 				start_date = startDate,
 				end_date = endDate
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Task<IEnumerable<UserAccountCreation>> GetUserAccountCreations(
+		public static async Task<IEnumerable<DailyTotalsReportRow>> GetDailyTotals(
 			this NpgsqlConnection conn,
 			DateTime startDate,
 			DateTime endDate
-		) => conn.QueryAsync<UserAccountCreation>(
-			sql: "analytics.get_user_account_creations",
+		) => await conn.QueryAsync<DailyTotalsReportRow>(
+			sql: "analytics.get_daily_totals",
+			param: new {
+				start_date = startDate,
+				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<SignupsReportRow>> GetSignups(
+			this NpgsqlConnection conn,
+			DateTime startDate,
+			DateTime endDate
+		) => await conn.QueryAsync<SignupsReportRow>(
+			sql: "analytics.get_signups",
 			param: new {
 				start_date = startDate,
 				end_date = endDate

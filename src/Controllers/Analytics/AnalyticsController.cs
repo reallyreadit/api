@@ -31,9 +31,15 @@ namespace api.Controllers.Analytics {
 			}
 		}
 		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
-		public async Task<JsonResult> KeyMetrics(DateTime startDate, DateTime endDate) {
+		public async Task<JsonResult> Conversions([FromQuery] DateRangeQuery query) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.GetKeyMetrics(startDate, endDate));
+				return Json(await db.GetConversions(query.StartDate, query.EndDate));
+			}
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		public async Task<JsonResult> DailyTotals([FromQuery] DateRangeQuery query) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.GetDailyTotals(query.StartDate, query.EndDate));
 			}
 		}
 		[AllowAnonymous]
@@ -92,9 +98,9 @@ namespace api.Controllers.Analytics {
 			return Ok();
 		}
 		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
-		public async Task<JsonResult> UserAccountCreations(DateTime startDate, DateTime endDate) {
+		public async Task<JsonResult> Signups([FromQuery] DateRangeQuery query) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(await db.GetUserAccountCreations(startDate, endDate));
+				return Json(await db.GetSignups(query.StartDate, query.EndDate));
 			}
 		}
 	}

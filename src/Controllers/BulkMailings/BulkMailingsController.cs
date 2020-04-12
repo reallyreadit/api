@@ -29,7 +29,7 @@ namespace api.Controllers.BulkMailings {
 		[HttpGet]
 		public JsonResult List() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(db.GetBulkMailings().OrderByDescending(m => m.DateSent));
+				return Json(db.GetBulkMailings().OrderByDescending(m => m.DateSent).Take(7));
 			}
 		}
 		[HttpGet]
