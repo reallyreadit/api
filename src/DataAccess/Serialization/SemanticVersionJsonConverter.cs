@@ -8,7 +8,11 @@ namespace api.DataAccess.Serialization {
 			return objectType == typeof(SemanticVersion);
 		}
 		public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
-			throw new NotSupportedException();
+			try {
+				return new SemanticVersion(reader.Value as string);
+			} catch {
+				return null;
+			}
 		}
 		public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) {
 			writer.WriteValue(((SemanticVersion)value)?.ToString());

@@ -8,7 +8,7 @@ namespace api.DataAccess.Serialization {
 			return objectType == typeof(ClientType);
 		}
 		public override object ReadJson(JsonReader reader, Type objectType, object existingValue, JsonSerializer serializer) {
-			throw new NotSupportedException();
+			return ClientTypeDictionary.StringToEnum[reader.Value as string];
 		}
 		public override void WriteJson(JsonWriter writer, object value, JsonSerializer serializer) {
 			writer.WriteValue(ClientTypeDictionary.EnumToString[(ClientType)value]);

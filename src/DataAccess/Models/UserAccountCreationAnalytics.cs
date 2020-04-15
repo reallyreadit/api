@@ -2,6 +2,7 @@ using api.Analytics;
 
 namespace api.DataAccess.Models {
 	public class UserAccountCreationAnalytics : SignUpAnalyticsForm {
+		public UserAccountCreationAnalytics() { }
 		public UserAccountCreationAnalytics(
 			ClientAnalytics client,
 			SignUpAnalyticsForm form
@@ -13,6 +14,6 @@ namespace api.DataAccess.Models {
 			CurrentPath = form.CurrentPath;
 			Action = form.Action;
 		}
-		public ClientAnalytics Client { get; }
+		public ClientAnalytics Client { get; set; }
 	}
 }
