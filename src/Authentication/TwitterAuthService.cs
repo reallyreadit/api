@@ -13,6 +13,7 @@ using api.Commenting;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.DataAccess.Serialization;
 using api.Routing;
 using api.Serialization;
 using Microsoft.Extensions.Logging;
@@ -645,7 +646,14 @@ namespace api.Authentication {
 					tokenValue: requestTokenValue
 				);
 			}
-			// TODO: parse sign up analytics from request token if parameter is null
+			// attempt to parse sign up analytics from request token if parameter is null
+			if (signUpAnalytics == null && requestToken.SignUpAnalytics != null) {
+				try {
+					signUpAnalytics = PostgresJsonSerialization.Deserialize<UserAccountCreationAnalytics>(requestToken.SignUpAnalytics);
+				} catch (Exception exception) {
+					logger.LogError(exception, "Failed to deserialize sign up analytics from Twitter request token");
+				}
+			}
 			// verify the request token
 			var (authServiceAccount, authentication, error) = await VerifyRequestToken(
 				sessionId: sessionId,
