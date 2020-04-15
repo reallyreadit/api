@@ -153,10 +153,16 @@ namespace api.Controllers.Auth {
 					form: form.Analytics
 				)
 			);
-			await twitterAuth.SetIntegrationPreference(
-				identityId: authServiceAccount.IdentityId,
-				integrations: form.Integrations
-			);
+			if (
+				authServiceAccount != null &&
+				!authServiceAccount.IsPostIntegrationEnabled &&
+				form.Integrations == AuthServiceIntegration.Post
+			) {
+				await twitterAuth.SetIntegrationPreference(
+					identityId: authServiceAccount.IdentityId,
+					integrations: form.Integrations
+				);
+			}
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
 				return Json(
@@ -240,10 +246,16 @@ namespace api.Controllers.Auth {
 					requestVerifier: form.OAuthVerifier,
 					signUpAnalytics: null
 				);
-				await twitterAuth.SetIntegrationPreference(
-					identityId: authServiceAccount.IdentityId,
-					integrations: form.ReadupIntegrations
-				);
+				if (
+					authServiceAccount != null &&
+					!authServiceAccount.IsPostIntegrationEnabled &&
+					form.ReadupIntegrations == AuthServiceIntegration.Post
+				) {
+					await twitterAuth.SetIntegrationPreference(
+						identityId: authServiceAccount.IdentityId,
+						integrations: form.ReadupIntegrations
+					);
+				}
 				if (user != null) {
 					await authService.SignIn(user, PushDeviceForm.Blank);
 					return RedirectToWebServer(form.ReadupRedirectPath);
