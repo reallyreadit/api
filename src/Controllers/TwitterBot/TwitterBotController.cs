@@ -4,6 +4,7 @@ using api.Authentication;
 using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Messaging;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
@@ -17,6 +18,7 @@ namespace api.Controllers.TwitterBot {
 			[FromServices] IOptions<AuthenticationOptions> authOptions,
 			[FromServices] IOptions<DatabaseOptions> databaseOptions,
 			[FromServices] TwitterAuthService twitterAuth,
+			[FromServices] EmailService emailService,
 			[FromForm] AotdForm form
 		) {
 			if (form.ApiKey == authOptions.Value.ApiKey) {
@@ -24,7 +26,16 @@ namespace api.Controllers.TwitterBot {
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
 					aotd = (await db.GetAotds(dayCount: 1)).Single();
 				}
-				twitterAuth.TweetAotd(aotd);
+				var tweetText = await twitterAuth.GetAotdTweetText(aotd);
+				await emailService.Send(
+					new EmailMessage(
+						from: new EmailMailbox("AOTD Bot", "support@readup.com"),
+						replyTo: null,
+						to: new EmailMailbox("Bill Loundy", "bill@readup.com"),
+						subject: "AOTD Tweet",
+						body: tweetText
+					)
+				);
 			}
 			return BadRequest();
 		}

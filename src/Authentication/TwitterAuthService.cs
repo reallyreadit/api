@@ -43,9 +43,6 @@ namespace api.Authentication {
 			this.routing = routing;
 			this.taskQueue = taskQueue;
 		}
-		// 2020-03-11: still searching and assigning the twitter handle for the source
-		// but no longer returning it as a target in order to hopefully not get
-		// our api account muzzled again
 		private async Task<string> AcquireBotTweetTargets(
 			long articleId
 		) {
@@ -285,7 +282,7 @@ namespace api.Authentication {
 		) {
 			var message = CreateRequestMessage(
 				method: HttpMethod.Post,
-				uri: new Uri("https://api.twitter.com/oauth/access_token"),
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/oauth/access_token"),
 				queryStringParameters: null,
 				bodyParameters: null,
 				oauthParameters: new Dictionary<string, string>() {
@@ -317,7 +314,7 @@ namespace api.Authentication {
 		) {
 			var message = CreateRequestMessage(
 				method: HttpMethod.Post,
-				uri: new Uri("https://api.twitter.com/oauth/request_token"),
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/oauth/request_token"),
 				queryStringParameters: null,
 				bodyParameters: null,
 				oauthParameters: new Dictionary<string, string>() {
@@ -357,7 +354,7 @@ namespace api.Authentication {
 		) {
 			var message = CreateRequestMessage(
 				method: HttpMethod.Get,
-				uri: new Uri("https://api.twitter.com/1.1/account/verify_credentials.json"),
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/1.1/account/verify_credentials.json"),
 				queryStringParameters: new Dictionary<string, string>() {
 					{ "include_email", "true" },
 					{ "include_entities", "false" },
@@ -400,14 +397,14 @@ namespace api.Authentication {
 		) {
 			var message = CreateRequestMessage(
 				method: HttpMethod.Get,
-				uri: new Uri("https://api.twitter.com/1.1/users/search.json"),
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/users/search.json"),
 				queryStringParameters: new Dictionary<string, string>() {
 					{ "q", query },
 					{ "include_entities", "false" }
 				},
 				bodyParameters: null,
 				oauthParameters: null,
-				accessToken: authOptions.Bots.SearchBot
+				accessToken: authOptions.SearchAccount
 			);
 			string responseContent;
 			using (var client = httpClientFactory.CreateClient())
@@ -420,81 +417,32 @@ namespace api.Authentication {
 			}
 			return JsonSnakeCaseSerializer.Deserialize<TwitterUserSearchResult[]>(responseContent);
 		}
-		private void TweetForCommentStreamBot(
-			Comment comment
-		) {
-			// 2020-03-11: only tweet longer comments in order to cut down
-			// on overall volume for better twitter rules compliance
-			if (
-				!authOptions.Bots.CommentStreamBot.IsEnabled ||
-				comment.Text.Length < 140
-			) {
-				return;
-			}
-			taskQueue.QueueBackgroundWorkItem(
-				async cancellationToken => {
-					var targets = await AcquireBotTweetTargets(
-						articleId: comment.ArticleId
-					);
-					if (String.IsNullOrWhiteSpace(targets)) {
-						return;
-					}
-					var tweetText = CreateTruncatedTweetText(
-						segments: new[] {
-							comment.UserAccount + " posted " + comment.ArticleTitle + ": " + CommentingService.RenderCommentTextToPlainText(comment.Text),
-							targets
-						},
-						shrinkableSegmentIndex: 0,
-						uri: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
-					);
-					var tweet = await Tweet(tweetText, authOptions.Bots.CommentStreamBot);
-					if (tweet != null) {
-						using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-							await db.LogTwitterBotTweet(
-								handle: authOptions.Bots.CommentStreamBot.Handle,
-								articleId: null,
-								commentId: comment.Id,
-								content: tweetText,
-								tweetId: tweet.Id.ToString()
-							);
-						}
-					}
-				}
-			);
-		}
-		private async Task TweetForUserIntegrations(
+		private async Task TweetFromLinkedAccounts(
 			string status,
 			long? commentId,
 			long? silentPostId,
 			long userAccountId
 		) {
-			IEnumerable<AuthServiceAccount> activeAccounts;
+			IEnumerable<AuthServiceAccount> twitterAccounts;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				var integrations = await db.GetAuthServiceAccountsForUserAccount(
-					userAccountId: userAccountId
-				);
-				activeAccounts = integrations
-					.Where(
-						integration => (
-							integration.Provider == AuthServiceProvider.Twitter &&
-							integration.AccessTokenValue != null &&
-							integration.AccessTokenSecret != null &&
-							integration.IsPostIntegrationEnabled
+				twitterAccounts = (
+						await db.GetAuthServiceAccountsForUserAccount(
+							userAccountId: userAccountId
 						)
+					)
+					.Where(
+						account => account.Provider == AuthServiceProvider.Twitter
 					)
 					.ToArray();
 			}
-			if (activeAccounts.Any()) {
+			if (twitterAccounts.Any()) {
 				taskQueue.QueueBackgroundWorkItem(
 					async cancellationToken => {
 						var tweets = new List<( long IdentityId, TwitterTweet Tweet )>();
-						foreach (var account in activeAccounts) {
+						foreach (var account in twitterAccounts) {
 							var tweet = await Tweet(
 								status: status,
-								accessToken: new TwitterToken(
-									oauthToken: account.AccessTokenValue,
-									oauthTokenSecret: account.AccessTokenSecret
-								)
+								account: account
 							);
 							if (tweet != null) {
 								tweets.Add(
@@ -524,17 +472,20 @@ namespace api.Authentication {
 		}
 		private async Task<TwitterTweet> Tweet(
 			string status,
-			ITwitterToken accessToken
+			AuthServiceAccount account
 		) {
 			var message = CreateRequestMessage(
 				method: HttpMethod.Post,
-				uri: new Uri("https://api.twitter.com/1.1/statuses/update.json"),
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/1.1/statuses/update.json"),
 				queryStringParameters: new Dictionary<string, string>() {
 					{ "status", status }
 				},
 				bodyParameters: null,
 				oauthParameters: null,
-				accessToken: accessToken
+				accessToken: new TwitterToken(
+					oauthToken: account.AccessTokenValue,
+					oauthTokenSecret: account.AccessTokenSecret
+				)
 			);
 			string responseContent;
 			using (var client = httpClientFactory.CreateClient())
@@ -546,7 +497,9 @@ namespace api.Authentication {
 						var errorResponse = JsonSnakeCaseSerializer.Deserialize<TwitterErrorResponse>(responseContent);
 						if (errorResponse.Errors.Any(error => error.Code == 89)) {
 							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-								await db.RevokeAuthServiceAccessToken(accessToken.OAuthToken);
+								await db.DisassociateAuthServiceAccount(
+									identityId: account.IdentityId
+								);
 							}
 						}
 					} catch {
@@ -557,7 +510,7 @@ namespace api.Authentication {
 			}
 			return JsonSnakeCaseSerializer.Deserialize<TwitterTweet>(responseContent);
 		}
-		private async Task<( AuthServiceAccount account, AuthServiceAuthentication authentication, TwitterTokenAuthenticationError? error )> VerifyRequestToken(
+		private async Task<( AuthServiceAccount account, AuthServiceAuthentication authentication, AuthenticationError? error )> VerifyRequestToken(
 			string sessionId,
 			AuthServiceRequestToken requestToken,
 			string requestVerifier,
@@ -572,7 +525,7 @@ namespace api.Authentication {
 				return (
 					account: null,
 					authentication: null,
-					error: TwitterTokenAuthenticationError.VerificationFailed
+					error: AuthenticationError.InvalidAuthToken
 				);
 			}
 			// verify the credentials
@@ -633,7 +586,7 @@ namespace api.Authentication {
 				);
 			}
 		}
-		public async Task<( AuthServiceAccount authServiceAccount, AuthServiceAuthentication authentication, UserAccount user, TwitterTokenAuthenticationError? error )> Authenticate(
+		public async Task<( AuthServiceAccount authServiceAccount, AuthServiceAuthentication authentication, UserAccount user, AuthenticationError? error )> Authenticate(
 			string sessionId,
 			string requestTokenValue,
 			string requestVerifier,
@@ -687,7 +640,7 @@ namespace api.Authentication {
 						authServiceAccount: null,
 						authentication: null,
 						user: null,
-						error: TwitterTokenAuthenticationError.EmailAddressRequired
+						error: AuthenticationError.EmailAddressRequired
 					);
 				}
 				var userAccount = db.GetUserAccountByEmail(authServiceAccount.ProviderUserEmailAddress);
@@ -699,6 +652,7 @@ namespace api.Authentication {
 						userAccountId: userAccount.Id,
 						associationMethod: AuthServiceAssociationMethod.Auto
 					);
+					userAccount.HasLinkedTwitterAccount = true;
 					return (
 						authServiceAccount,
 						authentication,
@@ -721,34 +675,24 @@ namespace api.Authentication {
 				await db.CancelAuthServiceRequestToken(tokenValue);
 			}
 		}
-		public async Task<TwitterRequestToken> GetBrowserRequestToken(
+		public async Task<TwitterRequestToken> GetBrowserAuthRequestToken(
 			string redirectPath,
-			AuthServiceIntegration integrations,
 			UserAccountCreationAnalytics signUpAnalytics
 		) {
-			var query = new List<KeyValuePair<string, string>>();
-			if (!String.IsNullOrWhiteSpace(redirectPath)) {
-				query.Add(
-					new KeyValuePair<string, string>("readup_redirect_path", redirectPath)
-				);
-			}
-			if (integrations != AuthServiceIntegration.None) {
-				query.Add(
-					new KeyValuePair<string, string>("readup_integrations", integrations.ToString())
-				);
-			}
-			var callback = authOptions.BrowserCallback;
-			if (query.Any()) {
-				callback += '?' + String.Join(
-					'&',
-					query.Select(
-						kvp => Uri.EscapeDataString(kvp.Key) + '=' + Uri.EscapeDataString(kvp.Value)
-					)
-				);
-			}
 			return await GetRequestToken(
-				oauthCallback: callback,
+				oauthCallback: authOptions.BrowserAuthCallback + QueryStringSerializer.Serialize(
+					new[] {
+						new KeyValuePair<string, string>("readup_redirect_path", redirectPath)
+					},
+					includePrefix: true
+				),
 				signUpAnalytics: signUpAnalytics
+			);
+		}
+		public async Task<TwitterRequestToken> GetBrowserLinkRequestToken() {
+			return await GetRequestToken(
+				oauthCallback: authOptions.BrowserLinkCallback,
+				signUpAnalytics: null
 			);
 		}
 		public async Task<TwitterRequestToken> GetWebViewRequestToken() {
@@ -757,7 +701,7 @@ namespace api.Authentication {
 				signUpAnalytics: null
 			);
 		}
-		public async Task<( AuthServiceAccount authServiceAccount, TwitterTokenAuthenticationError? error )> LinkAccount(
+		public async Task<( AuthServiceAccount authServiceAccount, AuthenticationError? error )> LinkAccount(
 			string sessionId,
 			string requestTokenValue,
 			string requestVerifier,
@@ -793,60 +737,30 @@ namespace api.Authentication {
 				error
 			);
 		}
-		public async Task<AuthServiceAccount> SetIntegrationPreference(
-			long identityId,
-			AuthServiceIntegration integrations
-		) {
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				return await db.SetAuthServiceAccountIntegrationPreference(
-					identityId: identityId,
-					isPostEnabled: integrations == AuthServiceIntegration.Post
-				);
-			}
-		}
-		public void TweetAotd(
+		public async Task<string> GetAotdTweetText(
 			Article article
 		) {
-			// if (!authOptions.Bots.AotdBot.IsEnabled) {
-			// 	return;
-			// }
-			// taskQueue.QueueBackgroundWorkItem(
-			// 	async cancellationToken => {
-			// 		var targets = await AcquireBotTweetTargets(
-			// 			articleId: article.Id
-			// 		);
-			// 		var openingSegment = "🏆";
-			// 		if (targets.Length > 0) {
-			// 			openingSegment += " Congratulations " + targets;
-			// 		}
-			// 		var tweetText = CreateTruncatedTweetText(
-			// 			segments: new[] {
-			// 				openingSegment,
-			// 				article.Title,
-			// 				"won Article of the Day!"
-			// 			},
-			// 			shrinkableSegmentIndex: 1,
-			// 			uri: routing.CreateCommentsUrl(article.Slug)
-			// 		);
-			// 		var tweet = await Tweet(tweetText, authOptions.Bots.AotdBot);
-			// 		if (tweet != null) {
-			// 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-			// 				await db.LogTwitterBotTweet(
-			// 					handle: authOptions.Bots.AotdBot.Handle,
-			// 					articleId: article.Id,
-			// 					commentId: null,
-			// 					content: tweetText,
-			// 					tweetId: tweet.Id.ToString()
-			// 				);
-			// 			}
-			// 		}
-			// 	}
-			// );
+			var targets = await AcquireBotTweetTargets(
+				articleId: article.Id
+			);
+			var openingSegment = "🏆";
+			if (targets.Length > 0) {
+				openingSegment += " Congratulations " + targets;
+			}
+			return CreateTruncatedTweetText(
+				segments: new[] {
+					openingSegment,
+					article.Title,
+					"won Article of the Day!"
+				},
+				shrinkableSegmentIndex: 1,
+				uri: routing.CreateCommentsUrl(article.Slug)
+			);
 		}
 		public async Task TweetPostComment(
 			Comment comment
 		) {
-			await TweetForUserIntegrations(
+			await TweetFromLinkedAccounts(
 				status: CreateTruncatedTweetText(
 					segments: new [] {
 						CommentingService.RenderCommentTextToPlainText(comment.Text)
@@ -858,15 +772,12 @@ namespace api.Authentication {
 				silentPostId: null,
 				userAccountId: comment.UserAccountId
 			);
-			// TweetForCommentStreamBot(
-			// 	comment: comment
-			// );
 		}
 		public async Task TweetSilentPost(
 			SilentPost silentPost,
 			string articleSlug
 		) {
-			await TweetForUserIntegrations(
+			await TweetFromLinkedAccounts(
 				status: routing.CreateCommentsUrl(articleSlug).ToString(),
 				commentId: null,
 				silentPostId: silentPost.Id,

@@ -127,7 +127,7 @@ namespace api.Controllers.Email {
 									using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 										var notification = await db.GetNotification(receiptId.Value);
 										var parent = await db.GetComment(notification.CommentIds.Single());
-										var reply = await commentingService.PostComment(
+										var reply = await commentingService.PostReply(
 											text: mailContent,
 											articleId: parent.ArticleId,
 											parentCommentId: parent.Id,

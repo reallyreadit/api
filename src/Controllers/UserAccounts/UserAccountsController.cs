@@ -199,6 +199,9 @@ namespace api.Controllers.UserAccounts {
 						userAccountId: userAccount.Id,
 						associationMethod: AuthServiceAssociationMethod.Manual
 					);
+					if (authServiceAccount.Provider == AuthServiceProvider.Twitter) {
+						userAccount.HasLinkedTwitterAccount = true;
+					}
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
 					return await JsonUser(
@@ -445,12 +448,15 @@ namespace api.Controllers.UserAccounts {
 					if (validationError != null) {
 						return BadRequest(new[] { validationError });
 					}
-					await db.AssociateAuthServiceAccount(
+					var authServiceAccount = await db.AssociateAuthServiceAccount(
 						identityId: authentication.IdentityId,
 						authenticationId: authentication.Id,
 						userAccountId: userAccount.Id,
 						associationMethod: AuthServiceAssociationMethod.Manual
 					);
+					if (authServiceAccount.Provider == AuthServiceProvider.Twitter) {
+						userAccount.HasLinkedTwitterAccount = true;
+					}
 				}
 				await authenticationService.SignIn(userAccount, form.PushDevice);
 				return await JsonUser(
@@ -731,27 +737,6 @@ namespace api.Controllers.UserAccounts {
 					)
 				);
 			}
-		}
-		[HttpPost]
-		public async Task<IActionResult> AuthServiceIntegrationPreference(
-			[FromServices] TwitterAuthService twitterAuth,
-			[FromBody] AuthServiceIntegrationPreferenceForm form
-		) {
-			AuthServiceAccount authServiceAccount;
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				authServiceAccount = await db.GetAuthServiceAccountByIdentityId(form.IdentityId);
-			}
-			if (authServiceAccount.AssociatedUserAccountId != User.GetUserAccountId()) {
-				return BadRequest();
-			}
-			return Json(
-				new AuthServiceAccountAssociation(
-					await twitterAuth.SetIntegrationPreference(
-						identityId: form.IdentityId,
-						integrations: form.Integration
-					)
-				)
-			);
 		}
 
 		// new versions

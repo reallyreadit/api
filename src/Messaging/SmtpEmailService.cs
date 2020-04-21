@@ -27,7 +27,7 @@ namespace api.Messaging {
 		) {
 			smtpOptions = emailOpts.Value.SmtpServer;
 		}
-		protected override async Task Send(params EmailMessage[] messages) {
+		public override async Task Send(params EmailMessage[] messages) {
 			using (var client = new SmtpClient()) {
 				await client.ConnectAsync(smtpOptions.Host, smtpOptions.Port);
 				foreach (var message in messages) {

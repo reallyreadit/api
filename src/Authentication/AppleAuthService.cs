@@ -136,7 +136,7 @@ namespace api.Authentication {
 			}
 			return null;
 		}
-		public async Task<( long? authenticationId, UserAccount user, AppleIdCredentialAuthenticationError? error )> AuthenticateAppleIdCredential(
+		public async Task<( long? authenticationId, UserAccount user, AuthenticationError? error )> AuthenticateAppleIdCredential(
 			string sessionId,
 			string rawIdToken,
 			string authCode,
@@ -150,7 +150,7 @@ namespace api.Authentication {
 				return (
 					authenticationId: null,
 					user: null,
-					error: AppleIdCredentialAuthenticationError.InvalidSessionId
+					error: AuthenticationError.InvalidSessionId
 				);
 			}
 			// parse the id token and verify with apple
@@ -160,7 +160,7 @@ namespace api.Authentication {
 				return (
 					authenticationId: null,
 					user: null,
-					error: AppleIdCredentialAuthenticationError.InvalidIdToken
+					error: AuthenticationError.InvalidAuthToken
 				);
 			}
 			// resolve the provider user id

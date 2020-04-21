@@ -3,5 +3,6 @@ namespace api.Controllers.Social {
 		public long ArticleId { get; set; }
 		public int? RatingScore { get; set; }
 		public string CommentText { get; set; }
+		public bool Tweet { get; set; }
 	}
 }

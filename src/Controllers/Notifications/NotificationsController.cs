@@ -147,7 +147,7 @@ namespace api.Controllers.Notifications {
 						userAccountId: userAccountId
 					);
 					if (article.IsRead) {
-						var reply = await commentingService.PostComment(
+						var reply = await commentingService.PostReply(
 							text: form.Text,
 							articleId: parent.ArticleId,
 							parentCommentId: parent.Id,

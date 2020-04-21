@@ -97,7 +97,7 @@ namespace api.Messaging {
 				);
 			}
 		}
-		protected abstract Task Send(params EmailMessage[] messages);
+		public abstract Task Send(params EmailMessage[] messages);
 		public bool HasEmailAddressBounced(string emailAddress) => (
 			this.bouncedAddresses.Value.Contains(NormalizeEmailAddress(emailAddress))
 		);

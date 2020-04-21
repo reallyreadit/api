@@ -1762,6 +1762,16 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
+		public static async Task<AuthServiceAccount> DisassociateAuthServiceAccount(
+			this NpgsqlConnection conn,
+			long identityId
+		) => await conn.QuerySingleOrDefaultAsync(
+			sql: "user_account_api.disassociate_auth_service_account",
+			param: new {
+				identity_id = identityId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<AuthServiceAccount> GetAuthServiceAccountByIdentityId(
 			this NpgsqlConnection conn,
 			long identityId
@@ -1878,28 +1888,6 @@ namespace api.DataAccess {
 		);
 		public static IEnumerable<UserAccount> GetUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
 			sql: "user_account_api.get_user_accounts",
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<AuthServiceAccessToken> RevokeAuthServiceAccessToken(
-			this NpgsqlConnection conn,
-			string tokenValue
-		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccessToken>(
-			sql: "user_account_api.revoke_auth_service_access_token",
-			param: new {
-				token_value = tokenValue
-			},
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<AuthServiceAccount> SetAuthServiceAccountIntegrationPreference(
-			this NpgsqlConnection conn,
-			long identityId,
-			bool isPostEnabled
-		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
-			sql: "user_account_api.set_auth_service_account_integration_preference",
-			param: new {
-				identity_id = identityId,
-				is_post_enabled = isPostEnabled
-			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<AuthServiceAccessToken> StoreAuthServiceAccessToken(

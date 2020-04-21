@@ -42,10 +42,10 @@ namespace api.Controllers.Social {
 					var userArticle = await db.GetArticle(form.ArticleId, userAccountId);
 					if (userArticle.IsRead && commentingService.IsCommentTextValid(form.Text)) {
 						var commentThread = new CommentThread(
-							comment: await commentingService.PostComment(
+							comment: await commentingService.PostReply(
 								text: form.Text,
 								articleId: form.ArticleId,
-								parentCommentId: obfuscationService.Decode(form.ParentCommentId),
+								parentCommentId: obfuscationService.Decode(form.ParentCommentId).Value,
 								userAccountId: userAccountId,
 								analytics: this.GetClientAnalytics()
 							),
@@ -346,8 +346,8 @@ namespace api.Controllers.Social {
 							comment = await commentingService.PostComment(
 								text: form.CommentText,
 								articleId: form.ArticleId,
-								parentCommentId: null,
 								userAccountId: userAccountId,
+								tweet: form.Tweet,
 								analytics: analytics
 							);
 							silentPost = null;
@@ -357,6 +357,7 @@ namespace api.Controllers.Social {
 								articleId: form.ArticleId,
 								articleSlug: article.Slug,
 								userAccountId: userAccountId,
+								tweet: form.Tweet,
 								analytics: analytics
 							);
 							comment = null;

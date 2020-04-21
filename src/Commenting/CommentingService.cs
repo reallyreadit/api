@@ -66,7 +66,41 @@ namespace api.Commenting {
 		public async Task<Comment> PostComment(
 			string text,
 			long articleId,
-			long? parentCommentId,
+			long userAccountId,
+			bool tweet,
+			ClientAnalytics analytics
+		) {
+			Comment comment;
+			using (var dbConnection = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				comment = await dbConnection.CreateComment(
+					text: text,
+					articleId: articleId,
+					parentCommentId: null,
+					userAccountId: userAccountId,
+					analytics: analytics
+				);
+			}
+			await notificationService.CreateLoopbackNotifications(
+				comment: comment
+			);
+			await notificationService.CreatePostNotifications(
+				userAccountId: userAccountId,
+				userName: comment.UserAccount,
+				articleId: comment.ArticleId,
+				articleTitle: comment.ArticleTitle,
+				commentId: comment.Id,
+				commentText: comment.Text,
+				silentPostId: null
+			);
+			if (tweet) {
+				await twitterAuth.TweetPostComment(comment);
+			}
+			return comment;
+		}
+		public async Task<Comment> PostReply(
+			string text,
+			long articleId,
+			long parentCommentId,
 			long userAccountId,
 			ClientAnalytics analytics
 		) {
@@ -80,31 +114,16 @@ namespace api.Commenting {
 					analytics: analytics
 				);
 			}
-			if (parentCommentId != null) {
-				await notificationService.CreateReplyNotification(
-					comment: comment
-				);
-			} else {
-				await notificationService.CreateLoopbackNotifications(
-					comment: comment
-				);
-				await notificationService.CreatePostNotifications(
-					userAccountId: userAccountId,
-					userName: comment.UserAccount,
-					articleId: comment.ArticleId,
-					articleTitle: comment.ArticleTitle,
-					commentId: comment.Id,
-					commentText: comment.Text,
-					silentPostId: null
-				);
-				await twitterAuth.TweetPostComment(comment);
-			}
+			await notificationService.CreateReplyNotification(
+				comment: comment
+			);
 			return comment;
 		}
 		public async Task<SilentPost> PostSilentPost(
 			long articleId,
 			string articleSlug,
 			long userAccountId,
+			bool tweet,
 			ClientAnalytics analytics
 		) {
 			SilentPost post;
@@ -115,10 +134,12 @@ namespace api.Commenting {
 					analytics: analytics
 				);
 			}
-			await twitterAuth.TweetSilentPost(
-				silentPost: post,
-				articleSlug: articleSlug
-			);
+			if (tweet) {
+				await twitterAuth.TweetSilentPost(
+					silentPost: post,
+					articleSlug: articleSlug
+				);
+			}
 			return post;
 		}
 		public async Task<Comment> ReviseComment(

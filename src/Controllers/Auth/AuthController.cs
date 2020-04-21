@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Threading.Tasks;
 using api.Analytics;
 using api.Authentication;
@@ -21,26 +22,54 @@ namespace api.Controllers.Auth {
 			this.serviceOpts = serviceOpts.Value;
 			this.tokenizationOptions = tokenizationOptions.Value;
 		}
-		private string GetErrorMessage(AppleIdCredentialAuthenticationError? error) {
-			switch (error) {
-				case AppleIdCredentialAuthenticationError.InvalidIdToken:
-					return "AppleIdInvalidJwt";
-				case AppleIdCredentialAuthenticationError.InvalidSessionId:
-					return "AppleIdInvalidSession";
+		private string GetErrorMessage(AuthServiceProvider provider, AuthenticationError? error) {
+			string message;
+			switch (provider) {
+				case AuthServiceProvider.Apple:
+					message = "Apple";
+					break;
+				case AuthServiceProvider.Twitter:
+					message = "Twitter";
+					break;
 				default:
-					return "AppleIdUnknownError";
+					message = "UnknownProvider";
+					break;
 			}
-		}
-		private string GetErrorMessage(TwitterTokenAuthenticationError? error) {
 			switch (error) {
-				case TwitterTokenAuthenticationError.EmailAddressRequired:
-					return "TwitterEmailAddressRequired";
-				case TwitterTokenAuthenticationError.VerificationFailed:
-					return "TwitterVerificationFailed";
+				case AuthenticationError.Cancelled:
+					message += "Cancelled";
+					break;
+				case AuthenticationError.InvalidAuthToken:
+					message += "InvalidAuthToken";
+					break;
+				case AuthenticationError.InvalidSessionId:
+					message += "InvalidSessionId";
+					break;
+				case AuthenticationError.EmailAddressRequired:
+					message += "EmailAddressRequired";
+					break;
 				default:
-					return "TwitterUnknownError";
+					message = "UnknownError";
+					break;
 			}
+			return message;
 		}
+		private RedirectResult RedirectToAuthServiceLinkHandler<T>(T response) where T : AuthServiceBrowserLinkResponse => (
+			RedirectToWebServer(
+				"/auth-service-link-handler/index.html",
+				new[] {
+					new KeyValuePair<string, string>(
+						key: "body",
+						value: JsonSerializer.Serialize(
+							response,
+							new JsonSerializerOptions() {
+								PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+							}
+						)
+					)
+				}
+			)
+		);
 		private RedirectResult RedirectToWebServer(string path, IEnumerable<KeyValuePair<string, string>> query = null) => (
 			Redirect(serviceOpts.WebServer.CreateUrl(path, query))
 		);
@@ -103,7 +132,7 @@ namespace api.Controllers.Auth {
 					}
 				);
 			}
-			return BadRequest(new [] { GetErrorMessage(error) });
+			return BadRequest(new [] { GetErrorMessage(AuthServiceProvider.Apple, error) });
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -135,7 +164,7 @@ namespace api.Controllers.Auth {
 				await authService.SignIn(user, PushDeviceForm.Blank);
 				return RedirectToWebServer(form.State.CurrentPath);
 			}
-			return RedirectWithError(form.State.CurrentPath, GetErrorMessage(error));
+			return RedirectWithError(form.State.CurrentPath, GetErrorMessage(AuthServiceProvider.Apple, error));
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -153,16 +182,6 @@ namespace api.Controllers.Auth {
 					form: form.Analytics
 				)
 			);
-			if (
-				authServiceAccount != null &&
-				!authServiceAccount.IsPostIntegrationEnabled &&
-				form.Integrations == AuthServiceIntegration.Post
-			) {
-				await twitterAuth.SetIntegrationPreference(
-					identityId: authServiceAccount.IdentityId,
-					integrations: form.Integrations
-				);
-			}
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
 				return Json(
@@ -183,25 +202,49 @@ namespace api.Controllers.Auth {
 			}
 			return BadRequest(
 				new[] {
-					GetErrorMessage(error)
+					GetErrorMessage(AuthServiceProvider.Twitter, error)
 				}
 			);
 		}
 		[AllowAnonymous]
-		[HttpPost]
-		public async Task<IActionResult> TwitterBrowserRequest(
+		[HttpGet]
+		public async Task<IActionResult> TwitterAuthenticationCallback(
+			[FromServices] AuthenticationService authService,
 			[FromServices] TwitterAuthService twitterAuth,
-			[FromBody] TwitterBrowserRequestForm form
+			[FromQuery] TwitterAuthenticationCallbackRequest request
 		) {
-			var token = await twitterAuth.GetBrowserRequestToken(
-				redirectPath: form.RedirectPath,
-				integrations: form.Integrations,
-				signUpAnalytics: form.SignUpAnalytics != null ?
-					new UserAccountCreationAnalytics(
-						client: this.GetClientAnalytics(),
-						form: form.SignUpAnalytics
-					) :
-					null
+			// check if the user cancelled the authentication
+			if (!String.IsNullOrWhiteSpace(request.Denied)) {
+				await twitterAuth.CancelRequest(request.OAuthToken);
+				return RedirectToWebServer(request.ReadupRedirectPath);
+			}
+			var (authServiceAccount, authentication, user, error) = await twitterAuth.Authenticate(
+				sessionId: HttpContext.GetSessionId(),
+				requestTokenValue: request.OAuthToken,
+				requestVerifier: request.OAuthVerifier,
+				signUpAnalytics: null
+			);
+			if (user != null) {
+				await authService.SignIn(user, PushDeviceForm.Blank);
+				return RedirectToWebServer(request.ReadupRedirectPath);
+			}
+			if (authentication != null) {
+				return RedirectWithAuthToken(request.ReadupRedirectPath, authentication.Id);
+			}
+			return RedirectWithError(request.ReadupRedirectPath, GetErrorMessage(AuthServiceProvider.Twitter, error));
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> TwitterBrowserAuthRequest(
+			[FromServices] TwitterAuthService twitterAuth,
+			[FromBody] TwitterBrowserAuthRequestTokenRequest request
+		) {
+			var token = await twitterAuth.GetBrowserAuthRequestToken(
+				redirectPath: request.RedirectPath,
+				signUpAnalytics: new UserAccountCreationAnalytics(
+					client: this.GetClientAnalytics(),
+					form: request.SignUpAnalytics
+				)
 			);
 			if (token != null) {
 				return Json(
@@ -212,59 +255,19 @@ namespace api.Controllers.Auth {
 			}
 			return BadRequest();
 		}
-		[AllowAnonymous]
-		[HttpGet]
-		public async Task<IActionResult> TwitterBrowserVerification(
-			[FromServices] AuthenticationService authService,
-			[FromServices] TwitterAuthService twitterAuth,
-			[FromQuery] TwitterBrowserVerificationForm form
+		[HttpPost]
+		public async Task<IActionResult> TwitterBrowserLinkRequest(
+			[FromServices] TwitterAuthService twitterAuth
 		) {
-			// check if the user cancelled the authentication
-			if (!String.IsNullOrWhiteSpace(form.Denied)) {
-				await twitterAuth.CancelRequest(form.Denied);
-				return RedirectToWebServer(form.ReadupRedirectPath);
-			}
-			if (User.Identity.IsAuthenticated) {
-				var (authServiceAccount, error) = await twitterAuth.LinkAccount(
-					sessionId: HttpContext.GetSessionId(),
-					requestTokenValue: form.OAuthToken,
-					requestVerifier: form.OAuthVerifier,
-					userAccountId: User.GetUserAccountId()
+			var token = await twitterAuth.GetBrowserLinkRequestToken();
+			if (token != null) {
+				return Json(
+					new {
+						Value = token.OAuthToken
+					}
 				);
-				if (authServiceAccount != null) {
-					await twitterAuth.SetIntegrationPreference(
-						identityId: authServiceAccount.IdentityId,
-						integrations: form.ReadupIntegrations
-					);
-					return RedirectToWebServer(form.ReadupRedirectPath);
-				}
-				return RedirectWithError(form.ReadupRedirectPath, GetErrorMessage(error));
-			} else {
-				var (authServiceAccount, authentication, user, error) = await twitterAuth.Authenticate(
-					sessionId: HttpContext.GetSessionId(),
-					requestTokenValue: form.OAuthToken,
-					requestVerifier: form.OAuthVerifier,
-					signUpAnalytics: null
-				);
-				if (
-					authServiceAccount != null &&
-					!authServiceAccount.IsPostIntegrationEnabled &&
-					form.ReadupIntegrations == AuthServiceIntegration.Post
-				) {
-					await twitterAuth.SetIntegrationPreference(
-						identityId: authServiceAccount.IdentityId,
-						integrations: form.ReadupIntegrations
-					);
-				}
-				if (user != null) {
-					await authService.SignIn(user, PushDeviceForm.Blank);
-					return RedirectToWebServer(form.ReadupRedirectPath);
-				}
-				if (authentication != null) {
-					return RedirectWithAuthToken(form.ReadupRedirectPath, authentication.Id);
-				}
-				return RedirectWithError(form.ReadupRedirectPath, GetErrorMessage(error));
 			}
+			return BadRequest();
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -294,18 +297,52 @@ namespace api.Controllers.Auth {
 				userAccountId: User.GetUserAccountId()
 			);
 			if (authServiceAccount != null) {
-				authServiceAccount = await twitterAuth.SetIntegrationPreference(
-					identityId: authServiceAccount.IdentityId,
-					integrations: form.Integrations
-				);
 				return Json(
 					new AuthServiceAccountAssociation(authServiceAccount)
 				);
 			}
 			return BadRequest(
 				new[] {
-					GetErrorMessage(error)
+					GetErrorMessage(AuthServiceProvider.Twitter, error)
 				}
+			);
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<IActionResult> TwitterLinkCallback(
+			[FromServices] AuthenticationService authService,
+			[FromServices] TwitterAuthService twitterAuth,
+			[FromQuery] TwitterCallbackRequest request
+		) {
+			// check if the user cancelled the authentication
+			if (!String.IsNullOrWhiteSpace(request.Denied)) {
+				await twitterAuth.CancelRequest(request.OAuthToken);
+				return RedirectToAuthServiceLinkHandler(
+					new AuthServiceBrowserLinkFailureResponse(
+						error: AuthenticationError.Cancelled,
+						requestToken: request.OAuthToken
+					)
+				);
+			}
+			var (authServiceAccount, error) = await twitterAuth.LinkAccount(
+				sessionId: HttpContext.GetSessionId(),
+				requestTokenValue: request.OAuthToken,
+				requestVerifier: request.OAuthVerifier,
+				userAccountId: User.GetUserAccountId()
+			);
+			if (authServiceAccount != null) {
+				return RedirectToAuthServiceLinkHandler(
+					new AuthServiceBrowserLinkSuccessResponse(
+						association: new AuthServiceAccountAssociation(authServiceAccount),
+						requestToken: request.OAuthToken
+					)
+				);
+			}
+			return RedirectToAuthServiceLinkHandler(
+				new AuthServiceBrowserLinkFailureResponse(
+					error: error ?? AuthenticationError.InvalidAuthToken,
+					requestToken: request.OAuthToken
+				)
 			);
 		}
 	}

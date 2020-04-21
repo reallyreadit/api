@@ -35,7 +35,7 @@ namespace api.Messaging {
 			regionEndpoint = RegionEndpoint.GetBySystemName(emailOpts.Value.AmazonSesRegionEndpoint);
 			this.logger = logger;
 		}
-		protected override async Task Send(params EmailMessage[] messages) {
+		public override async Task Send(params EmailMessage[] messages) {
 			using (var client = new AmazonSimpleEmailServiceClient(regionEndpoint)) {
 				foreach (var message in messages.Where(m => !m.To.Address.Split('@').ElementAtOrDefault(1).Contains(","))) {
 					var request = new SendEmailRequest(

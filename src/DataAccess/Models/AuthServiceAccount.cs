@@ -15,6 +15,5 @@ namespace api.DataAccess.Models {
 		public long? AssociatedUserAccountId { get; set; }
 		public string AccessTokenValue { get; set; }
 		public string AccessTokenSecret { get; set; }
-		public bool IsPostIntegrationEnabled { get; set; }
 	}
 }

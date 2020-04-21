@@ -21,6 +21,7 @@ namespace api.DataAccess.Models {
 		public int LoopbackAlertCount { get; set; }
 		public int PostAlertCount { get; set; }
 		public int FollowerAlertCount { get; set; }
+		public bool HasLinkedTwitterAccount { get; set; }
 		public bool IsPasswordSet => (
 			PasswordHash != null &&
 			PasswordSalt != null
