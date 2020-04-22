@@ -397,7 +397,7 @@ namespace api.Authentication {
 		) {
 			var message = CreateRequestMessage(
 				method: HttpMethod.Get,
-				uri: new Uri(authOptions.TwitterApiServerUrl + "/users/search.json"),
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/1.1/users/search.json"),
 				queryStringParameters: new Dictionary<string, string>() {
 					{ "q", query },
 					{ "include_entities", "false" }
