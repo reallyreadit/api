@@ -21,23 +21,24 @@ namespace api.Controllers.TwitterBot {
 			[FromServices] EmailService emailService,
 			[FromForm] AotdForm form
 		) {
-			if (form.ApiKey == authOptions.Value.ApiKey) {
-				Article aotd;
-				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-					aotd = (await db.GetAotds(dayCount: 1)).Single();
-				}
-				var tweetText = await twitterAuth.GetAotdTweetText(aotd);
-				await emailService.Send(
-					new EmailMessage(
-						from: new EmailMailbox("AOTD Bot", "support@readup.com"),
-						replyTo: null,
-						to: new EmailMailbox("Bill Loundy", "bill@readup.com"),
-						subject: "AOTD Tweet",
-						body: tweetText
-					)
-				);
+			if (form.ApiKey != authOptions.Value.ApiKey) {
+				return BadRequest();
 			}
-			return BadRequest();
+			Article aotd;
+			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
+				aotd = (await db.GetAotds(dayCount: 1)).Single();
+			}
+			var tweetText = await twitterAuth.GetAotdTweetText(aotd);
+			await emailService.Send(
+				new EmailMessage(
+					from: new EmailMailbox("AOTD Bot", "support@readup.com"),
+					replyTo: null,
+					to: new EmailMailbox("Bill Loundy", "bill@readup.com"),
+					subject: "AOTD Tweet",
+					body: tweetText
+				)
+			);
+			return Ok();
 		}
 	}
 }
