@@ -135,9 +135,16 @@ namespace api.Controllers.Social {
 					userAccountId: userAccountId ?? 0,
 					now: DateTime.UtcNow
 				);
+				var article = db.FindArticle(query.Slug, userAccountId);
+				if (article == null) {
+					logger.LogError("Article lookup failed. Slug: {Slug}", query.Slug);
+					return BadRequest(
+						new[] { "Article not found." }
+					);
+				}
 				comments = (
 						await db.GetComments(
-							db.FindArticle(query.Slug, userAccountId).Id
+							articleId: article.Id
 						)
 					)
 					.Select(

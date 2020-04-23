@@ -245,6 +245,12 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountIdOrDefault();
 				var article = db.FindArticle(slug, userAccountId);
+				if (article == null) {
+					log.LogError("Article lookup failed. Slug: {Slug}", slug);
+					return BadRequest(
+						new[] { "Article not found." }
+					);
+				}
 				return Json(
 					userAccountId.HasValue ?
 						verificationService.AssignProofToken(
