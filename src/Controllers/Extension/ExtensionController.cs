@@ -121,9 +121,10 @@ namespace api.Controllers.Extension {
 		public IActionResult Blacklist() {
 			return Json(
 				new [] {
-					@"https://www\.fastmail\.com/",
-					@"https://docs\.google\.com/",
-					@"https://mail\.google\.com/"
+					@"^https://www\.fastmail\.com/",
+					@"^https://docs\.google\.com/",
+					@"^https://mail\.google\.com/",
+					@"^https://.+\.substack\.com/$"
 				}
 			);
 		}
