@@ -4,7 +4,6 @@ using api.Formatting;
 
 namespace api.Messaging.Views.Shared {
 	public class ArticleViewModel {
-		private static int DescriptionLengthLimit = 2500;
 		private static string Pluralize(string word, int count) => (
 			word + (count == 1 ? String.Empty : "s")
 		);
@@ -15,14 +14,7 @@ namespace api.Messaging.Views.Shared {
 			Uri viewFirstPosterProfileUrl
 		) {
 			Title = article.Title;
-			if (!String.IsNullOrWhiteSpace(article.Description)) {
-				var descriptionLength = article.Description.Length;
-				if (descriptionLength <= DescriptionLengthLimit) {
-					Description = article.Description;
-				} else {
-					Description = article.Description.Substring(0, DescriptionLengthLimit) + "...";
-				}
-			}
+			Description = article.Description.Truncate(2500);
 			Authors = article.Authors.ToListString();
 			Source = article.Source;
 			if (article.AotdTimestamp.HasValue) {

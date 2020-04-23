@@ -26,5 +26,15 @@ namespace api.Formatting {
 					.ToArray()
 			);
 		}
+		public static string Truncate(this string instance, int limit, bool appendEllipsis = true) {
+			if (instance == null || instance.Length <= limit) {
+				return instance;
+			}
+			var ellipsis = "...";
+			if (appendEllipsis && limit > ellipsis.Length) {
+				return instance.Substring(0, limit - ellipsis.Length) + ellipsis;
+			}
+			return instance.Substring(0, limit);
+		}
 	}
 }
