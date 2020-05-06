@@ -18,6 +18,28 @@ namespace api.Controllers.Analytics {
 		public AnalyticsController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
 		}
+		[HttpPost]
+		public async Task<IActionResult> ArticleIssueReport(
+			[FromBody] ArticleIssueReportRequest request
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				await db.LogArticleIssueReport(
+					articleId: request.ArticleId,
+					userAccountId: User.GetUserAccountId(),
+					issue: request.Issue,
+					analytics: this.GetClientAnalytics()
+				);
+			}
+			return Ok();
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		public async Task<JsonResult> ArticleIssueReports(
+			[FromQuery] DateRangeQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.GetArticleIssueReports(query.StartDate, query.EndDate));
+			}
+		}
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> ClientErrorReport() {

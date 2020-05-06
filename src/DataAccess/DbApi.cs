@@ -30,6 +30,18 @@ namespace api.DataAccess {
 				null
 		);
 		#region analytics
+		public static async Task<IEnumerable<ArticleIssuesReportRow>> GetArticleIssueReports(
+			this NpgsqlConnection conn,
+			DateTime startDate,
+			DateTime endDate
+		) => await conn.QueryAsync<ArticleIssuesReportRow>(
+			sql: "analytics.get_article_issue_reports",
+			param: new {
+				start_date = startDate,
+				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<ConversionsReportRow>> GetConversions(
 			this NpgsqlConnection conn,
 			DateTime startDate,
@@ -63,6 +75,22 @@ namespace api.DataAccess {
 			param: new {
 				start_date = startDate,
 				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static Task LogArticleIssueReport(
+			this NpgsqlConnection conn,
+			long articleId,
+			long userAccountId,
+			string issue,
+			ClientAnalytics analytics
+		) => conn.ExecuteAsync(
+			sql: "analytics.log_article_issue_report",
+			param: new {
+				article_id = articleId,
+				user_account_id = userAccountId,
+				issue,
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
