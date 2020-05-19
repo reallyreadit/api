@@ -378,6 +378,16 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
+		public static async Task<ArticleImage> GetArticleImage(
+			this NpgsqlConnection conn,
+			long articleId
+		) => await conn.QuerySingleOrDefaultAsync<ArticleImage>(
+			sql: "article_api.get_article_image",
+			param: new {
+				article_id = articleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<Author>> GetAuthorsOfArticle(
 			this NpgsqlConnection conn,
 			long articleId
@@ -455,6 +465,20 @@ namespace api.DataAccess {
 				article_id = articleId,
 				user_account_id = userAccountId,
 				score
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<ArticleImage> SetArticleImage(
+			this NpgsqlConnection conn,
+			long articleId,
+			long creatorUserId,
+			string url
+		) => await conn.QuerySingleOrDefaultAsync<ArticleImage>(
+			sql: "article_api.set_article_image",
+			param: new {
+				article_id = articleId,
+				creator_user_id = creatorUserId,
+				url
 			},
 			commandType: CommandType.StoredProcedure
 		);

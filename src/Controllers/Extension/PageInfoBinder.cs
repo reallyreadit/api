@@ -41,6 +41,7 @@ namespace api.Controllers.Extension {
 				public int Number { get; set; }
 				public string Url { get; set; }
 			}
+			public string ImageUrl { get; set; }
 		}
 		public bool Star { get; set; }
 	}

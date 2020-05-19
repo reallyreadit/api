@@ -324,6 +324,33 @@ namespace api.Controllers.Extension {
 						analytics: this.GetClientAnalytics()
 					);
 				}
+				// check for existing image and set it required
+				if (!String.IsNullOrWhiteSpace(binder.Article.ImageUrl)) {
+					// make absolute if relative
+					var imageUrl = binder.Article.ImageUrl;
+					if (!imageUrl.StartsWith("http")) {
+						if (imageUrl.StartsWith("//")) {
+							imageUrl = Regex.Match(binder.Url, "^https?").Value + ':' + imageUrl;
+						} else {
+							imageUrl = String.Join(
+								'/',
+								binder.Url.TrimEnd('/'),
+								imageUrl.TrimStart('/')
+							);
+						}
+					}
+					if ((await db.GetArticleImage(userArticle.ArticleId))?.Url != imageUrl) {
+						try {
+							await db.SetArticleImage(
+								articleId: userArticle.ArticleId,
+								creatorUserId: userAccountId,
+								url: imageUrl
+							);
+						} catch (NpgsqlException ex) when (String.Equals(ex.Data["ConstraintName"], "article_image_pkey")) {
+							// ignore duplicate exception
+						}
+					}
+				}
 				if (binder.Star) {
 					db.StarArticle(userAccountId, page.ArticleId);
 				}
