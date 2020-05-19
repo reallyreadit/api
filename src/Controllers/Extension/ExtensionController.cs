@@ -451,7 +451,7 @@ namespace api.Controllers.Extension {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var clientReceiptIds = ids
-					.Select(id => obfuscation.Decode(id))
+					.Select(id => obfuscation.DecodeSingle(id))
 					.OfType<long>()
 					.ToArray();
 				var userAccountId = User.GetUserAccountId();
@@ -540,7 +540,7 @@ namespace api.Controllers.Extension {
 			return Redirect(
 				(
 					await notificationService.ProcessExtensionView(
-						receiptId: obfuscationService.Decode(id).Value
+						receiptId: obfuscationService.DecodeSingle(id).Value
 					)
 				)
 				.ToString()

@@ -139,7 +139,7 @@ namespace api.Controllers.Notifications {
 		) {
 			var userAccountId = User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-				var notification = await db.GetNotification(receiptId: obfuscation.Decode(form.ReceiptId).Value);
+				var notification = await db.GetNotification(receiptId: obfuscation.DecodeSingle(form.ReceiptId).Value);
 				if (notification.UserAccountId == userAccountId) {
 					var parent = await db.GetComment(notification.CommentIds.Single());
 					var article = await db.GetArticle(
@@ -174,7 +174,7 @@ namespace api.Controllers.Notifications {
 			[FromBody] PushViewForm form
 		) {
 			await notificationService.ProcessPushView(
-				receiptId: obfuscation.Decode(form.ReceiptId).Value,
+				receiptId: obfuscation.DecodeSingle(form.ReceiptId).Value,
 				url: form.Url
 			);
 			return Ok();

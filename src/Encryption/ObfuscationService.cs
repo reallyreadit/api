@@ -13,7 +13,7 @@ namespace api.Encryption {
 			);
 		}
 		public string Encode(long number) => hashids.EncodeLong(number);
-		public long? Decode(string hash) {
+		public long? DecodeSingle(string hash) {
 			var result = hashids.Decode(hash);
 			return result.Length == 1 ? new Nullable<int>(result[0]) : null;
 		}

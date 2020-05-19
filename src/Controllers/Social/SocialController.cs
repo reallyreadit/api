@@ -45,7 +45,7 @@ namespace api.Controllers.Social {
 							comment: await commentingService.PostReply(
 								text: form.Text,
 								articleId: form.ArticleId,
-								parentCommentId: obfuscationService.Decode(form.ParentCommentId).Value,
+								parentCommentId: obfuscationService.DecodeSingle(form.ParentCommentId).Value,
 								userAccountId: userAccountId,
 								analytics: this.GetClientAnalytics()
 							),
@@ -85,7 +85,7 @@ namespace api.Controllers.Social {
 			[FromServices] ObfuscationService obfuscationService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var comment = await db.GetComment(obfuscationService.Decode(form.CommentId).Value);
+				var comment = await db.GetComment(obfuscationService.DecodeSingle(form.CommentId).Value);
 				if (comment.UserAccountId == User.GetUserAccountId()) {
 					return Json(
 						new CommentThread(
@@ -105,7 +105,7 @@ namespace api.Controllers.Social {
 			[FromServices] ObfuscationService obfuscationService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var comment = await db.GetComment(obfuscationService.Decode(form.CommentId).Value);
+				var comment = await db.GetComment(obfuscationService.DecodeSingle(form.CommentId).Value);
 				if (
 					comment.UserAccountId == User.GetUserAccountId() &&
 					commentingService.CanReviseComment(comment)
@@ -175,7 +175,7 @@ namespace api.Controllers.Social {
 			[FromServices] ObfuscationService obfuscationService
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var comment = await db.GetComment(obfuscationService.Decode(form.CommentId).Value);
+				var comment = await db.GetComment(obfuscationService.DecodeSingle(form.CommentId).Value);
 				if (comment.UserAccountId == User.GetUserAccountId()) {
 					return Json(
 						new CommentThread(
