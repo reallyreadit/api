@@ -14,6 +14,9 @@ using Microsoft.Extensions.Logging;
 using api.ReadingVerification;
 using api.Analytics;
 using api.Notifications;
+using api.Encryption;
+using api.Routing;
+using api.Formatting;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -377,6 +380,54 @@ namespace api.Controllers.Articles {
 						pageSize: query.PageSize,
 						minLength: query.MinLength,
 						maxLength: query.MaxLength
+					)
+				);
+			}
+		}
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<IActionResult> TwitterCardMetadata(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromQuery] TwitterCardMetadataRequest request
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var article = db.FindArticle(request.Slug, null);
+				if (article == null) {
+					log.LogError("Article lookup failed. Slug: {Slug}", request.Slug);
+					return BadRequest(
+						new[] { "Article not found." }
+					);
+				}
+				string title;
+				if (!String.IsNullOrWhiteSpace(request.PostId)) {
+					var decodedPostIdParameter = obfuscationService.Decode(request.PostId);
+					long userAccountId;
+					if (decodedPostIdParameter.Length == 1) {
+						var comment = await db.GetComment(
+							commentId: decodedPostIdParameter[0]
+						);
+						userAccountId = comment.UserAccountId;
+					} else if (
+						decodedPostIdParameter.Length == 2 &&
+						decodedPostIdParameter[0] == RoutingService.CommentsUrlSilentPostIdKey
+					) {
+						var silentPost = await db.GetSilentPost(
+							id: decodedPostIdParameter[1]
+						);
+						userAccountId = silentPost.UserAccountId;
+					} else {
+						return BadRequest();
+					}
+					var user = await db.GetUserAccountById(userAccountId);
+					title = $"{user.Name} read “{article.Title.RemoveControlCharacters()}”";
+				} else {
+					title = $"Comments on “{article.Title.RemoveControlCharacters()}” • Readup";
+				}
+				return Json(
+					new TwitterCardMetadata(
+						title: title,
+						description: "Read comments from verified readers on Readup.",
+						imageUrl: (await db.GetArticleImage(article.Id))?.Url
 					)
 				);
 			}
