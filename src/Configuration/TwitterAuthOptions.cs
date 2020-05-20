@@ -6,6 +6,7 @@ namespace api.Configuration {
 		public string ConsumerSecret { get; set; }
 		public TwitterAccountOptions SearchAccount { get; set; }
 		public string TwitterApiServerUrl { get; set; }
+		public string TwitterUploadServerUrl { get; set; }
 		public string WebViewCallback { get; set; }
 	}
 }

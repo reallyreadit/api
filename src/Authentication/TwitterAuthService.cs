@@ -579,7 +579,7 @@ namespace api.Authentication {
 			}
 			var message = CreateRequestMessage(
 				method: HttpMethod.Post,
-				uri: new Uri(authOptions.TwitterApiServerUrl + "/1.1/media/upload.json"),
+				uri: new Uri(authOptions.TwitterUploadServerUrl + "/1.1/media/upload.json"),
 				queryStringParameters: queryStringParameters,
 				bodyContent: new MultipartFormDataContent() {
 					{
