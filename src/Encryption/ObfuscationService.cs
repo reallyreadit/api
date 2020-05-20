@@ -12,7 +12,8 @@ namespace api.Encryption {
 				minHashLength: 6
 			);
 		}
-		public string Encode(long number) => hashids.EncodeLong(number);
+		public string Encode(params long[] numbers) => hashids.EncodeLong(numbers);
+		public long[] Decode(string hash) => hashids.DecodeLong(hash);
 		public long? DecodeSingle(string hash) {
 			var result = hashids.Decode(hash);
 			return result.Length == 1 ? new Nullable<int>(result[0]) : null;
