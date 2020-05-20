@@ -778,7 +778,7 @@ namespace api.Authentication {
 			string articleSlug
 		) {
 			await TweetFromLinkedAccounts(
-				status: routing.CreateCommentsUrl(articleSlug).ToString(),
+				status: routing.CreateSilentPostUrl(articleSlug, silentPost.Id).ToString(),
 				commentId: null,
 				silentPostId: silentPost.Id,
 				userAccountId: silentPost.UserAccountId

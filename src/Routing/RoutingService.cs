@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 
 namespace api.Routing {
 	public class RoutingService {
+		public static int CommentsUrlSilentPostIdKey = 1;
 		private readonly ServiceEndpointsOptions endpoints;
 		private readonly ObfuscationService obfuscation;
 		private readonly TokenizationOptions tokenizationOptions;
@@ -51,6 +52,10 @@ namespace api.Routing {
 		}
 		public Uri CreateProfileUrl(string name) {
 			return new Uri(endpoints.WebServer.CreateUrl($"/@{name}"));
+		}
+		public Uri CreateSilentPostUrl(string slug, long silentPostId) {
+			var slugParts = slug.Split('_');
+			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(RoutingService.CommentsUrlSilentPostIdKey, silentPostId)}"));
 		}
 	}
 }
