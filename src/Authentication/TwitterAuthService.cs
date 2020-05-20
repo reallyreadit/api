@@ -14,10 +14,12 @@ using api.Configuration;
 using api.DataAccess;
 using api.DataAccess.Models;
 using api.DataAccess.Serialization;
+using api.ImageProcessing;
 using api.Routing;
 using api.Serialization;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using NodaTime;
 using Npgsql;
 
 namespace api.Authentication {
@@ -28,13 +30,15 @@ namespace api.Authentication {
 		private readonly ILogger<AppleAuthService> logger;
 		private readonly RoutingService routing;
 		private readonly IBackgroundTaskQueue taskQueue;
+		private readonly TweetImageRenderingService imageService;
 		public TwitterAuthService(
 			IHttpClientFactory httpClientFactory,
 			IOptions<AuthenticationOptions> authOptions,
 			IOptions<DatabaseOptions> databaseOptions,
 			ILogger<AppleAuthService> logger,
 			RoutingService routing,
-			IBackgroundTaskQueue taskQueue
+			IBackgroundTaskQueue taskQueue,
+			TweetImageRenderingService imageService
 		) {
 			this.httpClientFactory = httpClientFactory;
 			this.authOptions = authOptions.Value.TwitterAuth;
@@ -42,6 +46,7 @@ namespace api.Authentication {
 			this.logger = logger;
 			this.routing = routing;
 			this.taskQueue = taskQueue;
+			this.imageService = imageService;
 		}
 		private async Task<string> AcquireBotTweetTargets(
 			long articleId
@@ -148,16 +153,13 @@ namespace api.Authentication {
 			HttpMethod method,
 			Uri uri,
 			IEnumerable<KeyValuePair<string, string>> queryStringParameters,
-			IEnumerable<KeyValuePair<string, string>> bodyParameters,
+			HttpContent bodyContent,
 			IDictionary<string, string> oauthParameters,
 			ITwitterToken accessToken
 		) {
 			// check for null arguments
 			if (queryStringParameters == null) {
 				queryStringParameters = new KeyValuePair<string, string>[0];
-			}
-			if (bodyParameters == null) {
-				bodyParameters = new KeyValuePair<string, string>[0];
 			}
 			if (oauthParameters == null) {
 				oauthParameters = new Dictionary<string, string>();
@@ -188,7 +190,6 @@ namespace api.Authentication {
 				method: method,
 				uri: uri,
 				parameters: queryStringParameters
-					.Concat(bodyParameters)
 					.Concat(oauthParameters)
 					.Concat(standardOauthParameters),
 				consumerSecret: authOptions.ConsumerSecret,
@@ -196,7 +197,9 @@ namespace api.Authentication {
 			);
 			
 			// create the message
-			var message = new HttpRequestMessage(method, uri);
+			var message = new HttpRequestMessage(method, uri) {
+				Content = bodyContent
+			};
 			message.Headers.Authorization = new AuthenticationHeaderValue(
 				"OAuth",
 				String.Join(
@@ -226,9 +229,6 @@ namespace api.Authentication {
 					)
 				};
 				message.RequestUri = uriBuilder.Uri;
-			}
-			if (bodyParameters.Any()) {
-				message.Content = new FormUrlEncodedContent(bodyParameters);
 			}
 			return message;
 		}
@@ -284,7 +284,7 @@ namespace api.Authentication {
 				method: HttpMethod.Post,
 				uri: new Uri(authOptions.TwitterApiServerUrl + "/oauth/access_token"),
 				queryStringParameters: null,
-				bodyParameters: null,
+				bodyContent: null,
 				oauthParameters: new Dictionary<string, string>() {
 					{ "oauth_token", requestToken },
 					{ "oauth_verifier", requestVerifier }
@@ -316,7 +316,7 @@ namespace api.Authentication {
 				method: HttpMethod.Post,
 				uri: new Uri(authOptions.TwitterApiServerUrl + "/oauth/request_token"),
 				queryStringParameters: null,
-				bodyParameters: null,
+				bodyContent: null,
 				oauthParameters: new Dictionary<string, string>() {
 					{ "oauth_callback", oauthCallback }
 				},
@@ -360,7 +360,7 @@ namespace api.Authentication {
 					{ "include_entities", "false" },
 					{ "skip_status", "true" }
 				},
-				bodyParameters: null,
+				bodyContent: null,
 				oauthParameters: null,
 				accessToken: accessToken
 			);
@@ -402,7 +402,7 @@ namespace api.Authentication {
 					{ "q", query },
 					{ "include_entities", "false" }
 				},
-				bodyParameters: null,
+				bodyContent: null,
 				oauthParameters: null,
 				accessToken: authOptions.SearchAccount
 			);
@@ -418,30 +418,83 @@ namespace api.Authentication {
 			return JsonSnakeCaseSerializer.Deserialize<TwitterUserSearchResult[]>(responseContent);
 		}
 		private async Task TweetFromLinkedAccounts(
-			string status,
-			long? commentId,
-			long? silentPostId,
-			long userAccountId
+			Comment comment,
+			SilentPost silentPost,
+			string articleSlug,
+			UserAccount user
 		) {
 			IEnumerable<AuthServiceAccount> twitterAccounts;
+			string userTimeZoneTzDbName;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				twitterAccounts = (
 						await db.GetAuthServiceAccountsForUserAccount(
-							userAccountId: userAccountId
+							userAccountId: user.Id
 						)
 					)
 					.Where(
 						account => account.Provider == AuthServiceProvider.Twitter
 					)
 					.ToArray();
+				if (twitterAccounts.Any() && user.TimeZoneId.HasValue) {
+					userTimeZoneTzDbName = (await db.GetTimeZoneById(user.TimeZoneId.Value)).Name;
+				} else {
+					userTimeZoneTzDbName = null;
+				}
 			}
 			if (twitterAccounts.Any()) {
 				taskQueue.QueueBackgroundWorkItem(
 					async cancellationToken => {
+						string status;
+						long? mediaId;
+						if (comment != null) {
+							status = routing
+								.CreateCommentUrl(articleSlug, comment.Id)
+								.ToString();
+							var orderedAccounts = twitterAccounts.OrderBy(
+								account => account.DateIdentityCreated
+							);
+							var mediaUpload = await UploadImage(
+								imageData: imageService.RenderTweet(
+									text: CommentingService.RenderCommentTextToPlainText(comment.Text),
+									datePosted: (
+										Instant
+											.FromDateTimeOffset(new DateTimeOffset(comment.DateCreated, TimeSpan.Zero))
+											.InZone(
+												DateTimeZoneProviders.Tzdb.GetZoneOrNull(userTimeZoneTzDbName) ??
+												DateTimeZoneProviders.Tzdb.GetSystemDefault()
+											)
+											.ToDateTimeUnspecified()
+									),
+									userName: user.Name
+								),
+								additionalOwners: (
+									orderedAccounts
+										.Skip(1)
+										.Select(
+											account => account.ProviderUserId
+										)
+										.ToArray()
+								),
+								account: orderedAccounts.First()
+							);
+							mediaId = mediaUpload.MediaId;
+						} else {
+							status = routing
+								.CreateSilentPostUrl(articleSlug, silentPost.Id)
+								.ToString();
+							mediaId = null;
+						}
 						var tweets = new List<( long IdentityId, TwitterTweet Tweet )>();
 						foreach (var account in twitterAccounts) {
 							var tweet = await Tweet(
 								status: status,
+								mediaIds: (
+									mediaId.HasValue ?
+										new[] {
+											mediaId.Value
+										} :
+										null
+								),
 								account: account
 							);
 							if (tweet != null) {
@@ -458,8 +511,8 @@ namespace api.Authentication {
 								foreach (var tweet in tweets) {
 									await db.CreateAuthServicePost(
 										identityId: tweet.IdentityId,
-										commentId: commentId,
-										silentPostId: silentPostId,
+										commentId: comment?.Id,
+										silentPostId: silentPost?.Id,
 										content: status,
 										providerPostId: tweet.Tweet.Id.ToString()
 									);
@@ -472,15 +525,20 @@ namespace api.Authentication {
 		}
 		private async Task<TwitterTweet> Tweet(
 			string status,
+			long[] mediaIds,
 			AuthServiceAccount account
 		) {
+			var queryStringParameters = new Dictionary<string, string>() {
+				{ "status", status }
+			};
+			if (mediaIds?.Any() ?? false) {
+				queryStringParameters.Add("media_ids", String.Join(',', mediaIds));
+			}
 			var message = CreateRequestMessage(
 				method: HttpMethod.Post,
 				uri: new Uri(authOptions.TwitterApiServerUrl + "/1.1/statuses/update.json"),
-				queryStringParameters: new Dictionary<string, string>() {
-					{ "status", status }
-				},
-				bodyParameters: null,
+				queryStringParameters: queryStringParameters,
+				bodyContent: null,
 				oauthParameters: null,
 				accessToken: new TwitterToken(
 					oauthToken: account.AccessTokenValue,
@@ -509,6 +567,55 @@ namespace api.Authentication {
 				}
 			}
 			return JsonSnakeCaseSerializer.Deserialize<TwitterTweet>(responseContent);
+		}
+		private async Task<TwitterMediaUpload> UploadImage(
+			byte[] imageData,
+			string[] additionalOwners,
+			AuthServiceAccount account
+		) {
+			var queryStringParameters = new Dictionary<string, string>();
+			if (additionalOwners?.Any() ?? false) {
+				queryStringParameters.Add("additional_owners", String.Join(',', additionalOwners));
+			}
+			var message = CreateRequestMessage(
+				method: HttpMethod.Post,
+				uri: new Uri(authOptions.TwitterApiServerUrl + "/1.1/media/upload.json"),
+				queryStringParameters: queryStringParameters,
+				bodyContent: new MultipartFormDataContent() {
+					{
+						new ByteArrayContent(imageData),
+						"media",
+						"media.png"
+					}
+				},
+				oauthParameters: null,
+				accessToken: new TwitterToken(
+					oauthToken: account.AccessTokenValue,
+					oauthTokenSecret: account.AccessTokenSecret
+				)
+			);
+			string responseContent;
+			using (var client = httpClientFactory.CreateClient())
+			using (var response = await client.SendAsync(message)) {
+				responseContent = await response.Content.ReadAsStringAsync();
+				if (!response.IsSuccessStatusCode) {
+					logger.LogError("Twitter media upload failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+					try {
+						var errorResponse = JsonSnakeCaseSerializer.Deserialize<TwitterErrorResponse>(responseContent);
+						if (errorResponse.Errors.Any(error => error.Code == 89)) {
+							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+								await db.DisassociateAuthServiceAccount(
+									identityId: account.IdentityId
+								);
+							}
+						}
+					} catch {
+						// swallow
+					}
+					return null;
+				}
+			}
+			return JsonSnakeCaseSerializer.Deserialize<TwitterMediaUpload>(responseContent);
 		}
 		private async Task<( AuthServiceAccount account, AuthServiceAuthentication authentication, AuthenticationError? error )> VerifyRequestToken(
 			string sessionId,
@@ -758,30 +865,26 @@ namespace api.Authentication {
 			);
 		}
 		public async Task TweetPostComment(
-			Comment comment
+			Comment comment,
+			UserAccount user
 		) {
 			await TweetFromLinkedAccounts(
-				status: CreateTruncatedTweetText(
-					segments: new [] {
-						CommentingService.RenderCommentTextToPlainText(comment.Text)
-					},
-					shrinkableSegmentIndex: 0,
-					uri: routing.CreateCommentUrl(comment.ArticleSlug, comment.Id)
-				),
-				commentId: comment.Id,
-				silentPostId: null,
-				userAccountId: comment.UserAccountId
+				comment: comment,
+				silentPost: null,
+				articleSlug: comment.ArticleSlug,
+				user: user
 			);
 		}
 		public async Task TweetSilentPost(
 			SilentPost silentPost,
-			string articleSlug
+			Article article,
+			UserAccount user
 		) {
 			await TweetFromLinkedAccounts(
-				status: routing.CreateSilentPostUrl(articleSlug, silentPost.Id).ToString(),
-				commentId: null,
-				silentPostId: silentPost.Id,
-				userAccountId: silentPost.UserAccountId
+				comment: null,
+				silentPost: silentPost,
+				articleSlug: article.Slug,
+				user: user
 			);
 		}
 	}

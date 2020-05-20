@@ -13,11 +13,15 @@
     <PackageReference Include="MailKit" Version="2.3.1.6" />
     <PackageReference Include="Markdig" Version="0.18.0" />
     <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
+    <PackageReference Include="NodaTime" Version="2.4.8" />
     <PackageReference Include="Npgsql" Version="4.1.1" />
     <PackageReference Include="QuoteParserLite" Version="1.1.0" />
     <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
     <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
     <PackageReference Include="Serilog.Sinks.File" Version="4.0.0" />
+    <PackageReference Include="SixLabors.Fonts" Version="1.0.0-unstable0058" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.0-unstable1162" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-unstable0452" />
     <PackageReference Include="System.Data.Common" Version="4.3.0" />
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="5.6.0" />
     <PackageReference Include="System.Runtime.Extensions" Version="4.3.1" />
@@ -25,6 +29,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Include="fonts/*" CopyToPublishDirectory="Always" />
     <Content Include="keys/*" CopyToPublishDirectory="Always" />
   </ItemGroup>
 

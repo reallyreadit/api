@@ -341,7 +341,7 @@ namespace api.Controllers.Social {
 			var analytics = this.GetClientAnalytics();
 			Comment comment;
 			SilentPost silentPost;
-			string userName;
+			UserAccount user;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var article = await db.GetArticle(
 					articleId: form.ArticleId,
@@ -349,35 +349,24 @@ namespace api.Controllers.Social {
 				);
 				if (article.IsRead) {
 					try {
+						user = await db.GetUserAccountById(userAccountId);
 						if (commentingService.IsCommentTextValid(form.CommentText)) {
 							comment = await commentingService.PostComment(
 								text: form.CommentText,
 								articleId: form.ArticleId,
-								userAccountId: userAccountId,
+								user: user,
 								tweet: form.Tweet,
 								analytics: analytics
 							);
 							silentPost = null;
-							userName = comment.UserAccount;
 						} else {
 							silentPost = await commentingService.PostSilentPost(
-								articleId: form.ArticleId,
-								articleSlug: article.Slug,
-								userAccountId: userAccountId,
+								article: article,
+								user: user,
 								tweet: form.Tweet,
 								analytics: analytics
 							);
 							comment = null;
-							userName = (await db.GetUserAccountById(userAccountId)).Name;
-							await notificationService.CreatePostNotifications(
-								userAccountId: userAccountId,
-								userName: userName,
-								articleId: article.Id,
-								articleTitle: article.Title,
-								commentId: null,
-								commentText: null,
-								silentPostId: silentPost.Id
-							);
 						}
 					} catch (Exception ex) {
 						logger.LogError(ex, "Failed to create new post.");
@@ -419,7 +408,7 @@ namespace api.Controllers.Social {
 								new Post(
 									article: article,
 									date: silentPost.DateCreated,
-									userName: userName,
+									userName: user.Name,
 									badge: badge,
 									comment: null,
 									silentPostId: obfuscationService.Encode(silentPost.Id),

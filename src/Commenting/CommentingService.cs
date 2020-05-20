@@ -66,7 +66,7 @@ namespace api.Commenting {
 		public async Task<Comment> PostComment(
 			string text,
 			long articleId,
-			long userAccountId,
+			UserAccount user,
 			bool tweet,
 			ClientAnalytics analytics
 		) {
@@ -76,7 +76,7 @@ namespace api.Commenting {
 					text: text,
 					articleId: articleId,
 					parentCommentId: null,
-					userAccountId: userAccountId,
+					userAccountId: user.Id,
 					analytics: analytics
 				);
 			}
@@ -84,7 +84,7 @@ namespace api.Commenting {
 				comment: comment
 			);
 			await notificationService.CreatePostNotifications(
-				userAccountId: userAccountId,
+				userAccountId: user.Id,
 				userName: comment.UserAccount,
 				articleId: comment.ArticleId,
 				articleTitle: comment.ArticleTitle,
@@ -93,7 +93,10 @@ namespace api.Commenting {
 				silentPostId: null
 			);
 			if (tweet) {
-				await twitterAuth.TweetPostComment(comment);
+				await twitterAuth.TweetPostComment(
+					comment: comment,
+					user: user
+				);
 			}
 			return comment;
 		}
@@ -120,24 +123,33 @@ namespace api.Commenting {
 			return comment;
 		}
 		public async Task<SilentPost> PostSilentPost(
-			long articleId,
-			string articleSlug,
-			long userAccountId,
+			Article article,
+			UserAccount user,
 			bool tweet,
 			ClientAnalytics analytics
 		) {
 			SilentPost post;
 			using (var dbConnection = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				post = await dbConnection.CreateSilentPost(
-					userAccountId: userAccountId,
-					articleId: articleId,
+					userAccountId: user.Id,
+					articleId: article.Id,
 					analytics: analytics
 				);
 			}
+			await notificationService.CreatePostNotifications(
+				userAccountId: user.Id,
+				userName: user.Name,
+				articleId: article.Id,
+				articleTitle: article.Title,
+				commentId: null,
+				commentText: null,
+				silentPostId: post.Id
+			);
 			if (tweet) {
 				await twitterAuth.TweetSilentPost(
 					silentPost: post,
-					articleSlug: articleSlug
+					article: article,
+					user: user
 				);
 			}
 			return post;

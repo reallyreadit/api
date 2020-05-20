@@ -36,6 +36,8 @@ using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using System.Net;
 using api.Routing;
+using api.ImageProcessing;
+using SixLabors.Fonts;
 
 namespace api {
 	public class Startup {
@@ -87,6 +89,10 @@ namespace api {
 				),
 				SecurityAlgorithms.EcdsaSha256
 			);
+			// setup fonts
+			var textFontFamily = new FontCollection()
+				.Install("fonts/museo-sans-300.ttf");
+			var emojiFontFamily = SystemFonts.Find("Segoe UI Emoji");
 			services
 				.AddHostedService<QueuedHostedService>()
 				.AddScoped<AuthenticationService>()
@@ -107,6 +113,12 @@ namespace api {
 				)
 				.AddTransient<RoutingService>()
 				.AddTransient<TwitterAuthService>()
+				.AddTransient<TweetImageRenderingService>(
+					services => new TweetImageRenderingService(
+						textFontFamily: textFontFamily,
+						emojiFontFamily: emojiFontFamily
+					)
+				)
 				.AddSingleton<IBackgroundTaskQueue, BackgroundTaskQueue>();
 			// configure authentication and authorization
 			services
