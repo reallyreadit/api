@@ -15,7 +15,7 @@ using Npgsql;
 
 namespace api.Notifications {
 	public class ApnsService {
-		private readonly string ApnsUnregisteredErrorString = "Unregistered";
+		private readonly string[] ApnsUnregisterErrorReasons = new [] { "BadDeviceToken", "Unregistered" };
 		private readonly HttpClient client;
 		private readonly DatabaseOptions dbOptions;
 		private readonly ILogger<ApnsService> logger;
@@ -103,11 +103,11 @@ namespace api.Notifications {
 							}
 						}
 					}
-					if (errors.Any(error => error.Response.Reason == ApnsUnregisteredErrorString)) {
+					if (errors.Any(error => ApnsUnregisterErrorReasons.Contains(error.Response.Reason))) {
 						using (var db = new NpgsqlConnection(dbOptions.ConnectionString)) {
 							foreach (
 								var error in errors.Where(
-									error => error.Response.Reason == ApnsUnregisteredErrorString
+									error => ApnsUnregisterErrorReasons.Contains(error.Response.Reason)
 								)
 							) {
 								await db.UnregisterNotificationPushDeviceByToken(
