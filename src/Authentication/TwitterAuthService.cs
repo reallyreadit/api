@@ -455,7 +455,7 @@ namespace api.Authentication {
 							);
 							var mediaUpload = await UploadImage(
 								imageData: imageService.RenderTweet(
-									text: CommentingService.RenderCommentTextToPlainText(comment.Text),
+									text: comment.Text,
 									datePosted: (
 										Instant
 											.FromDateTimeOffset(new DateTimeOffset(comment.DateCreated, TimeSpan.Zero))
