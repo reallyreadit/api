@@ -135,6 +135,14 @@ namespace api.Controllers.Extension {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
+				// fix urls
+				if (
+					Regex
+						.Match(binder.Url, "^http://nautil.us")
+						.Success
+				) {
+					binder.Url = Regex.Replace(binder.Url, "^http", "https");
+				}
 				var page = db.FindPage(binder.Url);
 				UserArticle userArticle;
 				if (page != null) {
