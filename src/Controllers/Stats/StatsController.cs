@@ -20,6 +20,39 @@ namespace api.Controllers.Stats {
 			this.dbOpts = dbOpts.Value;
 		}
 		[HttpGet]
+		public async Task<IActionResult> AuthorLeaderboards(
+			[FromQuery] AuthorLeaderboardsRequest request
+		) {
+			int maxRank;
+			DateTime? sinceDate;
+			var now = DateTime.UtcNow;
+			switch (request.TimeWindow) {
+				case AuthorLeaderboardsTimeWindow.PastWeek:
+					maxRank = 25;
+					sinceDate = now.Subtract(TimeSpan.FromDays(7));
+					break;
+				case AuthorLeaderboardsTimeWindow.PastMonth:
+					maxRank = 50;
+					sinceDate = now.Subtract(TimeSpan.FromDays(30));
+					break;
+				case AuthorLeaderboardsTimeWindow.PastYear:
+					maxRank = 100;
+					sinceDate = now.Subtract(TimeSpan.FromDays(365));
+					break;
+				case AuthorLeaderboardsTimeWindow.AllTime:
+					maxRank = 100;
+					sinceDate = null;
+					break;
+				default:
+					throw new ArgumentException("Unexpected time window.");
+			}
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					await db.GetAuthorLeaderboard(maxRank, sinceDate)
+				);
+			}
+		}
+		[HttpGet]
 		public async Task<IActionResult> Leaderboards() {
 			using (var db = new NpgsqlConnection(
 				connectionString: dbOpts.ConnectionString
