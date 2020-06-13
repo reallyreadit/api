@@ -55,32 +55,101 @@ namespace api.Controllers.Extension {
 			}
 			return title;
 		}
-		private static PageInfoBinder.ArticleBinder.AuthorBinder[] PrepareAuthors(PageInfoBinder.ArticleBinder.AuthorBinder[] authors) => (
-			authors
+		private static AuthorMetadata[] PrepareAuthors(PageInfoBinder.ArticleBinder.AuthorBinder[] authors) {
+			// check for null parameter or names
+			authors = (authors ?? new PageInfoBinder.ArticleBinder.AuthorBinder[0])
 				.Where(
 					author => !String.IsNullOrWhiteSpace(author.Name)
 				)
-				.Select(
-					author => new PageInfoBinder.ArticleBinder.AuthorBinder() {
-						Name = author.Name
-							.RemoveControlCharacters()
-							.Trim()
-							.MergeContiguousWhitespace(),
-						Url = author.Url
+				.ToArray();
+			// custom char categories
+			var spaceChar = (char)0x0020;
+			var spaceString = spaceChar.ToString();
+			var hyphenChar = '-';
+			var hyphenString = hyphenChar.ToString();
+			var generalJoinerChars = Enumerable
+				// ZWSP, ZWNJ, ZWJ, WJ, BOM
+				.Range(0x200B, 3)
+				.Concat(
+					new[] {
+						0x2060,
+						0xFEFF
 					}
 				)
+				.Select(
+					n => (char)n
+				)
+				.ToArray();
+			var punctuationConnectorChars = new[] {
+				(char)0x005F,	// LOW LINE
+				(char)0x203F,	// UNDERTIE
+				(char)0x2040,	// CHARACTER TIE
+				(char)0x2054,	// INVERTED UNDERTIE
+				(char)0xFE33,	// PRESENTATION FORM FOR VERTICAL LOW LINE
+				(char)0xFE34,	// PRESENTATION FORM FOR VERTICAL WAVY LOW LINE,
+				(char)0xFE4D,	// DASHED LOW LINE
+				(char)0xFE4E,	// CENTERLINE LOW LINE
+				(char)0xFE4F,	// WAVY LOW LINE
+				(char)0xFF3F	// FULLWIDTH LOW LINE
+			};
+			var nonWordGreedyRegexPattern = $@"[\W{new String(punctuationConnectorChars)}]+";
+			// prepare author names for sanitized single line
+			foreach (var author in authors) {
+				// replace whitespace chars with space
+				author.Name = Regex.Replace(author.Name, @"\s", spaceString);
+				// remove control chars and joiner chars
+				author.Name = new String(
+					author.Name
+						.Where(
+							c => !Char.IsControl(c) && !generalJoinerChars.Contains(c)
+						)
+						.ToArray()
+				);
+				// replace punctuation connector chars with space
+				foreach (var connectorChar in punctuationConnectorChars) {
+					author.Name = author.Name.Replace(connectorChar, spaceChar);
+				}
+				// merge contiguous whitespace
+				author.Name = Regex.Replace(author.Name, @"\s{2,}", spaceString);
+				// trim whitespace
+				author.Name = author.Name.Trim();
+			}
+			return authors
+				// ensure name contains at least one word char
+				.Where(
+					author => Regex.IsMatch(author.Name, @"\w")
+				)
+				// generate slug
+				.Select(
+					author => new AuthorMetadata(
+						name: author.Name,
+						url: author.Url,
+						slug: Regex
+							.Replace(
+								author.Name,
+								nonWordGreedyRegexPattern,
+								hyphenString
+							)
+							.Trim(hyphenChar)
+							.ToLowerInvariant()
+					)
+				)
+				// de-duplicate
 				.GroupBy(
-					author => author.Name.ToLower()
+					author => author.Slug
 				)
 				.Select(
 					group => group
 						.OrderByDescending(
 							author => author.Url?.Length ?? 0
 						)
+						.ThenByDescending(
+							author => author.Name.Length
+						)
 						.First()
 				)
-				.ToArray()
-		);
+				.ToArray();
+		}
 		private static DateTime? ParseArticleDate(string dateString) {
 			DateTime date;
 			if (DateTime.TryParse(dateString, out date)) {
@@ -267,8 +336,6 @@ namespace api.Controllers.Extension {
 					string
 						title = PrepareArticleTitle(Decode(binder.Article.Title)),
 						slug = source.Slug + "_" + CreateSlug(title);
-					// temp workaround to circumvent npgsql type mapping bug
-					var authors = PrepareAuthors(binder.Article.Authors);
 					long articleId;
 					try {
 						articleId = db.CreateArticle(
@@ -279,8 +346,7 @@ namespace api.Controllers.Extension {
 							dateModified: ParseArticleDate(binder.Article.DateModified),
 							section: Decode(binder.Article.Section),
 							description: Decode(binder.Article.Description),
-							authorNames: authors.Select(author => author.Name).ToArray(),
-							authorUrls: authors.Select(author => author.Url).ToArray(),
+							authors: PrepareAuthors(binder.Article.Authors),
 							tags: binder.Article.Tags.Distinct().ToArray()
 						);
 					} catch (NpgsqlException ex) when (

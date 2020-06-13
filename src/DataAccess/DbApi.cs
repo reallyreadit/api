@@ -234,20 +234,6 @@ namespace api.DataAccess {
 		);
 		#endregion
 		#region article_api
-		public static async Task<Author> AssignTwitterHandleToAuthor(
-			this NpgsqlConnection conn,
-			long authorId,
-			string twitterHandle,
-			TwitterHandleAssignment twitterHandleAssignment
-		) => await conn.QuerySingleOrDefaultAsync<Author>(
-			sql: "article_api.assign_twitter_handle_to_author",
-			param: new {
-				author_id = authorId,
-				twitter_handle = twitterHandle,
-				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
-			},
-			commandType: CommandType.StoredProcedure
-		);
 		public static async Task<Source> AssignTwitterHandleToSource(
 			this NpgsqlConnection conn,
 			long sourceId,
@@ -271,8 +257,7 @@ namespace api.DataAccess {
 			DateTime? dateModified,
 			string section,
 			string description,
-			string[] authorNames,
-			string[] authorUrls,
+			AuthorMetadata[] authors,
 			string[] tags
 		) => conn.QuerySingleOrDefault<long>(
 			sql: "article_api.create_article",
@@ -284,8 +269,7 @@ namespace api.DataAccess {
 				date_modified = dateModified,
 				section,
 				description,
-				author_names = authorNames,
-				author_urls = authorUrls,
+				authors,
 				tags
 			},
 			commandType: CommandType.StoredProcedure
@@ -383,16 +367,6 @@ namespace api.DataAccess {
 			long articleId
 		) => await conn.QuerySingleOrDefaultAsync<ArticleImage>(
 			sql: "article_api.get_article_image",
-			param: new {
-				article_id = articleId
-			},
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<IEnumerable<Author>> GetAuthorsOfArticle(
-			this NpgsqlConnection conn,
-			long articleId
-		) => await conn.QueryAsync<Author>(
-			sql: "article_api.get_authors_of_article",
 			param: new {
 				article_id = articleId
 			},
@@ -527,6 +501,43 @@ namespace api.DataAccess {
 				user_article_id = userArticleId,
 				readable_word_count = readableWordCount,
 				read_state = readState
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
+
+		#region authors
+		public static async Task<Author> AssignTwitterHandleToAuthor(
+			this NpgsqlConnection conn,
+			long authorId,
+			string twitterHandle,
+			TwitterHandleAssignment twitterHandleAssignment
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "authors.assign_twitter_handle_to_author",
+			param: new {
+				author_id = authorId,
+				twitter_handle = twitterHandle,
+				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Author> GetAuthor(
+			this NpgsqlConnection conn,
+			string slug
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "authors.get_author",
+			param: new {
+				slug
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<Author>> GetAuthorsOfArticle(
+			this NpgsqlConnection conn,
+			long articleId
+		) => await conn.QueryAsync<Author>(
+			sql: "authors.get_authors_of_article",
+			param: new {
+				article_id = articleId
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1062,6 +1073,30 @@ namespace api.DataAccess {
 				day_count = dayCount
 			},
 			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PageResult<Article>> GetArticlesByAuthorSlug(
+			this NpgsqlConnection conn,
+			string slug,
+			long? userAccountId,
+			int pageNumber,
+			int pageSize,
+			int? minLength,
+			int? maxLength
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.get_articles_by_author_slug",
+				param: new {
+					slug,
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
 		public static async Task<PageResult<Article>> GetArticlesBySourceSlug(
 			this NpgsqlConnection conn,
