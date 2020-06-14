@@ -33,6 +33,40 @@ namespace api.Controllers.Extension {
 			this.dbOpts = dbOpts.Value;
 			this.logger = logger;
 		}
+		private static void AssignMissingAuthors(PageInfoBinder binder) {
+			if (binder.Article.Authors.Any()) {
+				return;
+			}
+			var assignments = new Dictionary<string, string>() {
+				{
+					"https://aaronzlewis.com",
+					"Aaron Z. Lewis"
+				},
+				{
+					"https://alexarohn.com",
+					"Alexa Rohn"
+				},
+				{
+					"https://blog.viktomas.com",
+					"Tomas Vik"
+				},
+				{
+					"https://waitbutwhy.com",
+					"Tim Urban"
+				}
+			};
+			var matchingKey = assignments.Keys.SingleOrDefault(
+				key => binder.Url.StartsWith(key)
+			);
+			if (matchingKey == null) {
+				return;
+			}
+			binder.Article.Authors.Append(
+				new PageInfoBinder.ArticleBinder.AuthorBinder() {
+					Name = assignments[matchingKey]
+				}
+			);
+		}
 		private static string CreateSlug(string value) {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
 			return slug.Length > 80 ? slug.Substring(0, 80) : slug;
@@ -205,13 +239,12 @@ namespace api.Controllers.Extension {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				// fix urls
-				if (
-					Regex
-						.Match(binder.Url, "^http://nautil.us")
-						.Success
-				) {
+				if (binder.Url.StartsWith("http://nautil.us")) {
 					binder.Url = Regex.Replace(binder.Url, "^http", "https");
 				}
+				// fix authors
+				AssignMissingAuthors(binder);
+				// look for existing page
 				var page = db.FindPage(binder.Url);
 				UserArticle userArticle;
 				if (page != null) {
