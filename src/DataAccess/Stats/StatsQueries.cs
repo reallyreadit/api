@@ -7,7 +7,7 @@ namespace api.DataAccess.Stats {
 	public static class StatsQueries {
 		public static async Task<Leaderboards> GetLeaderboards(
 			this NpgsqlConnection db,
-			long userAccountId,
+			long? userAccountId,
 			DateTime now
 		) {
 			return new Leaderboards() {

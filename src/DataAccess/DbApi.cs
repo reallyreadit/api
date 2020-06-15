@@ -1505,7 +1505,7 @@ namespace api.DataAccess {
 		#region stats
 		public static async Task<IEnumerable<LeaderboardRanking>> GetCurrentStreakLeaderboard(
 			this NpgsqlConnection conn,
-			long userAccountId,
+			long? userAccountId,
 			int maxRank
 		) => await conn.QueryAsync<LeaderboardRanking>(
 			sql: "stats.get_current_streak_leaderboard",

@@ -19,6 +19,7 @@ namespace api.Controllers.Stats {
 		public StatsController(IOptions<DatabaseOptions> dbOpts) {
 			this.dbOpts = dbOpts.Value;
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> AuthorLeaderboards(
 			[FromQuery] AuthorLeaderboardsRequest request
@@ -52,13 +53,14 @@ namespace api.Controllers.Stats {
 				);
 			}
 		}
+		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> Leaderboards() {
 			using (var db = new NpgsqlConnection(
 				connectionString: dbOpts.ConnectionString
 			)) {
 				var now = DateTime.UtcNow;
-				var userAccountId = User.GetUserAccountId();
+				var userAccountId = User.GetUserAccountIdOrDefault();
 				var leaderboards = await db.GetLeaderboards(
 					userAccountId: userAccountId,
 					now: now
@@ -76,19 +78,27 @@ namespace api.Controllers.Stats {
 							Scout = leaderboards.Scout,
 							Scribe = leaderboards.Scribe,
 							Streak = leaderboards.Streak,
-							UserRankings = await db.GetUserLeaderboardRankings(
-								userAccountId: userAccountId,
-								now: now
+							UserRankings = (
+								userAccountId.HasValue ?
+									await db.GetUserLeaderboardRankings(
+										userAccountId: userAccountId.Value,
+										now: now
+									) :
+									null
 							),
 							WeeklyReadCount = leaderboards.WeeklyReadCount,
-							TimeZoneName = (await db.GetTimeZoneById(
-									id: (await db.GetUserAccountById(
-										userAccountId: userAccountId
+							TimeZoneName = (
+								userAccountId.HasValue ?
+									(await db.GetTimeZoneById(
+										id: (await db.GetUserAccountById(
+											userAccountId: userAccountId.Value
+										))
+										.TimeZoneId
+										.Value
 									))
-									.TimeZoneId
-									.Value
-								))
-								.Name
+									.Name :
+									null
+							)
 						}
 					);
 				} else {
