@@ -47,11 +47,20 @@ namespace api.Controllers.UserAccounts {
 			iterationCount: 10000,
 			numBytesRequested: 256 / 8
 		);
-		private static long GetTimeZoneIdFromName(IEnumerable<api.DataAccess.Models.TimeZone> timeZones, string timeZoneName) => timeZones
-			.Where(zone => zone.Name == timeZoneName)
-			.OrderBy(zone => zone.Territory)
-			.First()
-			.Id;
+		private static long GetTimeZoneIdFromName(IEnumerable<api.DataAccess.Models.TimeZone> timeZones, string timeZoneName) {
+			var timeZone = timeZones
+				.Where(zone => zone.Name == timeZoneName)
+				.OrderBy(zone => zone.Territory)
+				.FirstOrDefault();
+			if (timeZone == null) {
+				// default to UTC if no match is found
+				// UTC is an official alias for Etc/UTC but we'll also use it as a catch-all instead of throwing an error
+				timeZone = timeZones.Single(
+					zone => zone.Name == "Etc/UTC"
+				);
+			}
+			return timeZone.Id;
+		}
 		// deprecated
 		private IActionResult ReadReplyAndRedirectToArticle(Comment reply, RoutingService routingService) {
 			return Redirect(routingService.CreateCommentUrl(reply.ArticleSlug, reply.Id).ToString());
