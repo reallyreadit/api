@@ -63,93 +63,42 @@ namespace api.Controllers.Articles {
 			int pageNumber,
 			int pageSize,
 			CommunityReadSort sort,
-			CommunityReadTimeWindow? timeWindow = null,
 			int? minLength = null,
 			int? maxLength = null
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountIdOrDefault();
 				PageResult<Article> articles;
-				if (sort == CommunityReadSort.Hot || sort == CommunityReadSort.Top) {
-					switch (sort) {
-						case CommunityReadSort.Hot:
-							articles = await db.GetHotArticles(
-								userAccountId: userAccountId,
-								pageNumber: pageNumber,
-								pageSize: pageSize,
-								minLength: minLength,
-								maxLength: maxLength
-							);
-							break;
-						case CommunityReadSort.Top:
-							articles = await db.GetTopArticles(
-								userAccountId: userAccountId,
-								pageNumber: pageNumber,
-								pageSize: pageSize,
-								minLength: minLength,
-								maxLength: maxLength
-							);
-							break;
-						default:
-							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
-					}
-				} else {
-					DateTime? sinceDate;
-					if (timeWindow == CommunityReadTimeWindow.AllTime) {
-						sinceDate = null;
-					} else {
-						var now = DateTime.UtcNow;
-						switch (timeWindow) {
-							case CommunityReadTimeWindow.PastDay:
-								sinceDate = now.AddDays(-1);
-								break;
-							case CommunityReadTimeWindow.PastWeek:
-								sinceDate = now.AddDays(-7);
-								break;
-							case CommunityReadTimeWindow.PastMonth:
-								sinceDate = now.AddMonths(-1);
-								break;
-							case CommunityReadTimeWindow.PastYear:
-								sinceDate = now.AddYears(-1);
-								break;
-							default:
-								throw new ArgumentException($"Unexpected value for {nameof(timeWindow)}");
-						}
-					}
-					switch (sort) {
-						case CommunityReadSort.MostComments:
-							articles = await db.GetMostCommentedArticles(
-								userAccountId: userAccountId,
-								pageNumber: pageNumber,
-								pageSize: pageSize,
-								sinceDate: sinceDate,
-								minLength: minLength,
-								maxLength: maxLength
-							);
-							break;
-						case CommunityReadSort.MostRead:
-							articles = await db.GetMostReadArticles(
-								userAccountId: userAccountId,
-								pageNumber: pageNumber,
-								pageSize: pageSize,
-								sinceDate: sinceDate,
-								minLength: minLength,
-								maxLength: maxLength
-							);
-							break;
-						case CommunityReadSort.HighestRated:
-							articles = await db.GetHighestRatedArticles(
-								userAccountId: userAccountId,
-								pageNumber: pageNumber,
-								pageSize: pageSize,
-								sinceDate: sinceDate,
-								minLength: minLength,
-								maxLength: maxLength
-							);
-							break;
-						default:
-							throw new ArgumentException($"Unexpected value for {nameof(sort)}");
-					}
+				switch (sort) {
+					case CommunityReadSort.Hot:
+						articles = await db.GetHotArticles(
+							userAccountId: userAccountId,
+							pageNumber: pageNumber,
+							pageSize: pageSize,
+							minLength: minLength,
+							maxLength: maxLength
+						);
+						break;
+					case CommunityReadSort.Top:
+						articles = await db.GetTopArticles(
+							userAccountId: userAccountId,
+							pageNumber: pageNumber,
+							pageSize: pageSize,
+							minLength: minLength,
+							maxLength: maxLength
+						);
+						break;
+					case CommunityReadSort.New:
+						articles = await db.GetNewAotdContenders(
+							userAccountId: userAccountId,
+							pageNumber: pageNumber,
+							pageSize: pageSize,
+							minLength: minLength,
+							maxLength: maxLength
+						);
+						break;
+					default:
+						throw new ArgumentException($"Unexpected value for {nameof(sort)}");
 				}
 				var aotd = (await db.GetAotds(1, userAccountId)).Single();
 				var userReadCount = (

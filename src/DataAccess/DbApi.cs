@@ -1122,30 +1122,6 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public static async Task<PageResult<Article>> GetHighestRatedArticles(
-			this NpgsqlConnection conn,
-			long? userAccountId,
-			int pageNumber,
-			int pageSize,
-			DateTime? sinceDate,
-			int? minLength,
-			int? maxLength
-		) => PageResult<Article>.Create(
-			items: await conn.QueryAsync<ArticlePageResult>(
-				sql: "community_reads.get_highest_rated",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize,
-					since_date = sinceDate,
-					min_length = minLength,
-					max_length = maxLength
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
 		public static async Task<PageResult<Article>> GetHotArticles(
 			this NpgsqlConnection conn,
 			long? userAccountId,
@@ -1168,46 +1144,20 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
-		public static async Task<PageResult<Article>> GetMostCommentedArticles(
+		public static async Task<PageResult<Article>> GetNewAotdContenders(
 			this NpgsqlConnection conn,
 			long? userAccountId,
 			int pageNumber,
 			int pageSize,
-			DateTime? sinceDate,
 			int? minLength,
 			int? maxLength
 		) => PageResult<Article>.Create(
 			items: await conn.QueryAsync<ArticlePageResult>(
-				sql: "community_reads.get_most_commented",
+				sql: "community_reads.get_new_aotd_contenders",
 				param: new {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
 					page_size = pageSize,
-					since_date = sinceDate,
-					min_length = minLength,
-					max_length = maxLength
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
-		public static async Task<PageResult<Article>> GetMostReadArticles(
-			this NpgsqlConnection conn,
-			long? userAccountId,
-			int pageNumber,
-			int pageSize,
-			DateTime? sinceDate,
-			int? minLength,
-			int? maxLength
-		) => PageResult<Article>.Create(
-			items: await conn.QueryAsync<ArticlePageResult>(
-				sql: "community_reads.get_most_read",
-				param: new {
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize,
-					since_date = sinceDate,
 					min_length = minLength,
 					max_length = maxLength
 				},
