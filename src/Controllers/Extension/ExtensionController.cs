@@ -51,6 +51,14 @@ namespace api.Controllers.Extension {
 					"Tomas Vik"
 				},
 				{
+					"https://franklywrite.com",
+					"Cynthia Franks"
+				},
+				{
+					"https://stratechery.com",
+					"Ben Thompson"
+				},
+				{
 					"https://waitbutwhy.com",
 					"Tim Urban"
 				}
@@ -61,11 +69,11 @@ namespace api.Controllers.Extension {
 			if (matchingKey == null) {
 				return;
 			}
-			binder.Article.Authors.Append(
+			binder.Article.Authors = new PageInfoBinder.ArticleBinder.AuthorBinder[] {
 				new PageInfoBinder.ArticleBinder.AuthorBinder() {
 					Name = assignments[matchingKey]
 				}
-			);
+			};
 		}
 		private static string CreateSlug(string value) {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
