@@ -21,17 +21,21 @@ using api.Analytics;
 using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Routing;
+using Microsoft.Extensions.Logging;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
 		private readonly DatabaseOptions dbOpts;
 		private readonly TokenizationOptions tokenOpts;
+		private readonly ILogger<UserAccountsController> log;
 		public UserAccountsController(
 			IOptions<DatabaseOptions> dbOpts,
-			IOptions<TokenizationOptions> tokenOpts
+			IOptions<TokenizationOptions> tokenOpts,
+			ILogger<UserAccountsController> log
 		) {
 			this.dbOpts = dbOpts.Value;
 			this.tokenOpts = tokenOpts.Value;
+			this.log = log;
 		}
 		private static byte[] GenerateSalt() {
 			var salt = new byte[128 / 8];
@@ -560,7 +564,12 @@ namespace api.Controllers.UserAccounts {
 		) {
 			UserAccount userAccount;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey)));
+				try {
+					userAccount = await db.GetUserAccountById(Int64.Parse(StringEncryption.Decrypt(token, tokenOpts.EncryptionKey)));
+				} catch (Exception ex) {
+					log.LogError(ex, "Failed to parse email subscription token. Token: {Token}", token);
+					userAccount = null;
+				}
 				if (userAccount != null) {
 					return Json(
 						new {
