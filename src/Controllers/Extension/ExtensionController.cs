@@ -55,6 +55,10 @@ namespace api.Controllers.Extension {
 					"Cynthia Franks"
 				},
 				{
+					"https://www.kevin-indig.com",
+					"Kevin Indig"
+				},
+				{
 					"https://stratechery.com",
 					"Ben Thompson"
 				},
