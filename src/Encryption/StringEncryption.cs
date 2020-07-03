@@ -21,7 +21,8 @@ namespace api.Encryption {
 			}
 		}
 		public static string Decrypt(string text, string key) {
-			var inputBuffer = Convert.FromBase64String(text);
+			// hack to correct for raw plus signs getting converted to spaces in query strings
+			var inputBuffer = Convert.FromBase64String(text.Replace(' ', '+'));
 			using (var aes = Aes.Create())
 			using (var decryptor = aes.CreateDecryptor(
 				rgbKey: Convert.FromBase64String(key),
