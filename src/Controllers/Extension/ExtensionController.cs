@@ -51,6 +51,10 @@ namespace api.Controllers.Extension {
 					"Tomas Vik"
 				},
 				{
+					"https://www.contrapoints.com",
+					"Natalie Wynn"
+				},
+				{
 					"https://franklywrite.com",
 					"Cynthia Franks"
 				},
