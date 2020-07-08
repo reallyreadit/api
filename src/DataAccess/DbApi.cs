@@ -1336,6 +1336,26 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<PageResult<ArticlePostMultiMap>> GetNotificationPosts(
+			this NpgsqlConnection conn,
+			long userId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<ArticlePostMultiMap>.Create(
+			items: await conn.QueryAsync<Article, Post, long, ArticlePostMultiMapPageResult>(
+				sql: "social.get_notification_posts",
+				map: (article, post, totalCount) => new ArticlePostMultiMapPageResult(article, post, totalCount),
+				param: new {
+					user_id = userId,
+					page_size = pageSize,
+					page_number = pageNumber
+				},
+				splitOn: "post_date_created,total_count",
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
 		public static async Task<PageResult<ArticlePostMultiMap>> GetPostsFromFollowees(
 			this NpgsqlConnection conn,
 			long userId,
@@ -1413,6 +1433,26 @@ namespace api.DataAccess {
 				subject_user_name = subjectUserName
 			},
 			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PageResult<ArticlePostMultiMap>> GetReplyPosts(
+			this NpgsqlConnection conn,
+			long userId,
+			int pageNumber,
+			int pageSize
+		) => PageResult<ArticlePostMultiMap>.Create(
+			items: await conn.QueryAsync<Article, Post, long, ArticlePostMultiMapPageResult>(
+				sql: "social.get_reply_posts",
+				map: (article, post, totalCount) => new ArticlePostMultiMapPageResult(article, post, totalCount),
+				param: new {
+					user_id = userId,
+					page_size = pageSize,
+					page_number = pageNumber
+				},
+				splitOn: "post_date_created,total_count",
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
 		);
 		public static async Task<SilentPost> GetSilentPost(
 			this NpgsqlConnection conn,

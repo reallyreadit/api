@@ -330,6 +330,52 @@ namespace api.Controllers.Social {
 				);
 			}
 		}
+		[HttpGet]
+		public async Task<JsonResult> NotificationPosts(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromQuery] NotificationPostsQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccountId = User.GetUserAccountId();
+				var postPageResult = await db.GetNotificationPosts(
+					userId: userAccountId,
+					pageNumber: query.PageNumber,
+					pageSize: 40
+				);
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId,
+					now: DateTime.UtcNow
+				);
+				return Json(
+					data: PageResult<Post>.Create(
+						source: postPageResult,
+						map: results => results.Select(
+							multimap => new Post(
+								article: multimap.Article,
+								date: multimap.Post.PostDateCreated,
+								userName: multimap.Post.UserName,
+								badge: leaderboards.GetBadge(multimap.Post.UserName),
+								comment: (
+									multimap.Post.CommentId.HasValue ?
+										new PostComment(
+											post: multimap.Post,
+											obfuscationService: obfuscationService
+										) :
+										null
+								),
+								silentPostId: (
+									multimap.Post.SilentPostId.HasValue ?
+										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+										null
+								),
+								dateDeleted: multimap.Post.DateDeleted,
+								hasAlert: multimap.Post.HasAlert
+							)
+						)
+					)
+				);
+			}
+		}
 		[HttpPost]
 		public async Task<IActionResult> Post(
 			[FromServices] ObfuscationService obfuscationService,
@@ -441,6 +487,52 @@ namespace api.Controllers.Social {
 								)
 							)
 							.GetBadge()
+					)
+				);
+			}
+		}
+		[HttpGet]
+		public async Task<JsonResult> ReplyPosts(
+			[FromServices] ObfuscationService obfuscationService,
+			[FromQuery] ReplyPostsQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccountId = User.GetUserAccountId();
+				var postPageResult = await db.GetReplyPosts(
+					userId: userAccountId,
+					pageNumber: query.PageNumber,
+					pageSize: 40
+				);
+				var leaderboards = await db.GetLeaderboards(
+					userAccountId: userAccountId,
+					now: DateTime.UtcNow
+				);
+				return Json(
+					data: PageResult<Post>.Create(
+						source: postPageResult,
+						map: results => results.Select(
+							multimap => new Post(
+								article: multimap.Article,
+								date: multimap.Post.PostDateCreated,
+								userName: multimap.Post.UserName,
+								badge: leaderboards.GetBadge(multimap.Post.UserName),
+								comment: (
+									multimap.Post.CommentId.HasValue ?
+										new PostComment(
+											post: multimap.Post,
+											obfuscationService: obfuscationService
+										) :
+										null
+								),
+								silentPostId: (
+									multimap.Post.SilentPostId.HasValue ?
+										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+										null
+								),
+								dateDeleted: multimap.Post.DateDeleted,
+								hasAlert: multimap.Post.HasAlert
+							)
+						)
 					)
 				);
 			}
