@@ -1,5 +1,7 @@
 namespace api.Controllers.Notifications {
 	public class ClearAlertForm {
-		public Alert Alert { get; set; }
+		// deprecated legacy parameter
+		public int Alert { get; set; }
+		public Alert Alerts { get; set; }
 	}
 }

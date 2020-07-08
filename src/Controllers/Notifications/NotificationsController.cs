@@ -13,6 +13,7 @@ using api.Encryption;
 using api.Commenting;
 using System.Linq;
 using api.Analytics;
+using System.Collections.Generic;
 
 namespace api.Controllers.Notifications {
 	public class NotificationsController : Controller {
@@ -37,35 +38,59 @@ namespace api.Controllers.Notifications {
 		public async Task<IActionResult> ClearAlerts(
 			[FromBody] ClearAlertForm form
 		) {
-			var userAccountId = User.GetUserAccountId();
-			switch (form.Alert) {
-				case Alert.Aotd:
-					await notificationService.ClearAlerts(
-						userAccountId: userAccountId,
-						types: NotificationEventType.Aotd
-					);
-					break;
-				case Alert.Followers:
-					await notificationService.ClearAlerts(
-						userAccountId: userAccountId,
-						types: NotificationEventType.Follower
-					);
-					break;
-				case Alert.Following:
-					await notificationService.ClearAlerts(
-						userAccountId: userAccountId,
-						types: NotificationEventType.Post
-					);
-					break;
-				case Alert.Inbox:
-					await notificationService.ClearAlerts(
-						userAccountId: userAccountId,
-						NotificationEventType.Loopback, NotificationEventType.Reply
-					);
-					break;
-				default:
-					return BadRequest();
+			NotificationEventType[] eventTypes;
+			if (
+				this.ClientVersionIsGreaterThanOrEqualTo(
+					new Dictionary<ClientType, SemanticVersion>() {
+						{ ClientType.WebAppClient, new SemanticVersion("1.29.0") }
+					}
+				)
+			) {
+				eventTypes = new Dictionary<Alert, NotificationEventType>() {
+						{ Alert.Aotd, NotificationEventType.Aotd },
+						{ Alert.Reply, NotificationEventType.Reply },
+						{ Alert.Loopback, NotificationEventType.Loopback },
+						{ Alert.Post, NotificationEventType.Post },
+						{ Alert.Follower, NotificationEventType.Follower }
+					}
+					.Where(
+						kvp => form.Alerts.HasFlag(kvp.Key)
+					)
+					.Select(
+						kvp => kvp.Value
+					)
+					.ToArray();
+			} else {
+				switch (form.Alert) {
+					case 0:
+						eventTypes = new[] {
+							NotificationEventType.Aotd
+						};
+						break;
+					case 1:
+						eventTypes = new[] {
+							NotificationEventType.Follower
+						};
+						break;
+					case 2:
+						eventTypes = new[] {
+							NotificationEventType.Post
+						};
+						break;
+					case 3:
+						eventTypes = new[] {
+							NotificationEventType.Loopback,
+							NotificationEventType.Reply
+						};
+						break;
+					default:
+						return BadRequest();
+				}
 			}
+			await notificationService.ClearAlerts(
+				User.GetUserAccountId(),
+				eventTypes
+			);
 			return Ok();
 		}
 		[HttpPost]
