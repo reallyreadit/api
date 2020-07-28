@@ -282,6 +282,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<TagMetadata>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
 		}

@@ -351,6 +351,80 @@ namespace api.Controllers.Articles {
 				);
 			}
 		}
+		[HttpPost]
+		public async Task<IActionResult> Search(
+			[FromBody] SearchQuery query
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					await db.SearchArticles(
+						userAccountId: User.GetUserAccountId(),
+						pageNumber: 1,
+						pageSize: 40,
+						sourceSlugs: query.Sources,
+						authorSlugs: query.Authors,
+						tagSlugs: query.Tags,
+						minLength: query.MinLength,
+						maxLength: query.MaxLength
+					)
+				);
+			}
+		}
+		[HttpGet]
+		public async Task<IActionResult> SearchOptions() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var searchOptions = (await db.GetSearchOptions())
+					.GroupBy(
+						option => option.Category
+					);
+				return Json(
+					new {
+						Authors = searchOptions
+							.Single(
+								group => group.Key == "author"
+							)
+							.OrderByDescending(
+								option => option.Score
+							)
+							.Select(
+								option => new {
+									option.Name,
+									option.Score,
+									option.Slug
+								}
+							),
+						Sources = searchOptions
+							.Single(
+								group => group.Key == "source"
+							)
+							.OrderByDescending(
+								option => option.Score
+							)
+							.Select(
+								option => new {
+									option.Name,
+									option.Score,
+									option.Slug
+								}
+							),
+						Tags = searchOptions
+							.Single(
+								group => group.Key == "tag"
+							)
+							.OrderByDescending(
+								option => option.Score
+							)
+							.Select(
+								option => new {
+									option.Name,
+									option.Score,
+									option.Slug
+								}
+							)
+					}
+				);
+			}
+		}
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> TwitterCardMetadata(

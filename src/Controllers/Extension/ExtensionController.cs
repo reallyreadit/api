@@ -112,59 +112,15 @@ namespace api.Controllers.Extension {
 					author => !String.IsNullOrWhiteSpace(author.Name)
 				)
 				.ToArray();
-			// custom char categories
-			var spaceChar = (char)0x0020;
-			var spaceString = spaceChar.ToString();
-			var hyphenChar = '-';
-			var hyphenString = hyphenChar.ToString();
-			var generalJoinerChars = Enumerable
-				// ZWSP, ZWNJ, ZWJ, WJ, BOM
-				.Range(0x200B, 3)
-				.Concat(
-					new[] {
-						0x2060,
-						0xFEFF
+			var sanitizer = new StringSanitizer();
+			return authors
+				// prepare author names for sanitized single line
+				.Select(
+					author => new {
+						Name = sanitizer.SanitizeSingleLine(author.Name),
+						author.Url
 					}
 				)
-				.Select(
-					n => (char)n
-				)
-				.ToArray();
-			var punctuationConnectorChars = new[] {
-				(char)0x005F,	// LOW LINE
-				(char)0x203F,	// UNDERTIE
-				(char)0x2040,	// CHARACTER TIE
-				(char)0x2054,	// INVERTED UNDERTIE
-				(char)0xFE33,	// PRESENTATION FORM FOR VERTICAL LOW LINE
-				(char)0xFE34,	// PRESENTATION FORM FOR VERTICAL WAVY LOW LINE,
-				(char)0xFE4D,	// DASHED LOW LINE
-				(char)0xFE4E,	// CENTERLINE LOW LINE
-				(char)0xFE4F,	// WAVY LOW LINE
-				(char)0xFF3F	// FULLWIDTH LOW LINE
-			};
-			var nonWordGreedyRegexPattern = $@"[\W{new String(punctuationConnectorChars)}]+";
-			// prepare author names for sanitized single line
-			foreach (var author in authors) {
-				// replace whitespace chars with space
-				author.Name = Regex.Replace(author.Name, @"\s", spaceString);
-				// remove control chars and joiner chars
-				author.Name = new String(
-					author.Name
-						.Where(
-							c => !Char.IsControl(c) && !generalJoinerChars.Contains(c)
-						)
-						.ToArray()
-				);
-				// replace punctuation connector chars with space
-				foreach (var connectorChar in punctuationConnectorChars) {
-					author.Name = author.Name.Replace(connectorChar, spaceChar);
-				}
-				// merge contiguous whitespace
-				author.Name = Regex.Replace(author.Name, @"\s{2,}", spaceString);
-				// trim whitespace
-				author.Name = author.Name.Trim();
-			}
-			return authors
 				// ensure name contains at least one word char
 				.Where(
 					author => Regex.IsMatch(author.Name, @"\w")
@@ -174,14 +130,7 @@ namespace api.Controllers.Extension {
 					author => new AuthorMetadata(
 						name: author.Name,
 						url: author.Url,
-						slug: Regex
-							.Replace(
-								author.Name,
-								nonWordGreedyRegexPattern,
-								hyphenString
-							)
-							.Trim(hyphenChar)
-							.ToLowerInvariant()
+						slug: sanitizer.GenerateSlug(author.Name)
 					)
 				)
 				// de-duplicate
@@ -195,6 +144,137 @@ namespace api.Controllers.Extension {
 						)
 						.ThenByDescending(
 							author => author.Name.Length
+						)
+						.First()
+				)
+				.ToArray();
+		}
+		private static TagMetadata[] PrepareTags(string[] tagStrings) {
+			// check for null parameter or names
+			tagStrings = (tagStrings ?? new string[0])
+				.Where(
+					tag => !String.IsNullOrWhiteSpace(tag)
+				)
+				// split comma tags
+				.SelectMany(
+					tag => tag.Count(
+							c => c == ','
+						) > 1 ?
+							Regex.Split(tag, @",(?![^(]*\))") :
+							new[] {
+								tag
+							}
+				)
+				.Select(
+					tag => tag.Trim()
+				)
+				// remove prefixes
+				.Select(
+					tag => Regex.IsMatch(tag, @"^\W*t(ag|opic)(?!\s*\w)", RegexOptions.IgnoreCase) ?
+						Regex.Replace(tag, @"^\W*t(ag|opic)\W*", String.Empty, RegexOptions.IgnoreCase) :
+						tag
+				)
+				.ToArray();
+			// sanitize
+			var sanitizer = new StringSanitizer();
+			var tags = tagStrings
+				// prepare tags for sanitized single line
+				.Select(sanitizer.SanitizeSingleLine)
+				// ensure tag contains at least one word char
+				.Where(
+					tag => Regex.IsMatch(tag, @"\w")
+				)
+				// generate slug
+				.Select(
+					tag => new TagMetadata(
+						name: tag,
+						slug: sanitizer.GenerateSlug(tag)
+					)
+				)
+				.ToArray();
+			// blacklist and merge
+			var slugBlacklistRegexes = new[] {
+				@"^cnbc$",
+				@"^elevated\-false$",
+				@"^layercake\-",
+				@"^lite\-true$",
+				@"^lockedpostsource\-",
+				@"^make\-it$",
+				@"^makeit$",
+				@"^source\-tagname\-cnbc\-us\-source$"
+			};
+			tags = tags
+				.Where(
+					tag => !slugBlacklistRegexes.Any(
+						regex => Regex.IsMatch(tag.Slug, regex)
+					)
+				)
+				.ToArray();
+			var slugMergers = new[] {
+				new {
+					Sources = new[] {
+						"coronavirus-2019-ncov",
+						"covid-19",
+						"coronavirus-outbreak"
+					},
+					Target = "coronavirus"
+				},
+				new {
+					Sources = new[] {
+						"tech"
+					},
+					Target = "technology"
+				},
+				new {
+					Sources = new[] {
+						"trump-donald-j",
+						"trump",
+						"donald-j-trump"
+					},
+					Target = "donald-trump"
+				},
+				new {
+					Sources = new[] {
+						"type-news"
+					},
+					Target = "news"
+				},
+				new {
+					Sources = new[] {
+						"facebook-inc"
+					},
+					Target = "facebook"
+				},
+				new {
+					Sources = new[] {
+						"startup"
+					},
+					Target = "startups"
+				},
+				new {
+					Sources = new[] {
+						"us"
+					},
+					Target = "united-states"
+				}
+			};
+			foreach (var tag in tags) {
+				var matchingMerger = slugMergers.SingleOrDefault(
+					merger => merger.Sources.Contains(tag.Slug)
+				);
+				if (matchingMerger != null) {
+					tag.Slug = matchingMerger.Target;
+				}
+			}
+			return tags
+				// de-duplicate
+				.GroupBy(
+					tag => tag.Slug
+				)
+				.Select(
+					group => group
+						.OrderByDescending(
+							tag => tag.Name.Length
 						)
 						.First()
 				)
@@ -399,7 +479,7 @@ namespace api.Controllers.Extension {
 							section: Decode(binder.Article.Section),
 							description: Decode(binder.Article.Description),
 							authors: PrepareAuthors(binder.Article.Authors),
-							tags: binder.Article.Tags.Distinct().ToArray()
+							tags: PrepareTags(binder.Article.Tags)
 						);
 					} catch (NpgsqlException ex) when (
 						ex.Data.Contains("ConstraintName") &&

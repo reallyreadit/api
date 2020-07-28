@@ -258,7 +258,7 @@ namespace api.DataAccess {
 			string section,
 			string description,
 			AuthorMetadata[] authors,
-			string[] tags
+			TagMetadata[] tags
 		) => conn.QuerySingleOrDefault<long>(
 			sql: "article_api.create_article",
 			param: new {
@@ -1166,6 +1166,12 @@ namespace api.DataAccess {
 			pageNumber: pageNumber,
 			pageSize: pageSize
 		);
+		public static async Task<IEnumerable<SearchOption>> GetSearchOptions(
+			this NpgsqlConnection conn
+		) => await conn.QueryAsync<SearchOption>(
+			sql: "community_reads.get_search_options",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<PageResult<Article>> GetTopArticles(
 			this NpgsqlConnection conn,
 			long? userAccountId,
@@ -1180,6 +1186,34 @@ namespace api.DataAccess {
 					user_account_id = userAccountId,
 					page_number = pageNumber,
 					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<Article>> SearchArticles(
+			this NpgsqlConnection conn,
+			long? userAccountId,
+			int pageNumber,
+			int pageSize,
+			string[] sourceSlugs,
+			string[] authorSlugs,
+			string[] tagSlugs,
+			int? minLength,
+			int? maxLength
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "community_reads.search_articles",
+				param: new {
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					source_slugs = sourceSlugs,
+					author_slugs = authorSlugs,
+					tag_slugs = tagSlugs,
 					min_length = minLength,
 					max_length = maxLength
 				},
