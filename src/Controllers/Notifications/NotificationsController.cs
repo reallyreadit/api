@@ -42,7 +42,7 @@ namespace api.Controllers.Notifications {
 			if (
 				this.ClientVersionIsGreaterThanOrEqualTo(
 					new Dictionary<ClientType, SemanticVersion>() {
-						{ ClientType.WebAppClient, new SemanticVersion("1.29.0") }
+						{ ClientType.WebAppClient, new SemanticVersion("1.30.0") }
 					}
 				)
 			) {
