@@ -1843,6 +1843,7 @@ namespace api.DataAccess {
 			byte[] passwordHash,
 			byte[] passwordSalt,
 			long timeZoneId,
+			DisplayTheme? theme,
 			UserAccountCreationAnalytics analytics
 		) => await CreateUserAccount(
 			conn,
@@ -1851,6 +1852,7 @@ namespace api.DataAccess {
 			passwordHash,
 			passwordSalt,
 			timeZoneId,
+			theme,
 			PostgresJsonSerialization.Serialize(analytics)
 		);
 		public static async Task<UserAccount> CreateUserAccount(
@@ -1860,6 +1862,7 @@ namespace api.DataAccess {
 			byte[] passwordHash,
 			byte[] passwordSalt,
 			long timeZoneId,
+			DisplayTheme? theme,
 			string analytics
 		) {
 			try {
@@ -1871,6 +1874,7 @@ namespace api.DataAccess {
 						password_hash = passwordHash,
 						password_salt = passwordSalt,
 						time_zone_id = timeZoneId,
+						theme = ConvertEnumToString(theme),
 						analytics
 					},
 					commandType: CommandType.StoredProcedure
@@ -1947,6 +1951,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<DisplayPreference> GetDisplayPreference(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<DisplayPreference>(
+			sql: "user_account_api.get_display_preference",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static EmailConfirmation GetEmailConfirmation(this NpgsqlConnection conn, long emailConfirmationId) => conn.QuerySingleOrDefault<EmailConfirmation>(
 			sql: "user_account_api.get_email_confirmation",
 			param: new { email_confirmation_id = emailConfirmationId },
@@ -2011,6 +2025,22 @@ namespace api.DataAccess {
 		);
 		public static IEnumerable<UserAccount> GetUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
 			sql: "user_account_api.get_user_accounts",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<DisplayPreference> SetDisplayPreference(
+			this NpgsqlConnection conn,
+			long userAccountId,
+			DisplayTheme theme,
+			int textSize,
+			bool hideLinks
+		) => await conn.QuerySingleAsync<DisplayPreference>(
+			sql: "user_account_api.set_display_preference",
+			param: new {
+				user_account_id = userAccountId,
+				theme = ConvertEnumToString(theme),
+				text_size = textSize,
+				hide_links = hideLinks
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<AuthServiceAccessToken> StoreAuthServiceAccessToken(

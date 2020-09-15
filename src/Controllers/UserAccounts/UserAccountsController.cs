@@ -111,6 +111,27 @@ namespace api.Controllers.UserAccounts {
 					)
 				) as Object
 		);
+		private async Task<Object> GetWebAppUserProfileForClient(
+			UserAccount user,
+			NpgsqlConnection db
+		) {
+			if (
+				this.ClientVersionIsGreaterThanOrEqualTo(
+					new Dictionary<ClientType, SemanticVersion>() {
+						{
+							ClientType.WebAppClient,
+							new SemanticVersion(1, 31, 0)
+						}
+					}
+				)
+			) {
+				return new {
+					UserAccount = user,
+					DisplayPreference = await db.GetDisplayPreference(user.Id)
+				};
+			}
+			return GetUserForClient(user, db);
+		}
 		private async Task<JsonResult> JsonUser(
 			UserAccount user,
 			NpgsqlConnection db
@@ -146,6 +167,7 @@ namespace api.Controllers.UserAccounts {
 						passwordHash: HashPassword(form.Password, salt),
 						passwordSalt: salt,
 						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
+						theme: form.Theme,
 						analytics: new UserAccountCreationAnalytics(
 							client: this.GetClientAnalytics(),
 							form: form.Analytics
@@ -153,9 +175,8 @@ namespace api.Controllers.UserAccounts {
 					);
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
-					return await JsonUser(
-						user: userAccount,
-						db: db
+					return Json(
+						await GetWebAppUserProfileForClient(userAccount, db)
 					);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
@@ -204,6 +225,7 @@ namespace api.Controllers.UserAccounts {
 						passwordHash: null,
 						passwordSalt: null,
 						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
+						theme: form.Theme,
 						analytics: authServiceAccount.IdentitySignUpAnalytics
 					);
 					await db.AssociateAuthServiceAccount(
@@ -217,9 +239,8 @@ namespace api.Controllers.UserAccounts {
 					}
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
-					return await JsonUser(
-						user: userAccount,
-						db: db
+					return Json(
+						await GetWebAppUserProfileForClient(userAccount, db)
 					);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
@@ -313,9 +334,8 @@ namespace api.Controllers.UserAccounts {
 					}
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
-					return await JsonUser(
-						user: userAccount,
-						db: db
+					return Json(
+						await GetWebAppUserProfileForClient(userAccount, db)
 					);
 				}
 			}
@@ -472,9 +492,8 @@ namespace api.Controllers.UserAccounts {
 					}
 				}
 				await authenticationService.SignIn(userAccount, form.PushDevice);
-				return await JsonUser(
-					user: userAccount,
-					db: db
+				return Json(
+					await GetWebAppUserProfileForClient(userAccount, db)
 				);
 			}
 		}
@@ -711,6 +730,7 @@ namespace api.Controllers.UserAccounts {
 				);
 				return Json(
 					data: new {
+						DisplayPreference = await db.GetDisplayPreference(user.Id),
 						UserCount = await db.GetUserCount(),
 						NotificationPreference = new NotificationPreference(
 							options: await db.GetNotificationPreference(
@@ -753,6 +773,43 @@ namespace api.Controllers.UserAccounts {
 							options: form.GetOptions()
 						)
 					)
+				);
+			}
+		}
+		[HttpGet("UserAccounts/DisplayPreference")]
+		public async Task<JsonResult> GetDisplayPreference() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					await db.GetDisplayPreference(
+						User.GetUserAccountId()
+					)
+				);
+			}
+		}
+		[HttpPost("UserAccounts/DisplayPreference")]
+		public async Task<JsonResult> SetDisplayPreference(
+			[FromBody] DisplayPreferenceForm form
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					await db.SetDisplayPreference(
+						userAccountId: User.GetUserAccountId(),
+						theme: form.Theme,
+						textSize: form.TextSize,
+						hideLinks: form.HideLinks
+					)
+				);
+			}
+		}
+		[HttpGet]
+		public async Task<JsonResult> WebAppUserProfile() {
+			var userId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					new {
+						UserAccount = await db.GetUserAccountById(userId),
+						DisplayPreference = await db.GetDisplayPreference(userId)
+					}
 				);
 			}
 		}

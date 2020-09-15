@@ -5,11 +5,13 @@ using System.Threading.Tasks;
 using api.Analytics;
 using api.Authentication;
 using api.Configuration;
+using api.DataAccess;
 using api.DataAccess.Models;
 using api.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using Npgsql;
 
 namespace api.Controllers.Auth {
 	public class AuthController : Controller {
@@ -100,6 +102,7 @@ namespace api.Controllers.Auth {
 		public async Task<IActionResult> AppleIos(
 			[FromServices] AppleAuthService appleAuthService,
 			[FromServices] AuthenticationService authService,
+			[FromServices] IOptions<DatabaseOptions> databaseOptions,
 			[FromBody] AppleIdCredentialAuthForm form
 		) {
 			var (authenticationId, user, error) = await appleAuthService.AuthenticateAppleIdCredential(
@@ -126,11 +129,14 @@ namespace api.Controllers.Auth {
 			}
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
-				return Json(
-					new {
-						User = user
-					}
-				);
+				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
+					return Json(
+						new {
+							User = user,
+							DisplayPreference = await db.GetDisplayPreference(user.Id)
+						}
+					);
+				}
 			}
 			return BadRequest(new [] { GetErrorMessage(AuthServiceProvider.Apple, error) });
 		}
@@ -170,6 +176,7 @@ namespace api.Controllers.Auth {
 		[HttpPost]
 		public async Task<IActionResult> TwitterAuthentication(
 			[FromServices] AuthenticationService authService,
+			[FromServices] IOptions<DatabaseOptions> databaseOptions,
 			[FromServices] TwitterAuthService twitterAuth,
 			[FromBody] TwitterCredentialAuthForm form
 		) {
@@ -184,11 +191,14 @@ namespace api.Controllers.Auth {
 			);
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
-				return Json(
-					new {
-						User = user
-					}
-				);
+				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
+					return Json(
+						new {
+							User = user,
+							DisplayPreference = await db.GetDisplayPreference(user.Id)
+						}
+					);
+				}
 			}
 			if (authentication != null) {
 				return Json(
