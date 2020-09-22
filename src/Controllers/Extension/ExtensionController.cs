@@ -755,23 +755,56 @@ namespace api.Controllers.Extension {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> Install(
+			[FromServices] IOptions<AuthenticationOptions> authenticationOptions,
 			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromBody] InstallationForm form
 		) {
-			using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
-				var installationId = Guid.NewGuid();
-				await db.LogExtensionInstallation(
-					installationId: installationId,
-					userAccountId: this.User.GetUserAccountIdOrDefault(),
-					platform: form.Os + "/" + form.Arch
-				);
-				return Json(new {
-					installationId = StringEncryption.Encrypt(
-						text: installationId.ToString(),
-						key: tokenizationOptions.Value.EncryptionKey
-					)
-				});
+			// set the extension version cookie on install or update
+			Response.Cookies.Append(
+				key: "extensionVersion",
+				value: this
+					.GetClientAnalytics()
+					.Version
+					.ToString(),
+				options: new Microsoft.AspNetCore.Http.CookieOptions() {
+					Domain = authenticationOptions.Value.CookieDomain,
+					HttpOnly = false,
+					MaxAge = TimeSpan.FromDays(365),
+					Path = "/",
+					SameSite = Microsoft.AspNetCore.Http.SameSiteMode.None,
+					Secure = true
+				}
+			);
+			// set installation id if not present
+			Guid? newInstallationId;
+			if (String.IsNullOrWhiteSpace(form.InstallationId)) {
+				newInstallationId = Guid.NewGuid();
+				using (var db = new NpgsqlConnection(this.dbOpts.ConnectionString)) {
+					await db.LogExtensionInstallation(
+						installationId: newInstallationId.Value,
+						userAccountId: this.User.GetUserAccountIdOrDefault(),
+						platform: form.Os + "/" + form.Arch
+					);
+				}
+			} else {
+				newInstallationId = null;
 			}
+			// check for installation redirect cookie
+			string redirectPath;
+			Request.Cookies.TryGetValue("extensionInstallationRedirectPath", out redirectPath);
+			return Json(
+				new {
+					InstallationId = (
+						newInstallationId.HasValue ?
+							StringEncryption.Encrypt(
+								text: newInstallationId.Value.ToString(),
+								key: tokenizationOptions.Value.EncryptionKey
+							) :
+							null
+					),
+					RedirectPath = redirectPath
+				}
+			);
 		}
 		[AllowAnonymous]
 		[HttpPost]
