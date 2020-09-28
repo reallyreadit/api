@@ -2027,6 +2027,16 @@ namespace api.DataAccess {
 			sql: "user_account_api.get_user_accounts",
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<UserAccount> RegisterOrientationCompletion(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleAsync<UserAccount>(
+			sql: "user_account_api.register_orientation_completion",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<DisplayPreference> SetDisplayPreference(
 			this NpgsqlConnection conn,
 			long userAccountId,

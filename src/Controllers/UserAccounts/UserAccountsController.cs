@@ -813,6 +813,16 @@ namespace api.Controllers.UserAccounts {
 				);
 			}
 		}
+		[HttpPost]
+		public async Task<JsonResult> OrientationCompletion() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(
+					await db.RegisterOrientationCompletion(
+						userAccountId: User.GetUserAccountId()
+					)
+				);
+			}
+		}
 
 		// new versions
 		[AllowAnonymous]
