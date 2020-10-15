@@ -9,6 +9,7 @@ using Microsoft.Extensions.Configuration;
 using System.IO;
 using Microsoft.AspNetCore.Hosting;
 using MyAuthenticationOptions = api.Configuration.AuthenticationOptions;
+using MyCookieOptions = api.Configuration.CookieOptions;
 using MyDataProtectionOptions = api.Configuration.DataProtectionOptions;
 using Microsoft.Extensions.Options;
 using api.Messaging;
@@ -54,14 +55,17 @@ namespace api {
 			// configure options
 			IConfigurationSection
 				authOptsConfigSection = config.GetSection("Authentication"),
+				cookieConfigSection = config.GetSection("Cookies"),
 				emailOptsConfigSection = config.GetSection("Email"),
 				pushOptsConfigSection = config.GetSection("PushNotifications");
 			var authOpts = authOptsConfigSection.Get<MyAuthenticationOptions>();
+			var cookieOpts = cookieConfigSection.Get<MyCookieOptions>();
 			var emailOpts = emailOptsConfigSection.Get<EmailOptions>();
 			var pushOpts = pushOptsConfigSection.Get<PushNotificationsOptions>();
 			services
 				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
+				.Configure<MyCookieOptions>(cookieConfigSection)
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
 				.Configure<EmailOptions>(emailOptsConfigSection)
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
@@ -126,9 +130,9 @@ namespace api {
 				.AddCookie(
 					authenticationScheme: authOpts.Scheme,
 					configureOptions: options => {
-						options.Cookie.Domain = authOpts.CookieDomain;
+						options.Cookie.Domain = cookieOpts.Domain;
 						options.Cookie.Name = authOpts.CookieName;
-						options.Cookie.SecurePolicy = authOpts.CookieSecure;
+						options.Cookie.SecurePolicy = CookieSecurePolicy.Always;
 						options.Cookie.HttpOnly = true;
 						options.Cookie.SameSite = SameSiteMode.None;
 						options.ExpireTimeSpan = TimeSpan.FromDays(180);

@@ -755,25 +755,16 @@ namespace api.Controllers.Extension {
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> Install(
-			[FromServices] IOptions<AuthenticationOptions> authenticationOptions,
+			[FromServices] IOptions<CookieOptions> cookieOptions,
 			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
 			[FromBody] InstallationForm form
 		) {
 			// set the extension version cookie on install or update
-			Response.Cookies.Append(
-				key: "extensionVersion",
-				value: this
+			this.SetExtensionVersionCookie(
+				version: this
 					.GetClientAnalytics()
-					.Version
-					.ToString(),
-				options: new Microsoft.AspNetCore.Http.CookieOptions() {
-					Domain = authenticationOptions.Value.CookieDomain,
-					HttpOnly = false,
-					MaxAge = TimeSpan.FromDays(365),
-					Path = "/",
-					SameSite = Microsoft.AspNetCore.Http.SameSiteMode.None,
-					Secure = true
-				}
+					.Version,
+				cookieOptions: cookieOptions.Value
 			);
 			// set installation id if not present
 			Guid? newInstallationId;
@@ -790,8 +781,6 @@ namespace api.Controllers.Extension {
 				newInstallationId = null;
 			}
 			// check for installation redirect cookie
-			string redirectPath;
-			Request.Cookies.TryGetValue("extensionInstallationRedirectPath", out redirectPath);
 			return Json(
 				new {
 					InstallationId = (
@@ -802,7 +791,7 @@ namespace api.Controllers.Extension {
 							) :
 							null
 					),
-					RedirectPath = redirectPath
+					RedirectPath = this.GetExtensionInstallationRedirectPathCookieValue()
 				}
 			);
 		}
