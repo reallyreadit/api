@@ -93,7 +93,8 @@ namespace api.Controllers.UserAccounts {
 				versions: new Dictionary<ClientType, SemanticVersion>() {
 					{ ClientType.IosApp, new SemanticVersion(5, 0, 0) },
 					{ ClientType.WebAppClient, new SemanticVersion(1, 8, 0) },
-					{ ClientType.WebAppServer, new SemanticVersion(1, 8, 0) }
+					{ ClientType.WebAppServer, new SemanticVersion(1, 8, 0) },
+					{ ClientType.WebEmbed, new SemanticVersion(1, 0, 0) }
 				}
 			) ?
 				user :
@@ -121,6 +122,10 @@ namespace api.Controllers.UserAccounts {
 						{
 							ClientType.WebAppClient,
 							new SemanticVersion(1, 31, 0)
+						},
+						{
+							ClientType.WebEmbed,
+							new SemanticVersion(1, 0, 0)
 						}
 					}
 				)

@@ -5,6 +5,7 @@ namespace api.Analytics {
 		IosNotification,
 		WebAppClient,
 		WebAppServer,
+		WebEmbed,
 		WebExtension,
 		Mail
 	}

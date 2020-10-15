@@ -10,6 +10,7 @@ namespace api.Analytics {
 			new Tuple<string, ClientType>("ios/notification", ClientType.IosNotification),
 			new Tuple<string, ClientType>("web/app/client", ClientType.WebAppClient),
 			new Tuple<string, ClientType>("web/app/server", ClientType.WebAppServer),
+			new Tuple<string, ClientType>("web/embed", ClientType.WebEmbed),
 			new Tuple<string, ClientType>("web/extension", ClientType.WebExtension),
 			new Tuple<string, ClientType>("mail", ClientType.Mail)
 		};

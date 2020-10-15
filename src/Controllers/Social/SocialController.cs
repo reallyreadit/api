@@ -61,7 +61,8 @@ namespace api.Controllers.Social {
 							this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
 								{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
 								{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
-								{ ClientType.IosApp, new SemanticVersion("3.1.1") }
+								{ ClientType.IosApp, new SemanticVersion("3.1.1") },
+								{ ClientType.WebEmbed, new SemanticVersion("1.0.0") }
 							})
 						) {
 							return Json(new {
