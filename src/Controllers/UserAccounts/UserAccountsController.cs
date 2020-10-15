@@ -404,7 +404,7 @@ namespace api.Controllers.UserAccounts {
 				}
 				var request = await db.CreatePasswordResetRequest(
 					userAccount.Id,
-					form.AuthServiceToken != null ?
+					!String.IsNullOrWhiteSpace(form.AuthServiceToken) ?
 						new Nullable<Int64>(ParseAuthServiceToken(form.AuthServiceToken)) :
 						null
 				);
