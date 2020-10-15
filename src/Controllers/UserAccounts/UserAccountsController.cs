@@ -194,7 +194,7 @@ namespace api.Controllers.UserAccounts {
 		private string ValidateAuthServiceAuthenticationForAssociation(
 			AuthServiceAuthentication authentication
 		) {
-			if (HttpContext.GetSessionId() != authentication.SessionId) {
+			if (this.GetSessionIdCookieValue() != authentication.SessionId) {
 				return "InvalidSessionId";
 			}
 			if (DateTime.UtcNow.Subtract(authentication.DateAuthenticated) > TimeSpan.FromMinutes(5)) {

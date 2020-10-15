@@ -106,7 +106,7 @@ namespace api.Controllers.Auth {
 			[FromBody] AppleIdCredentialAuthForm form
 		) {
 			var (authenticationId, user, error) = await appleAuthService.AuthenticateAppleIdCredential(
-				sessionId: HttpContext.GetSessionId(),
+				sessionId: this.GetSessionIdCookieValue(),
 				rawIdToken: form.IdentityToken,
 				authCode: form.AuthorizationCode,
 				emailAddress: form.Email,
@@ -152,7 +152,7 @@ namespace api.Controllers.Auth {
 				return RedirectToWebServer(form.State.CurrentPath);
 			}
 			var (authenticationId, user, error) = await appleAuthService.AuthenticateAppleIdCredential(
-				sessionId: HttpContext.GetSessionId(),
+				sessionId: this.GetSessionIdCookieValue(),
 				rawIdToken: form.IdToken,
 				authCode: form.Code,
 				emailAddress: form.User?.Email,
@@ -181,7 +181,7 @@ namespace api.Controllers.Auth {
 			[FromBody] TwitterCredentialAuthForm form
 		) {
 			var (authServiceAccount, authentication, user, error) = await twitterAuth.Authenticate(
-				sessionId: HttpContext.GetSessionId(),
+				sessionId: this.GetSessionIdCookieValue(),
 				requestTokenValue: form.OAuthToken,
 				requestVerifier: form.OAuthVerifier,
 				signUpAnalytics: new UserAccountCreationAnalytics(
@@ -229,7 +229,7 @@ namespace api.Controllers.Auth {
 				return RedirectToWebServer(request.ReadupRedirectPath);
 			}
 			var (authServiceAccount, authentication, user, error) = await twitterAuth.Authenticate(
-				sessionId: HttpContext.GetSessionId(),
+				sessionId: this.GetSessionIdCookieValue(),
 				requestTokenValue: request.OAuthToken,
 				requestVerifier: request.OAuthVerifier,
 				signUpAnalytics: null
@@ -301,7 +301,7 @@ namespace api.Controllers.Auth {
 			[FromBody] TwitterCredentialLinkForm form
 		) {
 			var (authServiceAccount, error) = await twitterAuth.LinkAccount(
-				sessionId: HttpContext.GetSessionId(),
+				sessionId: this.GetSessionIdCookieValue(),
 				requestTokenValue: form.OAuthToken,
 				requestVerifier: form.OAuthVerifier,
 				userAccountId: User.GetUserAccountId()
@@ -335,7 +335,7 @@ namespace api.Controllers.Auth {
 				);
 			}
 			var (authServiceAccount, error) = await twitterAuth.LinkAccount(
-				sessionId: HttpContext.GetSessionId(),
+				sessionId: this.GetSessionIdCookieValue(),
 				requestTokenValue: request.OAuthToken,
 				requestVerifier: request.OAuthVerifier,
 				userAccountId: User.GetUserAccountId()

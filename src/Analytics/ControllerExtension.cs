@@ -5,6 +5,7 @@ using Microsoft.Extensions.Primitives;
 
 namespace api.Analytics {
 	public static class ControllerExtension {
+		private static readonly string sessionIdCookieKey = "sessionId";
 		public static bool ClientVersionIsGreaterThanOrEqualTo(this Controller controller, IDictionary<ClientType, SemanticVersion> versions) {
 			var client = controller.GetClientAnalytics();
 			return (
@@ -18,6 +19,11 @@ namespace api.Analytics {
 				return ClientAnalytics.ParseClientString(controller.Request.Headers["X-Readup-Client"]);
 			}
 			return null;
+		}
+		public static string GetSessionIdCookieValue(this Controller controller) {
+			string sessionId;
+			controller.Request.Cookies.TryGetValue(sessionIdCookieKey, out sessionId);
+			return sessionId;
 		}
 	}
 }
