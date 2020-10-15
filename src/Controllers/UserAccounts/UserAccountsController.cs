@@ -130,7 +130,7 @@ namespace api.Controllers.UserAccounts {
 					DisplayPreference = await db.GetDisplayPreference(user.Id)
 				};
 			}
-			return GetUserForClient(user, db);
+			return await GetUserForClient(user, db);
 		}
 		private async Task<JsonResult> JsonUser(
 			UserAccount user,
