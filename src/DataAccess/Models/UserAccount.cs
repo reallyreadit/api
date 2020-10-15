@@ -22,7 +22,6 @@ namespace api.DataAccess.Models {
 		public int PostAlertCount { get; set; }
 		public int FollowerAlertCount { get; set; }
 		public bool HasLinkedTwitterAccount { get; set; }
-		public DateTime? DateRegistered { get; set; }
 		public DateTime? DateOrientationCompleted { get; set; }
 		public bool IsPasswordSet => (
 			PasswordHash != null &&
