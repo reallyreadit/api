@@ -22,6 +22,7 @@ using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Routing;
 using Microsoft.Extensions.Logging;
+using api.Models;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -130,10 +131,10 @@ namespace api.Controllers.UserAccounts {
 					}
 				)
 			) {
-				return new {
-					UserAccount = user,
-					DisplayPreference = await db.GetDisplayPreference(user.Id)
-				};
+				return new WebAppUserProfile(
+					await db.GetDisplayPreference(user.Id),
+					user
+				);
 			}
 			return await GetUserForClient(user, db);
 		}
