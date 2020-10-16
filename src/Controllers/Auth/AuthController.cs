@@ -24,6 +24,10 @@ namespace api.Controllers.Auth {
 			this.serviceOpts = serviceOpts.Value;
 			this.tokenizationOptions = tokenizationOptions.Value;
 		}
+		private string CreateAuthServiceToken(long authenticationId) => Encryption.StringEncryption.Encrypt(
+			authenticationId.ToString(),
+			tokenizationOptions.EncryptionKey
+		);
 		private string GetErrorMessage(AuthServiceProvider provider, AuthenticationError? error) {
 			string message;
 			switch (provider) {
@@ -81,11 +85,8 @@ namespace api.Controllers.Auth {
 				new[] {
 					new KeyValuePair<string, string>(
 						"authServiceToken",
-						Encryption.StringEncryption.Encrypt(
-							authenticationId.ToString(),
-							tokenizationOptions.EncryptionKey
+						CreateAuthServiceToken(authenticationId)
 						)	
-					)
 				}
 			)
 		);
@@ -120,10 +121,7 @@ namespace api.Controllers.Auth {
 			if (authenticationId.HasValue) {
 				return Json(
 					new {
-						AuthServiceToken = Encryption.StringEncryption.Encrypt(
-							authenticationId.ToString(),
-							tokenizationOptions.EncryptionKey
-						)
+						AuthServiceToken = CreateAuthServiceToken(authenticationId.Value)
 					}
 				);
 			}
@@ -203,10 +201,7 @@ namespace api.Controllers.Auth {
 			if (authentication != null) {
 				return Json(
 					new {
-						AuthServiceToken = Encryption.StringEncryption.Encrypt(
-							authentication.Id.ToString(),
-							tokenizationOptions.EncryptionKey
-						)
+						AuthServiceToken = CreateAuthServiceToken(authentication.Id)
 					}
 				);
 			}
