@@ -21,6 +21,7 @@ using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Formatting;
 using Microsoft.Extensions.Logging;
+using api.Cookies;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -760,7 +761,7 @@ namespace api.Controllers.Extension {
 			[FromBody] InstallationForm form
 		) {
 			// set the extension version cookie on install or update
-			this.SetExtensionVersionCookie(
+			Response.Cookies.SetExtensionVersionCookie(
 				version: this
 					.GetClientAnalytics()
 					.Version,
@@ -791,7 +792,7 @@ namespace api.Controllers.Extension {
 							) :
 							null
 					),
-					RedirectPath = this.GetExtensionInstallationRedirectPathCookieValue()
+					RedirectPath = Request.Cookies.GetExtensionInstallationRedirectPathCookieValue()
 				}
 			);
 		}

@@ -23,6 +23,7 @@ using api.Notifications;
 using api.Routing;
 using Microsoft.Extensions.Logging;
 using api.Models;
+using api.Cookies;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -200,7 +201,7 @@ namespace api.Controllers.UserAccounts {
 		private string ValidateAuthServiceAuthenticationForAssociation(
 			AuthServiceAuthentication authentication
 		) {
-			if (this.GetSessionIdCookieValue() != authentication.SessionId) {
+			if (Request.Cookies.GetSessionIdCookieValue() != authentication.SessionId) {
 				return "InvalidSessionId";
 			}
 			if (DateTime.UtcNow.Subtract(authentication.DateAuthenticated) > TimeSpan.FromMinutes(5)) {
