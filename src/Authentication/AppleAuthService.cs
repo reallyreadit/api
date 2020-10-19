@@ -69,6 +69,106 @@ namespace api.Authentication {
 			}
 			return appleJwks.FirstOrDefault(key => key.Kid == kid);
 		}
+		private async Task<(AuthServiceAccount account, AuthServiceAuthentication authentication, string emailAddress, AuthenticationError? error)> VerifyCredentials(
+			string sessionId,
+			string rawIdToken,
+			string authCode,
+			string emailAddress,
+			AppleRealUserRating? appleRealUserRating,
+			UserAccountCreationAnalytics signUpAnalytics,
+			AppleClient client
+		) {
+			// check the session id
+			if (String.IsNullOrWhiteSpace(sessionId)) {
+				return (
+					account: null,
+					authentication: null,
+					emailAddress: null,
+					error: AuthenticationError.InvalidSessionId
+				);
+			}
+			// parse the id token and verify with apple
+			var idToken = new JwtSecurityToken(rawIdToken);
+			var tokenResponse = await VerifyIdToken(idToken, authCode, client);
+			if (tokenResponse == null) {
+				return (
+					account: null,
+					authentication: null,
+					emailAddress: null,
+					error: AuthenticationError.InvalidAuthToken
+				);
+			}
+			// resolve the provider user id
+			var providerUserId = idToken.Subject;
+			// resolve the provider user email address
+			var providerUserEmail = emailAddress ?? (string)idToken.Payload["email"];
+			object payloadIsPrivateEmailValue;
+			var isProviderUserEmailPrivate = (
+				idToken.Payload.TryGetValue("is_private_email", out payloadIsPrivateEmailValue) &&
+				(payloadIsPrivateEmailValue as string) == "true"
+			);
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				// look for an existing auth service account
+				var authServiceAccount = await db.GetAuthServiceAccountByProviderUserId(AuthServiceProvider.Apple, providerUserId);
+				if (authServiceAccount != null) {
+					// update the email address if necessary
+					if (authServiceAccount.ProviderUserEmailAddress != providerUserEmail) {
+						// update email address
+						authServiceAccount = await db.UpdateAuthServiceAccountUser(
+							identityId: authServiceAccount.IdentityId,
+							emailAddress: providerUserEmail,
+							isEmailAddressPrivate: isProviderUserEmailPrivate,
+							name: null,
+							handle: null
+						);
+					}
+				} else {
+					// create a new identity
+					AuthServiceRealUserRating? realUserRating;
+					switch (appleRealUserRating) {
+						case AppleRealUserRating.LikelyReal:
+							realUserRating = AuthServiceRealUserRating.LikelyReal;
+							break;
+						case AppleRealUserRating.Unknown:
+							realUserRating = AuthServiceRealUserRating.Unknown;
+							break;
+						case AppleRealUserRating.Unsupported:
+							realUserRating = AuthServiceRealUserRating.Unsupported;
+							break;
+						default:
+							realUserRating = null;
+							break;
+					}
+					authServiceAccount = await db.CreateAuthServiceIdentity(
+						provider: AuthServiceProvider.Apple,
+						providerUserId: providerUserId,
+						providerUserEmailAddress: providerUserEmail,
+						isEmailAddressPrivate: isProviderUserEmailPrivate,
+						providerUserName: null,
+						providerUserHandle: null,
+						realUserRating: realUserRating,
+						signUpAnalytics: signUpAnalytics
+					);
+				}
+				// create authentication
+				var authentication = await db.CreateAuthServiceAuthentication(
+					identityId: authServiceAccount.IdentityId,
+					sessionId: sessionId
+				);
+				// store the refresh token
+				await db.CreateAuthServiceRefreshToken(
+					identityId: authServiceAccount.IdentityId,
+					rawValue: tokenResponse.RefreshToken
+				);
+				// return the auth service account
+				return (
+					account: authServiceAccount,
+					authentication: authentication,
+					emailAddress: providerUserEmail,
+					error: null
+				);
+			}
+		}
 		private async Task<AppleTokenResponse> VerifyIdToken(JwtSecurityToken idToken, string authCode, AppleClient client) {
 			var tokenHandler = new JwtSecurityTokenHandler();
 			SecurityToken validatedIdToken;
@@ -145,86 +245,24 @@ namespace api.Authentication {
 			UserAccountCreationAnalytics signUpAnalytics,
 			AppleClient client
 		) {
-			// check the session id
-			if (String.IsNullOrWhiteSpace(sessionId)) {
-				return (
-					authenticationId: null,
-					user: null,
-					error: AuthenticationError.InvalidSessionId
-				);
-			}
-			// parse the id token and verify with apple
-			var idToken = new JwtSecurityToken(rawIdToken);
-			var tokenResponse = await VerifyIdToken(idToken, authCode, client);
-			if (tokenResponse == null) {
-				return (
-					authenticationId: null,
-					user: null,
-					error: AuthenticationError.InvalidAuthToken
-				);
-			}
-			// resolve the provider user id
-			var providerUserId = idToken.Subject;
-			// resolve the provider user email address
-			var providerUserEmail = emailAddress ?? (string)idToken.Payload["email"];
-			object payloadIsPrivateEmailValue;
-			var isProviderUserEmailPrivate = (
-				idToken.Payload.TryGetValue("is_private_email", out payloadIsPrivateEmailValue) &&
-				(payloadIsPrivateEmailValue as string) == "true"
+			// verify the credentials
+			var (authServiceAccount, authentication, providerUserEmail, error) = await VerifyCredentials(
+				sessionId: sessionId,
+				rawIdToken: rawIdToken,
+				authCode: authCode,
+				emailAddress: emailAddress,
+				appleRealUserRating: appleRealUserRating,
+				signUpAnalytics: signUpAnalytics,
+				client: client
 			);
+			if (error.HasValue) {
+				return (
+					authenticationId: null,
+					user: null,
+					error
+				);
+			}
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				// look for an existing auth service account
-				var authServiceAccount = await db.GetAuthServiceAccountByProviderUserId(AuthServiceProvider.Apple, providerUserId);
-				if (authServiceAccount != null) {
-					// update the email address if necessary
-					if (authServiceAccount.ProviderUserEmailAddress != providerUserEmail) {
-						// update email address
-						authServiceAccount = await db.UpdateAuthServiceAccountUser(
-							identityId: authServiceAccount.IdentityId,
-							emailAddress: providerUserEmail,
-							isEmailAddressPrivate: isProviderUserEmailPrivate,
-							name: null,
-							handle: null
-						);
-					}
-				} else {
-					// create a new identity
-					AuthServiceRealUserRating? realUserRating;
-					switch (appleRealUserRating) {
-						case AppleRealUserRating.LikelyReal:
-							realUserRating = AuthServiceRealUserRating.LikelyReal;
-							break;
-						case AppleRealUserRating.Unknown:
-							realUserRating = AuthServiceRealUserRating.Unknown;
-							break;
-						case AppleRealUserRating.Unsupported:
-							realUserRating = AuthServiceRealUserRating.Unsupported;
-							break;
-						default:
-							realUserRating = null;
-							break;
-					}
-					authServiceAccount = await db.CreateAuthServiceIdentity(
-						provider: AuthServiceProvider.Apple,
-						providerUserId: providerUserId,
-						providerUserEmailAddress: providerUserEmail,
-						isEmailAddressPrivate: isProviderUserEmailPrivate,
-						providerUserName: null,
-						providerUserHandle: null,
-						realUserRating: realUserRating,
-						signUpAnalytics: signUpAnalytics
-					);
-				}
-				// create authentication
-				var authentication = await db.CreateAuthServiceAuthentication(
-					identityId: authServiceAccount.IdentityId,
-					sessionId: sessionId
-				);
-				// store the refresh token
-				await db.CreateAuthServiceRefreshToken(
-					identityId: authServiceAccount.IdentityId,
-					rawValue: tokenResponse.RefreshToken
-				);
 				// check if the identity is associated with a user account
 				if (authServiceAccount.AssociatedUserAccountId.HasValue) {
 					return (
@@ -257,6 +295,48 @@ namespace api.Authentication {
 					error: null
 				);
 			}
+		}
+		public async Task<(AuthServiceAccount authServiceAccount, AuthenticationError? error )> LinkAccount(
+			string sessionId,
+			string rawIdToken,
+			string authCode,
+			string emailAddress,
+			AppleRealUserRating? appleRealUserRating,
+			UserAccountCreationAnalytics signUpAnalytics,
+			AppleClient client,
+			long userAccountId
+		) {
+			// verify the credentials
+			var (authServiceAccount, authentication, providerUserEmail, error) = await VerifyCredentials(
+				sessionId: sessionId,
+				rawIdToken: rawIdToken,
+				authCode: authCode,
+				emailAddress: emailAddress,
+				appleRealUserRating: appleRealUserRating,
+				signUpAnalytics: signUpAnalytics,
+				client: client
+			);
+			if (error.HasValue) {
+				return (
+					authServiceAccount: null,
+					error
+				);
+			}
+			// check if the identity is associated with a user account
+			if (!authServiceAccount.AssociatedUserAccountId.HasValue) {
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					authServiceAccount = await db.AssociateAuthServiceAccount(
+						identityId: authServiceAccount.IdentityId,
+						authenticationId: authentication.Id,
+						userAccountId: userAccountId,
+						associationMethod: AuthServiceAssociationMethod.Link
+					);
+				}
+			}
+			return (
+				authServiceAccount,
+				error
+			);
 		}
 	}
 }

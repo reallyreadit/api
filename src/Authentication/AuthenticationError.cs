@@ -3,6 +3,7 @@ namespace api.Authentication {
 		Cancelled = 1,
 		InvalidAuthToken = 2,
 		InvalidSessionId = 3,
-		EmailAddressRequired = 4
+		EmailAddressRequired = 4,
+		Unknown = 5
 	}
 }

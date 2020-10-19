@@ -9,6 +9,8 @@ namespace api.Configuration {
 		public string DeveloperWebServiceId { get; set; }
 		public string IdTokenIssuer { get; set; }
 		public string IdTokenValidationUrl { get; set; }
+		public string WebAuthPopupRedirectUrl { get; set; }
 		public string WebAuthRedirectUrl { get; set; }
+		public string WebAuthUrl { get; set; }
 	}
 }

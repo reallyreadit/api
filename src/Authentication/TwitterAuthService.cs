@@ -802,6 +802,17 @@ namespace api.Authentication {
 				signUpAnalytics: null
 			);
 		}
+		public async Task<TwitterRequestToken> GetBrowserPopupRequestToken(string requestId) {
+			return await GetRequestToken(
+				oauthCallback: authOptions.BrowserPopupCallback + QueryStringSerializer.Serialize(
+					new[] {
+						new KeyValuePair<string, string>("readup_request_id", requestId)
+					},
+					includePrefix: true
+				),
+				signUpAnalytics: null
+			);
+		}
 		public async Task<TwitterRequestToken> GetWebViewRequestToken() {
 			return await GetRequestToken(
 				oauthCallback: authOptions.WebViewCallback,
