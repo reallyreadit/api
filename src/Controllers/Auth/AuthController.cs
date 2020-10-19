@@ -143,7 +143,7 @@ namespace api.Controllers.Auth {
 		public async Task<IActionResult> AppleWeb(
 			[FromServices] AppleAuthService appleAuthService,
 			[FromServices] AuthenticationService authService,
-			[FromForm] AppleWebForm form
+			[FromForm] AppleWebRedirectForm form
 		) {
 			// check if the user cancelled the authentication
 			if (!String.IsNullOrWhiteSpace(form.Error)) {
