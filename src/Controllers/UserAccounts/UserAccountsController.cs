@@ -226,15 +226,34 @@ namespace api.Controllers.UserAccounts {
 				}
 				var authServiceAccount = await db.GetAuthServiceAccountByIdentityId(authentication.IdentityId);
 				try {
-					var userAccount = await db.CreateUserAccount(
-						name: form.Name,
-						email: authServiceAccount.ProviderUserEmailAddress,
-						passwordHash: null,
-						passwordSalt: null,
-						timeZoneId: GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName),
-						theme: form.Theme,
-						analytics: authServiceAccount.IdentitySignUpAnalytics
-					);
+					UserAccount userAccount;
+					var timeZoneId = GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName);
+					if (
+						!String.IsNullOrWhiteSpace(authServiceAccount.IdentitySignUpAnalytics)
+					) {
+						userAccount = await db.CreateUserAccount(
+							name: form.Name,
+							email: authServiceAccount.ProviderUserEmailAddress,
+							passwordHash: null,
+							passwordSalt: null,
+							timeZoneId: timeZoneId,
+							theme: form.Theme,
+							analytics: authServiceAccount.IdentitySignUpAnalytics
+						);
+					} else {
+						userAccount = await db.CreateUserAccount(
+							name: form.Name,
+							email: authServiceAccount.ProviderUserEmailAddress,
+							passwordHash: null,
+							passwordSalt: null,
+							timeZoneId: timeZoneId,
+							theme: form.Theme,
+							analytics: new UserAccountCreationAnalytics(
+								client: this.GetClientAnalytics(),
+								form: form.Analytics
+							)
+						);
+					}
 					await db.AssociateAuthServiceAccount(
 						identityId: authServiceAccount.IdentityId,
 						authenticationId: authentication.Id,
