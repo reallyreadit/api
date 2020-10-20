@@ -236,10 +236,17 @@ namespace api {
 			// configure routing
 			app.UseRouting();
 			// configure cors
+			var corsOptions = config
+				.GetSection("Cors")
+				.Get<CorsOptions>();
 			app.UseCors(
 				cors => cors
 					.SetIsOriginAllowed(
-						_ => true
+						origin => corsOptions.AllowedOrigins.Any(
+							allowedOrigin => allowedOrigin.EndsWith("://") ?
+								origin.StartsWith(allowedOrigin) :
+								origin == allowedOrigin
+						)
 					)
 					.AllowCredentials()
 					.AllowAnyHeader()
