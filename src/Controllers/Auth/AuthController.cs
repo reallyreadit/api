@@ -96,8 +96,8 @@ namespace api.Controllers.Auth {
 				apiServerHost: serviceOpts.ApiServer.Host
 			);
 			return Redirect(
-				serviceOpts.WebServer.CreateUrl(
-					"/auth-service-popup-handler/index.html"
+				serviceOpts.StaticContentServer.CreateUrl(
+					"/common/auth-service-popup-handler/v1/index.html"
 				)
 			);
 		}
