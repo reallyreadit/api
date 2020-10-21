@@ -285,6 +285,22 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<ProvisionalUserArticle> CreateProvisionalUserArticle(
+			this NpgsqlConnection conn,
+			long articleId,
+			long provisionalUserAccountId,
+			int readableWordCount,
+			ClientAnalytics analytics
+		) => await conn.QuerySingleOrDefaultAsync<ProvisionalUserArticle>(
+			sql: "article_api.create_provisional_user_article",
+			param: new {
+				article_id = articleId,
+				provisional_user_account_id = provisionalUserAccountId,
+				readable_word_count = readableWordCount,
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Source CreateSource(this NpgsqlConnection conn, string name, string url, string hostname, string slug) => conn.QuerySingleOrDefault<Source>(
 			sql: "article_api.create_source",
 			param: new { name, url, hostname, slug },
@@ -340,6 +356,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<Article> GetArticleForProvisionalUser(
+			this NpgsqlConnection conn,
+			long articleId,
+			long provisionalUserAccountId
+		) => await conn.QuerySingleOrDefaultAsync<Article>(
+			sql: "article_api.get_article_for_provisional_user",
+			param: new {
+				article_id = articleId,
+				provisional_user_account_id = provisionalUserAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<PageResult<Article>> GetArticleHistory(
 			this NpgsqlConnection conn,
 			long userAccountId,
@@ -375,6 +403,18 @@ namespace api.DataAccess {
 		public static Page GetPage(this NpgsqlConnection conn, long pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
 			param: new { page_id = pageId },
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<ProvisionalUserArticle> GetProvisionalUserArticle(
+			this NpgsqlConnection conn,
+			long articleId,
+			long provisionalUserAccountId
+		) => await conn.QuerySingleOrDefaultAsync<ProvisionalUserArticle>(
+			sql: "article_api.get_provisional_user_article",
+			param: new {
+				article_id = articleId,
+				provisional_user_account_id = provisionalUserAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<Source> GetSourceOfArticle(
@@ -478,6 +518,22 @@ namespace api.DataAccess {
 				page_id = pageId,
 				word_count = wordCount,
 				readable_word_count = readableWordCount
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<ProvisionalUserArticle> UpdateProvisionalReadProgress(
+			this NpgsqlConnection conn,
+			long provisionalUserAccountId,
+			long articleId,
+			int[] readState,
+			ClientAnalytics analytics
+		) => await conn.QuerySingleOrDefaultAsync<ProvisionalUserArticle>(
+			sql: "article_api.update_provisional_read_progress",
+			param: new {
+				provisional_user_account_id = provisionalUserAccountId,
+				article_id = articleId,
+				read_state = readState,
+				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1836,6 +1892,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<ProvisionalUserAccount> CreateProvisionalUserAccount(
+			this NpgsqlConnection conn,
+			UserAccountProvisionalCreationAnalytics analytics
+		) => await conn.QuerySingleOrDefaultAsync<ProvisionalUserAccount>(
+			sql: "user_account_api.create_provisional_user_account",
+			param: new {
+				analytics = PostgresJsonSerialization.Serialize(analytics)
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<UserAccount> CreateUserAccount(
 			this NpgsqlConnection conn,
 			string name,
@@ -2025,6 +2091,18 @@ namespace api.DataAccess {
 		);
 		public static IEnumerable<UserAccount> GetUserAccounts(this NpgsqlConnection conn) => conn.Query<UserAccount>(
 			sql: "user_account_api.get_user_accounts",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<ProvisionalUserAccount> MergeProvisionalUserAccount(
+			this NpgsqlConnection conn,
+			long provisionalUserAccountId,
+			long userAccountId
+		) => await conn.QuerySingleAsync<ProvisionalUserAccount>(
+			sql: "user_account_api.merge_provisional_user_account",
+			param: new {
+				provisional_user_account_id = provisionalUserAccountId,
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<UserAccount> RegisterOrientationCompletion(

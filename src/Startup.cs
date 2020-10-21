@@ -67,6 +67,7 @@ namespace api {
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
 				.Configure<MyCookieOptions>(cookieConfigSection)
 				.Configure<DatabaseOptions>(config.GetSection("Database"))
+				.Configure<EmbedOptions>(config.GetSection("Embed"))
 				.Configure<EmailOptions>(emailOptsConfigSection)
 				.Configure<HashidsOptions>(config.GetSection("Hashids"))
 				.Configure<PushNotificationsOptions>(pushOptsConfigSection)

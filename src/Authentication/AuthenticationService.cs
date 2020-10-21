@@ -2,25 +2,38 @@ using System;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using api.Configuration;
+using api.Cookies;
+using api.DataAccess;
 using api.DataAccess.Models;
 using api.Notifications;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.AspNetCore.Http;
+using IHttpContextAccessor = Microsoft.AspNetCore.Http.IHttpContextAccessor;
 using Microsoft.Extensions.Options;
+using Npgsql;
+using Microsoft.Extensions.Logging;
 
 namespace api.Authentication {
 	public class AuthenticationService {
+		private readonly CookieOptions cookieOptions;
 		private readonly DatabaseOptions databaseOptions;
 		private readonly IHttpContextAccessor httpContextAccessor;
+		private readonly ILogger<AuthenticationService> logger;
 		private readonly NotificationService notificationService;
+		private readonly TokenizationOptions tokenizationOptions;
 		public AuthenticationService(
+			IOptions<CookieOptions> cookieOptions,
 			IOptions<DatabaseOptions> databaseOptions,
 			IHttpContextAccessor httpContextAccessor,
-			NotificationService notificationService
+			ILogger<AuthenticationService> logger,
+			NotificationService notificationService,
+			IOptions<TokenizationOptions> tokenizationOptions
 		) {
+			this.cookieOptions = cookieOptions.Value;
 			this.databaseOptions = databaseOptions.Value;
 			this.httpContextAccessor = httpContextAccessor;
+			this.logger = logger;
 			this.notificationService = notificationService;
+			this.tokenizationOptions = tokenizationOptions.Value;
 		}
 		public async Task SignIn(
 			UserAccount user,
@@ -45,15 +58,42 @@ namespace api.Authentication {
 				}
 			);
 			httpContextAccessor.HttpContext.User = principal;
+			// merge provision account if present
+			var provisionalUserAccountId = httpContextAccessor.HttpContext.Request.Cookies.GetProvisionalSessionKeyCookieValue(this.tokenizationOptions);
+			if (provisionalUserAccountId.HasValue) {
+				try {
+					using (var dbConnection = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+						await dbConnection.MergeProvisionalUserAccount(
+							provisionalUserAccountId: provisionalUserAccountId.Value,
+							userAccountId: user.Id
+						);
+					}
+				} catch (Exception exception) {
+					if ((exception as PostgresException)?.SqlState == "RU001") {
+						logger.LogError(
+							exception,
+							"Provisional user account has already been merged. Provisional user account id: {Id}",
+							provisionalUserAccountId.Value.ToString()
+						);
+					} else {
+						logger.LogError(
+							exception,
+							"Unexpected error occurred attempted to merge provisional user account. Provisional user account id: {Id}",
+							provisionalUserAccountId.Value.ToString()
+						);
+					}
+				}
+				httpContextAccessor.HttpContext.Response.Cookies.ClearProvisionalSessionKeyCookie(cookieOptions);
+			}
 			// register the push device
 			if (pushDeviceForm?.IsValid() ?? false) {
 				try {
-				await notificationService.RegisterPushDevice(
-					userAccountId: user.Id,
-					installationId: pushDeviceForm.InstallationId,
-					name: pushDeviceForm.Name,
-					token: pushDeviceForm.Token
-				);
+					await notificationService.RegisterPushDevice(
+						userAccountId: user.Id,
+						installationId: pushDeviceForm.InstallationId,
+						name: pushDeviceForm.Name,
+						token: pushDeviceForm.Token
+					);
 				} catch (Exception exception) {
 					logger.LogError(exception, "Failed to register push device during authentication.");
 				}

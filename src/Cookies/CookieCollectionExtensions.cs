@@ -2,17 +2,39 @@ using System;
 using System.Linq;
 using System.Text.RegularExpressions;
 using api.Analytics;
+using api.Encryption;
 using Microsoft.AspNetCore.Http;
 using MyCookieOptions = api.Configuration.CookieOptions;
+using TokenizationOptions = api.Configuration.TokenizationOptions;
 
 namespace api.Cookies {
 	public static class CookieCollectionExtensions {
 		private static readonly string authServiceBrowserPopupVariableName = "AuthServiceBrowserPopup";
 		private static readonly string extensionInstallationRedirectPathCookieKey = "extensionInstallationRedirectPath";
 		private static readonly string extensionVersionCookieKey = "extensionVersion";
+		private static readonly string provisionalSessionKeyCookieKey = "provisionalSessionKey";
 		private static readonly string sessionIdCookieKey = "sessionId";
 		private static readonly string variableCookieKeyPrefix = "_var";
 		private static readonly char variableCookieKeySeparator = '.';
+		private static CookieOptions GetProvisionalSessionKeyCookieOptions(
+			MyCookieOptions cookieOptions
+		) => new CookieOptions() {
+			Domain = cookieOptions.Domain,
+			HttpOnly = true,
+			MaxAge = null,
+			Path = "/",
+			SameSite = SameSiteMode.None,
+			Secure = true
+		};
+		public static void ClearProvisionalSessionKeyCookie(
+			this IResponseCookies cookies,
+			MyCookieOptions cookieOptions
+		) {
+			cookies.Delete(
+				key: provisionalSessionKeyCookieKey,
+				options: GetProvisionalSessionKeyCookieOptions(cookieOptions)
+			);
+		}
 		public static string GetAuthServiceBrowserPopupCookieValue(
 			this IRequestCookieCollection cookies,
 			string requestId
@@ -53,6 +75,25 @@ namespace api.Cookies {
 				} catch {
 					return null;
 				}
+			}
+			return null;
+		}
+		public static long? GetProvisionalSessionKeyCookieValue(
+			this IRequestCookieCollection cookies,
+			TokenizationOptions tokenizationOptions
+		) {
+			string provisionalSessionKey;
+			if (
+				cookies.TryGetValue(provisionalSessionKeyCookieKey, out provisionalSessionKey)
+			) {
+				return Int64.Parse(
+					StringEncryption.Decrypt(
+						text: UrlSafeBase64.Decode(
+							provisionalSessionKey
+						),
+						key: tokenizationOptions.EncryptionKey
+					)
+				);
 			}
 			return null;
 		}
@@ -100,6 +141,47 @@ namespace api.Cookies {
 					Domain = cookieOptions.Domain,
 					HttpOnly = false,
 					MaxAge = TimeSpan.FromDays(365),
+					Path = "/",
+					SameSite = SameSiteMode.None,
+					Secure = true
+				}
+			);
+		}
+		public static void SetProvisionalSessionKeyCookie(
+			this IResponseCookies cookies,
+			long id,
+			TokenizationOptions tokenizationOptions,
+			MyCookieOptions cookieOptions
+		) {
+			cookies.Append(
+				key: provisionalSessionKeyCookieKey,
+				value: UrlSafeBase64.Encode(
+					StringEncryption.Encrypt(
+						text: id.ToString(),
+						key: tokenizationOptions.EncryptionKey
+					)
+				),
+				options: GetProvisionalSessionKeyCookieOptions(cookieOptions)
+			);
+		}
+		public static void SetSessionIdCookie(
+			this IResponseCookies cookies,
+			MyCookieOptions cookieOptions
+		) {
+			var bytes = new byte[8];
+			var random = new Random();
+			random.NextBytes(bytes);
+			cookies.Append(
+				key: sessionIdCookieKey,
+				value: String.Concat(
+					bytes.Select(
+						b => b.ToString("x2")
+					)
+				),
+				options: new CookieOptions() {
+					Domain = cookieOptions.Domain,
+					HttpOnly = true,
+					MaxAge = null,
 					Path = "/",
 					SameSite = SameSiteMode.None,
 					Secure = true
