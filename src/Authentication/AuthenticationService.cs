@@ -87,16 +87,12 @@ namespace api.Authentication {
 			}
 			// register the push device
 			if (pushDeviceForm?.IsValid() ?? false) {
-				try {
-					await notificationService.RegisterPushDevice(
-						userAccountId: user.Id,
-						installationId: pushDeviceForm.InstallationId,
-						name: pushDeviceForm.Name,
-						token: pushDeviceForm.Token
-					);
-				} catch (Exception exception) {
-					logger.LogError(exception, "Failed to register push device during authentication.");
-				}
+				await notificationService.RegisterPushDevice(
+					userAccountId: user.Id,
+					installationId: pushDeviceForm.InstallationId,
+					name: pushDeviceForm.Name,
+					token: pushDeviceForm.Token
+				);
 			}
 		}
 		public async Task SignOut(

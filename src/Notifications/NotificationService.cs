@@ -1130,7 +1130,18 @@ namespace api.Notifications {
 			string token
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				await db.RegisterNotificationPushDevice(userAccountId, installationId, name, token);
+				try {
+					await db.RegisterNotificationPushDevice(userAccountId, installationId, name, token);
+				} catch (Exception ex) {
+					logger.LogError(
+						ex,
+						"Failed to register push device. UserId: {UserId}, InstallationId: {InstallationId}, Name: {Name}, Token: {Token}",
+						userAccountId,
+						installationId,
+						name,
+						token
+					);
+				}
 			}
 		}
 		public async Task UnregisterPushDevice(
