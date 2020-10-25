@@ -981,10 +981,18 @@ namespace api.Notifications {
 		public async Task<Uri> ProcessEmailLink(
 			string tokenString
 		) {
-			var token = new EmailLinkToken(
-				tokenString: tokenString,
-				key: tokenizationOptions.EncryptionKey
-			);
+			EmailLinkToken token;
+			try {
+				token = new EmailLinkToken(
+					tokenString: tokenString,
+					key: tokenizationOptions.EncryptionKey
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to parse email link token. Token: {Token}", tokenString);
+				return new Uri(
+					endpoints.WebServer.CreateUrl()
+				);
+			}
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				return (
 					token.ReceiptId != 0 ?
