@@ -842,11 +842,13 @@ namespace api.Controllers.UserAccounts {
 		[HttpPost]
 		public async Task<JsonResult> OrientationCompletion() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(
-					await db.RegisterOrientationCompletion(
-						userAccountId: User.GetUserAccountId()
-					)
-				);
+				var userAccountId = User.GetUserAccountId();
+				var userAccount = await db.RegisterOrientationCompletion(userAccountId);
+				if (userAccount == null) {
+					log.LogError("Duplicate orientation completion registration. UserId: {UserId}", userAccountId);
+					userAccount = await db.GetUserAccountById(userAccountId);
+				}
+				return Json(userAccount);
 			}
 		}
 

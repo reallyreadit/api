@@ -2108,7 +2108,7 @@ namespace api.DataAccess {
 		public static async Task<UserAccount> RegisterOrientationCompletion(
 			this NpgsqlConnection conn,
 			long userAccountId
-		) => await conn.QuerySingleAsync<UserAccount>(
+		) => await conn.QuerySingleOrDefaultAsync<UserAccount>(
 			sql: "user_account_api.register_orientation_completion",
 			param: new {
 				user_account_id = userAccountId
