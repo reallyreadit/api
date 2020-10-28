@@ -17,6 +17,7 @@ using api.Commenting;
 using api.ReadingVerification;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Caching.Memory;
 
 namespace api.Controllers.Social {
 	public class SocialController : Controller {
@@ -125,6 +126,7 @@ namespace api.Controllers.Social {
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<IActionResult> Comments(
+			[FromServices] IMemoryCache memoryCache,
 			[FromServices] ObfuscationService obfuscationService,
 			[FromServices] ReadingVerificationService verificationService,
 			[FromQuery] CommentsQuery query
@@ -132,9 +134,18 @@ namespace api.Controllers.Social {
 			var userAccountId = User.GetUserAccountIdOrDefault();
 			CommentThread[] comments;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var leaderboards = await db.GetLeaderboards(
-					userAccountId: userAccountId ?? 0,
-					now: DateTime.UtcNow
+				var leaderboards = await memoryCache.GetOrCreateAsync<Leaderboards>(
+					"Leaderboards",
+					async entry => {
+						logger.LogInformation("Caching Leaderboards");
+						entry.SetAbsoluteExpiration(
+							TimeSpan.FromMinutes(1)
+						);
+						return await db.GetLeaderboards(
+							userAccountId: userAccountId,
+							now: DateTime.UtcNow
+						);
+					}
 				);
 				var article = await db.FindArticle(query.Slug, userAccountId);
 				if (article == null) {
