@@ -322,11 +322,11 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static Article FindArticle(
+		public static async Task<Article> FindArticle(
 			this NpgsqlConnection conn,
 			string slug,
 			long? userAccountId
-		) => conn.QuerySingleOrDefault<Article>(
+		) => await conn.QuerySingleOrDefaultAsync<Article>(
 			sql: "article_api.find_article",
 			param: new {
 				slug,

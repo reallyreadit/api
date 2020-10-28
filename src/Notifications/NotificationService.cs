@@ -435,7 +435,7 @@ namespace api.Notifications {
 			IEnumerable<NotificationEmailDispatch> dispatches;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				foreach (var match in linkMatches) {
-					var article = db.FindArticle(match.Groups[2].Value.Split(':')?[1], null);
+					var article = await db.FindArticle(match.Groups[2].Value.Split(':')?[1], null);
 					if (article == null) {
 						throw new ArgumentException("Invalid article slug");
 					}

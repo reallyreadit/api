@@ -190,13 +190,13 @@ namespace api.Controllers.Articles {
 		}
 		[AllowAnonymous]
 		[HttpGet]
-		public IActionResult Details(
+		public async Task<IActionResult> Details(
 			[FromServices] ReadingVerificationService verificationService,
 			string slug
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountIdOrDefault();
-				var article = db.FindArticle(slug, userAccountId);
+				var article = await db.FindArticle(slug, userAccountId);
 				if (article == null) {
 					log.LogError("Article lookup failed. Slug: {Slug}", slug);
 					return BadRequest(
@@ -432,7 +432,7 @@ namespace api.Controllers.Articles {
 			[FromQuery] TwitterCardMetadataRequest request
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var article = db.FindArticle(request.Slug, null);
+				var article = await db.FindArticle(request.Slug, null);
 				if (article == null) {
 					log.LogError("Article lookup failed. Slug: {Slug}", request.Slug);
 					return BadRequest(
