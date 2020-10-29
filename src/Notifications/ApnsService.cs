@@ -70,36 +70,40 @@ namespace api.Notifications {
 							if (notification.ReceiptId.HasValue) {
 								request.Headers.Add("apns-collapse-id", obfuscation.Encode(notification.ReceiptId.Value));
 							}
-							var response = await client.SendAsync(request);
-							if (!response.IsSuccessStatusCode) {
-								ApnsResponse apnsResponse;
-								Exception apnsResponseParseException;
-								try {
-									apnsResponse = JsonSerializer.Deserialize<ApnsResponse>(
-										json: await response.Content.ReadAsStringAsync(),
-										options: new JsonSerializerOptions()
-										{
-											AllowTrailingCommas = true,
-											PropertyNameCaseInsensitive = true
-										}
+							try {
+								var response = await client.SendAsync(request);
+								if (!response.IsSuccessStatusCode) {
+									ApnsResponse apnsResponse;
+									Exception apnsResponseParseException;
+									try {
+										apnsResponse = JsonSerializer.Deserialize<ApnsResponse>(
+											json: await response.Content.ReadAsStringAsync(),
+											options: new JsonSerializerOptions()
+											{
+												AllowTrailingCommas = true,
+												PropertyNameCaseInsensitive = true
+											}
+										);
+										apnsResponseParseException = null;
+									} catch (Exception ex) {
+										apnsResponse = null;
+										apnsResponseParseException = ex;
+									}
+									logger.LogError(
+										"APNs dispatch failed. Status code: {StatusCode} Apns reason: {ApnsReason} Request content: {RequestContent}",
+										response.StatusCode.ToString(),
+										apnsResponse?.Reason,
+										requestContent
 									);
-									apnsResponseParseException = null;
-								} catch (Exception ex) {
-									apnsResponse = null;
-									apnsResponseParseException = ex;
+									if (apnsResponse != null) {
+										errors.Add((token, apnsResponse));
+									}
+									if (apnsResponseParseException != null) {
+										logger.LogError(apnsResponseParseException, "Failed to parse APNs response");
+									}
 								}
-								logger.LogError(
-									"APNs dispatch failed. Status code: {StatusCode} Apns reason: {ApnsReason} Request content: {RequestContent}",
-									response.StatusCode.ToString(),
-									apnsResponse?.Reason,
-									requestContent
-								);
-								if (apnsResponse != null) {
-									errors.Add((token, apnsResponse));
-								}
-								if (apnsResponseParseException != null) {
-									logger.LogError(apnsResponseParseException, "Failed to parse APNs response");
-								}
+							} catch (Exception ex) {
+								logger.LogError(ex, "HttpClient error during APNs dispatch.");
 							}
 						}
 					}

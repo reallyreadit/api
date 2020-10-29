@@ -292,21 +292,26 @@ namespace api.Authentication {
 				accessToken: null
 			);
 			string responseContent;
-			using (var client = httpClientFactory.CreateClient())
-			using (var response = await client.SendAsync(message)) {
-				responseContent = await response.Content.ReadAsStringAsync();
-				if (!response.IsSuccessStatusCode) {
-					logger.LogError("Twitter OAuth verification failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
-					return null;
+			try {
+				using (var client = httpClientFactory.CreateClient())
+				using (var response = await client.SendAsync(message)) {
+					responseContent = await response.Content.ReadAsStringAsync();
+					if (!response.IsSuccessStatusCode) {
+						logger.LogError("Twitter OAuth verification failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+						return null;
+					}
 				}
+				var form = HttpUtility.ParseQueryString(responseContent);
+				return new TwitterAccessToken(
+					oauthToken: form["oauth_token"],
+					oauthTokenSecret: form["oauth_token_secret"],
+					screenName: form["screen_name"],
+					userId: form["user_id"]
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "HttpClient error during Twitter OAuth verification.");
+				return null;
 			}
-			var form = HttpUtility.ParseQueryString(responseContent);
-			return new TwitterAccessToken(
-				oauthToken: form["oauth_token"],
-				oauthTokenSecret: form["oauth_token_secret"],
-				screenName: form["screen_name"],
-				userId: form["user_id"]
-			);
 		}
 		private async Task<TwitterRequestToken> GetRequestToken(
 			string oauthCallback,
@@ -323,30 +328,35 @@ namespace api.Authentication {
 				accessToken: null
 			);
 			string responseContent;
-			using (var client = httpClientFactory.CreateClient())
-			using (var response = await client.SendAsync(message)) {
-				responseContent = await response.Content.ReadAsStringAsync();
-				if (!response.IsSuccessStatusCode) {
-					logger.LogError("Twitter OAuth request failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
-					return null;
+			try {
+				using (var client = httpClientFactory.CreateClient())
+				using (var response = await client.SendAsync(message)) {
+					responseContent = await response.Content.ReadAsStringAsync();
+					if (!response.IsSuccessStatusCode) {
+						logger.LogError("Twitter OAuth request failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+						return null;
+					}
 				}
-			}
-			var form = HttpUtility.ParseQueryString(responseContent);
-			if (form["oauth_callback_confirmed"] != "true") {
-				logger.LogError("Twitter OAuth request callback not confirmed. Response: {Content}", responseContent);
-			}
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				var requestToken = await db.CreateAuthServiceRequestToken(
-					provider: AuthServiceProvider.Twitter,
-					tokenValue: form["oauth_token"],
-					tokenSecret: form["oauth_token_secret"],
-					signUpAnalytics: signUpAnalytics
-				);
-				return new TwitterRequestToken(
-					oauthToken: requestToken.TokenValue,
-					oauthTokenSecret: requestToken.TokenSecret,
-					oauthCallbackConfirmed: true
-				);
+				var form = HttpUtility.ParseQueryString(responseContent);
+				if (form["oauth_callback_confirmed"] != "true") {
+					logger.LogError("Twitter OAuth request callback not confirmed. Response: {Content}", responseContent);
+				}
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					var requestToken = await db.CreateAuthServiceRequestToken(
+						provider: AuthServiceProvider.Twitter,
+						tokenValue: form["oauth_token"],
+						tokenSecret: form["oauth_token_secret"],
+						signUpAnalytics: signUpAnalytics
+					);
+					return new TwitterRequestToken(
+						oauthToken: requestToken.TokenValue,
+						oauthTokenSecret: requestToken.TokenSecret,
+						oauthCallbackConfirmed: true
+					);
+				}
+			} catch (Exception ex) {
+				logger.LogError(ex, "HttpClient error during Twitter OAuth token request.");
+				return null;
 			}
 		}
 		private async Task<TwitterUser> GetTwitterUser(
@@ -365,15 +375,20 @@ namespace api.Authentication {
 				accessToken: accessToken
 			);
 			string responseContent;
-			using (var client = httpClientFactory.CreateClient())
-			using (var response = await client.SendAsync(message)) {
-				responseContent = await response.Content.ReadAsStringAsync();
-				if (!response.IsSuccessStatusCode) {
-					logger.LogError("Twitter credentials verification failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
-					return null;
+			try {
+				using (var client = httpClientFactory.CreateClient())
+				using (var response = await client.SendAsync(message)) {
+					responseContent = await response.Content.ReadAsStringAsync();
+					if (!response.IsSuccessStatusCode) {
+						logger.LogError("Twitter credentials verification failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+						return null;
+					}
 				}
+				return JsonSnakeCaseSerializer.Deserialize<TwitterUser>(responseContent);
+			} catch (Exception ex) {
+				logger.LogError(ex, "HttpClient error during Twitter credentials verification.");
+				return null;
 			}
-			return JsonSnakeCaseSerializer.Deserialize<TwitterUser>(responseContent);
 		}
 		private IOrderedEnumerable<KeyValuePair<string, string>> PercentEncodeAndOrderKeyValuePairs(
 			IEnumerable<KeyValuePair<string, string>> keyValuePairs
@@ -407,15 +422,20 @@ namespace api.Authentication {
 				accessToken: authOptions.SearchAccount
 			);
 			string responseContent;
-			using (var client = httpClientFactory.CreateClient())
-			using (var response = await client.SendAsync(message)) {
-				responseContent = await response.Content.ReadAsStringAsync();
-				if (!response.IsSuccessStatusCode) {
-					logger.LogError("Twitter user search failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
-					return null;
+			try {
+				using (var client = httpClientFactory.CreateClient())
+				using (var response = await client.SendAsync(message)) {
+					responseContent = await response.Content.ReadAsStringAsync();
+					if (!response.IsSuccessStatusCode) {
+						logger.LogError("Twitter user search failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+						return null;
+					}
 				}
+				return JsonSnakeCaseSerializer.Deserialize<TwitterUserSearchResult[]>(responseContent);
+			} catch (Exception ex) {
+				logger.LogError(ex, "HttpClient error during Twitter user search.");
+				return new TwitterUserSearchResult[0];
 			}
-			return JsonSnakeCaseSerializer.Deserialize<TwitterUserSearchResult[]>(responseContent);
 		}
 		private async Task TweetFromLinkedAccounts(
 			Comment comment,
@@ -546,27 +566,32 @@ namespace api.Authentication {
 				)
 			);
 			string responseContent;
-			using (var client = httpClientFactory.CreateClient())
-			using (var response = await client.SendAsync(message)) {
-				responseContent = await response.Content.ReadAsStringAsync();
-				if (!response.IsSuccessStatusCode) {
-					logger.LogError("Twitter status update failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
-					try {
-						var errorResponse = JsonSnakeCaseSerializer.Deserialize<TwitterErrorResponse>(responseContent);
-						if (errorResponse.Errors.Any(error => error.Code == 89)) {
-							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-								await db.DisassociateAuthServiceAccount(
-									identityId: account.IdentityId
-								);
+			try {
+				using (var client = httpClientFactory.CreateClient())
+				using (var response = await client.SendAsync(message)) {
+					responseContent = await response.Content.ReadAsStringAsync();
+					if (!response.IsSuccessStatusCode) {
+						logger.LogError("Twitter status update failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+						try {
+							var errorResponse = JsonSnakeCaseSerializer.Deserialize<TwitterErrorResponse>(responseContent);
+							if (errorResponse.Errors.Any(error => error.Code == 89)) {
+								using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+									await db.DisassociateAuthServiceAccount(
+										identityId: account.IdentityId
+									);
+								}
 							}
+						} catch {
+							// swallow
 						}
-					} catch {
-						// swallow
+						return null;
 					}
-					return null;
 				}
+				return JsonSnakeCaseSerializer.Deserialize<TwitterTweet>(responseContent);
+			} catch (Exception ex) {
+				logger.LogError(ex, "HttpClient error during Twitter status update.");
+				return null;
 			}
-			return JsonSnakeCaseSerializer.Deserialize<TwitterTweet>(responseContent);
 		}
 		private async Task<TwitterMediaUpload> UploadImage(
 			byte[] imageData,
@@ -595,27 +620,32 @@ namespace api.Authentication {
 				)
 			);
 			string responseContent;
-			using (var client = httpClientFactory.CreateClient())
-			using (var response = await client.SendAsync(message)) {
-				responseContent = await response.Content.ReadAsStringAsync();
-				if (!response.IsSuccessStatusCode) {
-					logger.LogError("Twitter media upload failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
-					try {
-						var errorResponse = JsonSnakeCaseSerializer.Deserialize<TwitterErrorResponse>(responseContent);
-						if (errorResponse.Errors.Any(error => error.Code == 89)) {
-							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-								await db.DisassociateAuthServiceAccount(
-									identityId: account.IdentityId
-								);
+			try {
+				using (var client = httpClientFactory.CreateClient())
+				using (var response = await client.SendAsync(message)) {
+					responseContent = await response.Content.ReadAsStringAsync();
+					if (!response.IsSuccessStatusCode) {
+						logger.LogError("Twitter media upload failed. Status code: {StatusCode} Response: {Content}", response.StatusCode, responseContent);
+						try {
+							var errorResponse = JsonSnakeCaseSerializer.Deserialize<TwitterErrorResponse>(responseContent);
+							if (errorResponse.Errors.Any(error => error.Code == 89)) {
+								using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+									await db.DisassociateAuthServiceAccount(
+										identityId: account.IdentityId
+									);
+								}
 							}
+						} catch {
+							// swallow
 						}
-					} catch {
-						// swallow
+						return null;
 					}
-					return null;
 				}
+				return JsonSnakeCaseSerializer.Deserialize<TwitterMediaUpload>(responseContent);
+			} catch (Exception ex) {
+				logger.LogError(ex, "HttpClient error during Twitter media upload.");
+				return null;
 			}
-			return JsonSnakeCaseSerializer.Deserialize<TwitterMediaUpload>(responseContent);
 		}
 		private async Task<( AuthServiceAccount account, AuthServiceAuthentication authentication, AuthenticationError? error )> VerifyRequestToken(
 			string sessionId,
@@ -637,6 +667,13 @@ namespace api.Authentication {
 			}
 			// verify the credentials
 			var user = await GetTwitterUser(accessToken);
+			if (user == null) {
+				return (
+					account: null,
+					authentication: null,
+					error: AuthenticationError.InvalidAuthToken
+				);
+			}
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				// look for an existing auth service account
 				var authServiceAccount = await db.GetAuthServiceAccountByProviderUserId(AuthServiceProvider.Twitter, accessToken.UserId);

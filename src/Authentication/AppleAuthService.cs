@@ -211,25 +211,29 @@ namespace api.Authentication {
 				if (client == AppleClient.Web) {
 					requestFormValues.Add("redirect_uri", authOptions.WebAuthRedirectUrl);
 				}
-				using (var httpClient = httpClientFactory.CreateClient())
-				using (
-					var response = await httpClient.PostAsync(
-						authOptions.IdTokenValidationUrl,
-						new FormUrlEncodedContent(requestFormValues)
-					)
-				) {
-					var content = await response.Content.ReadAsStringAsync();
-					if (response.IsSuccessStatusCode) {
-						var tokenResponse = JsonSnakeCaseSerializer.Deserialize<AppleTokenResponse>(content);
-						return tokenResponse;
-					} else {
-						var errorResponse = JsonSnakeCaseSerializer.Deserialize<AppleErrorResponse>(content);
-						logger.LogError(
-							"Error verifying Apple ID token. Error: {Error} Token value: {TokenValue}",
-							errorResponse.Error,
-							idToken.RawData
-						);
+				try {
+					using (var httpClient = httpClientFactory.CreateClient())
+					using (
+						var response = await httpClient.PostAsync(
+							authOptions.IdTokenValidationUrl,
+							new FormUrlEncodedContent(requestFormValues)
+						)
+					) {
+						var content = await response.Content.ReadAsStringAsync();
+						if (response.IsSuccessStatusCode) {
+							var tokenResponse = JsonSnakeCaseSerializer.Deserialize<AppleTokenResponse>(content);
+							return tokenResponse;
+						} else {
+							var errorResponse = JsonSnakeCaseSerializer.Deserialize<AppleErrorResponse>(content);
+							logger.LogError(
+								"Error verifying Apple ID token. Error: {Error} Token value: {TokenValue}",
+								errorResponse.Error,
+								idToken.RawData
+							);
+						}
 					}
+				} catch (Exception ex) {
+					logger.LogError(ex, "HttpClient error during Apple ID token verification.");
 				}
 			} else {
 				logger.LogError("Validated Apple ID token is null. Token value: {TokenValue}", idToken.RawData);

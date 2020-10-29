@@ -22,17 +22,21 @@ using api.Commenting;
 using api.Analytics;
 using api.DataAccess.Models;
 using System.Net.Http;
+using Microsoft.Extensions.Logging;
 
 namespace api.Controllers.Email {
 	public class EmailController : Controller {
 		private readonly DatabaseOptions dbOpts;
 		private readonly IHttpClientFactory httpClientFactory;
+		private readonly ILogger<EmailController> logger;
 		public EmailController(
 			IOptions<DatabaseOptions> dbOpts,
-			IHttpClientFactory httpClientFactory
+			IHttpClientFactory httpClientFactory,
+			ILogger<EmailController> logger
 		) {
 			this.dbOpts = dbOpts.Value;
 			this.httpClientFactory = httpClientFactory;
+			this.logger = logger;
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -53,8 +57,12 @@ namespace api.Controllers.Email {
 								return Ok();
 							}
 						case SnsMessage.MESSAGE_TYPE_SUBSCRIPTION_CONFIRMATION:
-							if ((await httpClientFactory.CreateClient().GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
-								return Ok();
+							try {
+								if ((await httpClientFactory.CreateClient().GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
+									return Ok();
+								}
+							} catch (Exception ex) {
+								logger.LogError(ex, "HttpClient error during email delivery SNS subscription confirmation.");
 							}
 							break;
 					}
@@ -148,8 +156,12 @@ namespace api.Controllers.Email {
 							}
 							break;
 						case SnsMessage.MESSAGE_TYPE_SUBSCRIPTION_CONFIRMATION:
-							if ((await httpClientFactory.CreateClient().GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
-								return Ok();
+							try {
+								if ((await httpClientFactory.CreateClient().GetAsync(message.SubscribeURL)).IsSuccessStatusCode) {
+									return Ok();
+								}
+							} catch (Exception ex) {
+								logger.LogError(ex, "HttpClient error during email reply SNS subscription confirmation.");
 							}
 							break;
 					}
