@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.1</TargetFramework>
-    <Version>1.30.4</Version>
+    <Version>1.30.5</Version>
   </PropertyGroup>
 
   <ItemGroup>
@@ -31,6 +31,7 @@
   <ItemGroup>
     <Content Include="fonts/*" CopyToPublishDirectory="Always" />
     <Content Include="keys/*" CopyToPublishDirectory="Always" />
+    <Content Include="api.csproj" CopyToPublishDirectory="Always" />
   </ItemGroup>
 
 </Project>
