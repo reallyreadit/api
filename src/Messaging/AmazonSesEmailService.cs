@@ -53,7 +53,7 @@ namespace api.Messaging {
 					}
 					// mail link debugging
 					if (message.Subject.StartsWith("AOTD:")) {
-						logger.LogError(
+						logger.LogInformation(
 							"{Subject}\nTo: {ToAddress}\nBody: {Body}",
 							message.Subject,
 							message.To.Address,
