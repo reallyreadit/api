@@ -31,7 +31,6 @@
   <ItemGroup>
     <Content Include="fonts/*" CopyToPublishDirectory="Always" />
     <Content Include="keys/*" CopyToPublishDirectory="Always" />
-    <Content Include="api.csproj" CopyToPublishDirectory="Always" />
   </ItemGroup>
 
 </Project>
