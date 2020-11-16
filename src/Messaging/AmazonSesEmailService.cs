@@ -37,8 +37,6 @@ namespace api.Messaging {
 		}
 		public override async Task Send(params EmailMessage[] messages) {
 			using (var client = new AmazonSimpleEmailServiceClient(regionEndpoint)) {
-				// mail link debugging v2
-				var debugContent = new System.Text.StringBuilder();
 				foreach (var message in messages.Where(m => !m.To.Address.Contains(","))) {
 					var request = new SendEmailRequest(
 						source: $"{message.From.Name} <{message.From.Address}>",
@@ -53,8 +51,15 @@ namespace api.Messaging {
 					if (message.ReplyTo != null) {
 						request.ReplyToAddresses.Add($"{message.ReplyTo.Name} <{message.ReplyTo.Address}>");
 					}
-					// mail link debugging v2
-					debugContent.AppendLine($"{message.Subject}\nTo: {message.To.Address}\nBody: {message.Body}");
+					// mail link debugging (this is the only version that has worked to prevent link errors so far)
+					if (message.Subject.StartsWith("AOTD:")) {
+						logger.LogError(
+							"{Subject}\nTo: {ToAddress}\nBody: {Body}",
+							message.Subject,
+							message.To.Address,
+							message.Body
+						);
+					}
 					// SendEmailAsync will throw an exception if the email address contains illegal characters
 					try {
 						var response = await client.SendEmailAsync(request);
@@ -74,11 +79,6 @@ namespace api.Messaging {
 						);
 					}
 				}
-				// mail link debugging v2
-				await System.IO.File.WriteAllTextAsync(
-					path: @"logs\mail-" + System.IO.Path.GetRandomFileName(),
-					contents: debugContent.ToString()
-				);
 			}
 		}
 	}
