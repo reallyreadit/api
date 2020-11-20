@@ -106,6 +106,14 @@ namespace api.Controllers.Extension {
 			}
 			return title;
 		}
+		private static string PrepareArticleSection(string section) {
+			// we should do more sanitization here but for now just prevent exceptions from overly long values
+			var sectionLimit = 256;
+			if (section?.Length > sectionLimit) {
+				return section.Substring(0, sectionLimit);
+			}
+			return section;
+		}
 		private static AuthorMetadata[] PrepareAuthors(PageInfoBinder.ArticleBinder.AuthorBinder[] authors) {
 			// check for null parameter or names
 			authors = (authors ?? new PageInfoBinder.ArticleBinder.AuthorBinder[0])
@@ -477,7 +485,7 @@ namespace api.Controllers.Extension {
 							sourceId: source.Id,
 							datePublished: ParseArticleDate(binder.Article.DatePublished),
 							dateModified: ParseArticleDate(binder.Article.DateModified),
-							section: Decode(binder.Article.Section),
+							section: PrepareArticleSection(Decode(binder.Article.Section)),
 							description: Decode(binder.Article.Description),
 							authors: PrepareAuthors(binder.Article.Authors),
 							tags: PrepareTags(binder.Article.Tags)
