@@ -48,6 +48,10 @@ namespace api.Controllers.Extension {
 					"Alexa Rohn"
 				},
 				{
+					"https://www.attentionactivist.com/",
+					"Jay Vidyarthi"
+				},
+				{
 					"https://blog.viktomas.com",
 					"Tomas Vik"
 				},
