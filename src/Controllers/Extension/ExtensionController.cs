@@ -352,8 +352,66 @@ namespace api.Controllers.Extension {
 				}
 				// fix authors
 				AssignMissingAuthors(binder);
+				// resolve the source first so we can search for duplicate articles by slug
+				Uri pageUri = new Uri(binder.Url), sourceUri;
+				if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
+					sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
+				}
+				var source = db.FindSource(sourceUri.Host);
+				if (source == null) {
+					// create source
+					string
+						sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty),
+						sourceSlug = CreateSlug(sourceName);
+					try {
+						source = db.CreateSource(
+							name: sourceName,
+							url: sourceUri.ToString(),
+							hostname: sourceUri.Host,
+							slug: sourceSlug
+						);
+					} catch (NpgsqlException ex) when (
+						ex.Data.Contains("ConstraintName") &&
+						(
+							String.Equals(ex.Data["ConstraintName"], "source_hostname_key") ||
+							String.Equals(ex.Data["ConstraintName"], "source_slug_key")
+						)
+					) {
+						if (
+							this.ClientVersionIsGreaterThanOrEqualTo(
+								new Dictionary<ClientType, SemanticVersion>() {
+										{ ClientType.IosExtension, new SemanticVersion(0, 0, 0) },
+										{ ClientType.WebExtension, new SemanticVersion(3, 0, 0) }
+								}
+							)
+						) {
+							logger.LogError(
+								"Duplicate source. Name: {Name} Url: {Url} Hostname: {Hostname} Slug: {Slug}",
+								sourceName,
+								sourceUri.ToString(),
+								sourceUri.Host,
+								sourceSlug
+							);
+						}
+						return BadRequest(
+							new[] {
+								"DuplicateSource"
+							}
+						);
+					}
+				}
+				// create the slug
+				string
+					title = PrepareArticleTitle(Decode(binder.Article.Title)),
+					slug = source.Slug + "_" + CreateSlug(title);
 				// look for existing page
 				var page = db.FindPage(binder.Url);
+				if (page == null) {
+					var article = await db.FindArticle(slug, userAccountId);
+					if (article != null) {
+						page = db.FindPage(article.Url);
+					}
+				}
 				UserArticle userArticle;
 				if (page != null) {
 					// update the page if either the wordCount or readableWordCount has increased.
@@ -427,56 +485,6 @@ namespace api.Controllers.Extension {
 					}
 				} else {
 					// create article
-					Uri pageUri = new Uri(binder.Url), sourceUri;
-					if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
-						sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
-					}
-					var source = db.FindSource(sourceUri.Host);
-					if (source == null) {
-						// create source
-						string
-							sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty),
-							sourceSlug = CreateSlug(sourceName);
-						try {
-							source = db.CreateSource(
-								name: sourceName,
-								url: sourceUri.ToString(),
-								hostname: sourceUri.Host,
-								slug: sourceSlug
-							);
-						} catch (NpgsqlException ex) when (
-							ex.Data.Contains("ConstraintName") &&
-							(
-								String.Equals(ex.Data["ConstraintName"], "source_hostname_key") ||
-								String.Equals(ex.Data["ConstraintName"], "source_slug_key")
-							)
-						) {
-							if (
-								this.ClientVersionIsGreaterThanOrEqualTo(
-									new Dictionary<ClientType, SemanticVersion>() {
-										{ ClientType.IosExtension, new SemanticVersion(0, 0, 0) },
-										{ ClientType.WebExtension, new SemanticVersion(3, 0, 0) }
-									}
-								)
-							) {
-								logger.LogError(
-									"Duplicate source. Name: {Name} Url: {Url} Hostname: {Hostname} Slug: {Slug}",
-									sourceName,
-									sourceUri.ToString(),
-									sourceUri.Host,
-									sourceSlug
-								);
-							}
-							return BadRequest(
-								new [] {
-									"DuplicateSource"
-								}
-							);
-						}
-					}
-					string
-						title = PrepareArticleTitle(Decode(binder.Article.Title)),
-						slug = source.Slug + "_" + CreateSlug(title);
 					long articleId;
 					try {
 						articleId = db.CreateArticle(
