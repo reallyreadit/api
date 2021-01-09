@@ -22,7 +22,7 @@ using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Routing;
 using Microsoft.Extensions.Logging;
-using api.Models;
+using api.Controllers.Shared;
 using api.Cookies;
 
 namespace api.Controllers.UserAccounts {
@@ -132,7 +132,7 @@ namespace api.Controllers.UserAccounts {
 					}
 				)
 			) {
-				return new WebAppUserProfile(
+				return new WebAppUserProfileViewModel(
 					await db.GetDisplayPreference(user.Id),
 					user
 				);

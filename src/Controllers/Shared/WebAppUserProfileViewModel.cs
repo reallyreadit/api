@@ -1,8 +1,8 @@
 using api.DataAccess.Models;
 
-namespace api.Models {
-	public class WebAppUserProfile {
-		public WebAppUserProfile(
+namespace api.Controllers.Shared {
+	public class WebAppUserProfileViewModel {
+		public WebAppUserProfileViewModel(
 			DisplayPreference displayPreference,
 			UserAccount userAccount
 		) {

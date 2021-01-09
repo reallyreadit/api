@@ -8,7 +8,7 @@ using api.Configuration;
 using api.Cookies;
 using api.DataAccess;
 using api.DataAccess.Models;
-using api.Models;
+using api.Controllers.Shared;
 using api.Notifications;
 using api.Serialization;
 using Microsoft.AspNetCore.Authorization;
@@ -361,7 +361,7 @@ namespace api.Controllers.Auth {
 				var userAccountId = User.GetUserAccountId();
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
 					response = new BrowserPopupResponseResponse(
-						new WebAppUserProfile(
+						new WebAppUserProfileViewModel(
 							await db.GetDisplayPreference(userAccountId),
 							await db.GetUserAccountById(userAccountId)
 						)

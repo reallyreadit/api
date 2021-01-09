@@ -1,5 +1,5 @@
 using api.Authentication;
-using api.Models;
+using api.Controllers.Shared;
 
 namespace api.Controllers.Auth {
 	public class BrowserPopupResponseResponse {
@@ -12,12 +12,12 @@ namespace api.Controllers.Auth {
 		public BrowserPopupResponseResponse(AuthenticationError error) {
 			Error = error;
 		}
-		public BrowserPopupResponseResponse(WebAppUserProfile userProfile) {
+		public BrowserPopupResponseResponse(WebAppUserProfileViewModel userProfile) {
 			UserProfile = userProfile;
 		}
 		public AuthServiceAccountAssociation Association { get; }
 		public string AuthServiceToken { get; }
 		public AuthenticationError? Error { get; }
-		public WebAppUserProfile UserProfile { get; }
+		public WebAppUserProfileViewModel UserProfile { get; }
 	}
 }
