@@ -12,12 +12,12 @@ namespace api.Controllers.Auth {
 		public BrowserPopupResponseResponse(AuthenticationError error) {
 			Error = error;
 		}
-		public BrowserPopupResponseResponse(WebAppUserProfileViewModel userProfile) {
+		public BrowserPopupResponseResponse(WebAppUserProfileClientModel userProfile) {
 			UserProfile = userProfile;
 		}
 		public AuthServiceAccountAssociation Association { get; }
 		public string AuthServiceToken { get; }
 		public AuthenticationError? Error { get; }
-		public WebAppUserProfileViewModel UserProfile { get; }
+		public WebAppUserProfileClientModel UserProfile { get; }
 	}
 }

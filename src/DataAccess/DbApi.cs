@@ -1716,6 +1716,257 @@ namespace api.DataAccess {
 		);
 		#endregion
 
+		#region subscriptions
+		public static async Task<SubscriptionPaymentMethod> AssignDefaultSubscriptionPaymentMethod(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerAccountId,
+			string providerPaymentMethodId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
+			sql: "subscriptions.assign_default_payment_method",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_account_id = providerAccountId,
+				provider_payment_method_id = providerPaymentMethodId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPrice> CreateCustomSubscriptionPriceAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPriceId,
+			DateTime dateCreated,
+			int amount
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPrice>(
+			sql: "subscriptions.create_custom_price",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_price_id = providerPriceId,
+				date_created = dateCreated,
+				amount
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionAccount> CreateOrUpdateSubscriptionAccountAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerAccountId,
+			long? userAccountId,
+			DateTime dateCreated
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionAccount>(
+			sql: "subscriptions.create_or_update_subscription_account",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_account_id = providerAccountId,
+				user_account_id = userAccountId,
+				date_created = dateCreated
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Subscription> CreateOrUpdateSubscriptionAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerSubscriptionId,
+			string providerAccountId,
+			DateTime dateCreated,
+			DateTime? dateTerminated,
+			string latestReceipt
+		) => await connection.QuerySingleOrDefaultAsync<Subscription>(
+			sql: "subscriptions.create_or_update_subscription",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_subscription_id = providerSubscriptionId,
+				provider_account_id = providerAccountId,
+				date_created = dateCreated,
+				date_terminated = dateTerminated,
+				latest_receipt = latestReceipt
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPeriod> CreateOrUpdateSubscriptionPeriodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPeriodId,
+			string providerSubscriptionId,
+			string providerPriceId,
+			string providerPaymentMethodId,
+			DateTime beginDate,
+			DateTime endDate,
+			DateTime dateCreated,
+			SubscriptionPaymentStatus paymentStatus,
+			DateTime? datePaid,
+			DateTime? dateRefunded,
+			string refundReason
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
+			sql: "subscriptions.create_or_update_subscription_period",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_period_id = providerPeriodId,
+				provider_subscription_id = providerSubscriptionId,
+				provider_price_id = providerPriceId,
+				provider_payment_method_id = providerPaymentMethodId,
+				begin_date = beginDate,
+				end_date = endDate,
+				date_created = dateCreated,
+				payment_status = ConvertEnumToString(paymentStatus),
+				date_paid = datePaid,
+				date_refunded = dateRefunded,
+				refund_reason = refundReason
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPaymentMethod> CreateSubscriptionPaymentMethodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPaymentMethodId,
+			string providerAccountId,
+			DateTime dateCreated,
+			SubscriptionPaymentMethodWallet wallet,
+			SubscriptionPaymentMethodBrand brand,
+			string lastFourDigits,
+			int expirationMonth,
+			int expirationYear
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
+			sql: "subscriptions.create_payment_method",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_payment_method_id = providerPaymentMethodId,
+				provider_account_id = providerAccountId,
+				date_created = dateCreated,
+				wallet = ConvertEnumToString(wallet),
+				brand = ConvertEnumToString(brand),
+				last_four_digits = lastFourDigits,
+				expiration_month = expirationMonth,
+				expiration_year = expirationYear
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionStatus> GetCurrentSubscriptionStatusForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionStatus>(
+			sql: "subscriptions.get_current_subscription_status_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPrice> GetCustomSubscriptionPriceForProviderAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			int amount
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPrice>(
+			sql: "subscriptions.get_custom_price_for_provider",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				amount
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPaymentMethod> GetDefaultPaymentMethodForSubscriptionAccountAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerAccountId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
+			sql: "subscriptions.get_default_payment_method_for_subscription_account",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_account_id = providerAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPaymentMethod> GetSubscriptionPaymentMethodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPaymentMethodId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
+			sql: "subscriptions.get_payment_method",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_payment_method_id = providerPaymentMethodId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<SubscriptionAccount>> GetSubscriptionAccountsForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QueryAsync<SubscriptionAccount>(
+			sql: "subscriptions.get_subscription_accounts_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionStatus> GetSubscriptionStatusForSubscriptionAccountAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerAccountId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionStatus>(
+			sql: "subscriptions.get_subscription_status_for_subscription_account",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_account_id = providerAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<SubscriptionStatus>> GetSubscriptionStatusesForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QueryAsync<SubscriptionStatus>(
+			sql: "subscriptions.get_subscription_statuses_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<SubscriptionPriceLevel>> GetSubscriptionPriceLevelsForProviderAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider
+		) => await connection.QueryAsync<SubscriptionPriceLevel>(
+			sql: "subscriptions.get_price_levels_for_provider",
+			param: new {
+				provider = ConvertEnumToString(provider)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPeriod> UpdateSubscriptionPeriodPaymentStatusAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPeriodId,
+			string providerPaymentMethodId,
+			SubscriptionPaymentStatus paymentStatus,
+			DateTime? datePaid
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
+			sql: "subscriptions.update_subscription_period_payment_status",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_period_id = providerPeriodId,
+				provider_payment_method_id = providerPaymentMethodId,
+				payment_status = ConvertEnumToString(paymentStatus),
+				date_paid = datePaid
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPaymentMethod> UpdateSubscriptionPaymentMethodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPaymentMethodId,
+			SubscriptionEventSource eventSource,
+			int expirationMonth,
+			int expirationYear
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
+			sql: "subscriptions.update_payment_method",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_payment_method_id = providerPaymentMethodId,
+				event_source = ConvertEnumToString(eventSource),
+				expiration_month = expirationMonth,
+				expiration_year = expirationYear
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		#endregion
+
 		#region user_account_api
 		public static async Task<AuthServiceAccount> AssociateAuthServiceAccount(
 			this NpgsqlConnection conn,

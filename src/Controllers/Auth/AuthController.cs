@@ -125,7 +125,7 @@ namespace api.Controllers.Auth {
 		);
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> AppleIos(
+		public async Task<ActionResult<AuthServiceCredentialAuthResponse>> AppleIos(
 			[FromServices] AppleAuthService appleAuthService,
 			[FromServices] AuthenticationService authService,
 			[FromServices] IOptions<DatabaseOptions> databaseOptions,
@@ -144,20 +144,20 @@ namespace api.Controllers.Auth {
 				client: AppleClient.Ios
 			);
 			if (authenticationId.HasValue) {
-				return Json(
-					new {
-						AuthServiceToken = CreateAuthServiceToken(authenticationId.Value)
-					}
+				return new AuthServiceCredentialAuthResponse(
+					authServiceToken: CreateAuthServiceToken(authenticationId.Value)
 				);
 			}
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-					return Json(
-						new {
-							User = user,
-							DisplayPreference = await db.GetDisplayPreference(user.Id)
-						}
+					return new AuthServiceCredentialAuthResponse(
+						displayPreference: await db.GetDisplayPreference(user.Id),
+						subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(
+							user,
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id)
+						),
+						user: user
 					);
 				}
 			}
@@ -361,8 +361,9 @@ namespace api.Controllers.Auth {
 				var userAccountId = User.GetUserAccountId();
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
 					response = new BrowserPopupResponseResponse(
-						new WebAppUserProfileViewModel(
+						new WebAppUserProfileClientModel(
 							await db.GetDisplayPreference(userAccountId),
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId),
 							await db.GetUserAccountById(userAccountId)
 						)
 					);
@@ -374,7 +375,7 @@ namespace api.Controllers.Auth {
 		}
 		[AllowAnonymous]
 		[HttpPost]
-		public async Task<IActionResult> TwitterAuthentication(
+		public async Task<ActionResult<AuthServiceCredentialAuthResponse>> TwitterAuthentication(
 			[FromServices] AuthenticationService authService,
 			[FromServices] IOptions<DatabaseOptions> databaseOptions,
 			[FromServices] TwitterAuthService twitterAuth,
@@ -392,19 +393,19 @@ namespace api.Controllers.Auth {
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-					return Json(
-						new {
-							User = user,
-							DisplayPreference = await db.GetDisplayPreference(user.Id)
-						}
+					return new AuthServiceCredentialAuthResponse(
+						displayPreference: await db.GetDisplayPreference(user.Id),
+						subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(
+							user,
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id)
+						),
+						user: user
 					);
 				}
 			}
 			if (authentication != null) {
-				return Json(
-					new {
-						AuthServiceToken = CreateAuthServiceToken(authentication.Id)
-					}
+				return new AuthServiceCredentialAuthResponse(
+					authServiceToken: CreateAuthServiceToken(authentication.Id)
 				);
 			}
 			return BadRequest(

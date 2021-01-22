@@ -57,11 +57,13 @@ namespace api {
 				authOptsConfigSection = config.GetSection("Authentication"),
 				cookieConfigSection = config.GetSection("Cookies"),
 				emailOptsConfigSection = config.GetSection("Email"),
-				pushOptsConfigSection = config.GetSection("PushNotifications");
+				pushOptsConfigSection = config.GetSection("PushNotifications"),
+				subscriptionsConfigSection = config.GetSection("Subscriptions");
 			var authOpts = authOptsConfigSection.Get<MyAuthenticationOptions>();
 			var cookieOpts = cookieConfigSection.Get<MyCookieOptions>();
 			var emailOpts = emailOptsConfigSection.Get<EmailOptions>();
 			var pushOpts = pushOptsConfigSection.Get<PushNotificationsOptions>();
+			var subscriptionsOpts = subscriptionsConfigSection.Get<SubscriptionsOptions>();
 			services
 				.Configure<MyAuthenticationOptions>(authOptsConfigSection)
 				.Configure<CaptchaOptions>(config.GetSection("Captcha"))
@@ -74,8 +76,10 @@ namespace api {
 				.Configure<RazorViewEngineOptions>(x => x.ViewLocationFormats.Add("/src/Messaging/Views/{0}.cshtml"))
 				.Configure<ReadingVerificationOptions>(config.GetSection("ReadingVerification"))
 				.Configure<ServiceEndpointsOptions>(config.GetSection("ServiceEndpoints"))
+				.Configure<SubscriptionsOptions>(subscriptionsConfigSection)
 				.Configure<TokenizationOptions>(config.GetSection("Tokenization"));
 			// configure services
+			Stripe.StripeConfiguration.ApiKey = subscriptionsOpts.StripeApiSecretKey;
 			var appleAuthClientSecretSigningKey = new SigningCredentials(
 				new ECDsaSecurityKey(
 					new ECDsaCng(
@@ -290,11 +294,17 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventFrequency>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventType>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationPushUnregistrationReason>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionEventSource>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionPaymentMethodBrand>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionPaymentMethodWallet>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionPaymentStatus>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionProvider>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<TwitterHandleAssignment>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<AuthorMetadata>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionStatusLatestPeriod>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<TagMetadata>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;

@@ -132,8 +132,9 @@ namespace api.Controllers.UserAccounts {
 					}
 				)
 			) {
-				return new WebAppUserProfileViewModel(
+				return new WebAppUserProfileClientModel(
 					await db.GetDisplayPreference(user.Id),
+					await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id),
 					user
 				);
 			}
@@ -749,41 +750,51 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpGet]
-		public async Task<JsonResult> Settings() {
+		public async Task<ActionResult<SettingsResponse>> Settings() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var user = await db.GetUserAccountById(
 					userAccountId: User.GetUserAccountId()
 				);
-				return Json(
-					data: new {
-						DisplayPreference = await db.GetDisplayPreference(user.Id),
-						UserCount = await db.GetUserCount(),
-						NotificationPreference = new NotificationPreference(
-							options: await db.GetNotificationPreference(
-								userAccountId: user.Id
-							)
-						),
-						TimeZoneDisplayName = (
-							user.TimeZoneId.HasValue ?
-								(
-									await db.GetTimeZoneById(
-										id: user.TimeZoneId.Value
-									)
+				var subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id);
+				return new SettingsResponse(
+					displayPreference: await db.GetDisplayPreference(user.Id),
+					userCount: await db.GetUserCount(),
+					notificationPreference: new NotificationPreference(
+						options: await db.GetNotificationPreference(
+							userAccountId: user.Id
+						)
+					),
+					timeZoneDisplayName: (
+						user.TimeZoneId.HasValue ?
+							(
+								await db.GetTimeZoneById(
+									id: user.TimeZoneId.Value
 								)
-								.DisplayName :
-								null
+							)
+							.DisplayName :
+							null
+					),
+					authServiceAccounts: (await db.GetAuthServiceAccountsForUserAccount(user.Id))
+						.Where(
+							account => account.Provider == AuthServiceProvider.Apple || account.AccessTokenValue != null
+						)
+						.OrderByDescending(
+							account => account.DateUserAccountAssociated
+						)
+						.Select(
+							account => new AuthServiceAccountAssociation(account)
 						),
-						AuthServiceAccounts = (await db.GetAuthServiceAccountsForUserAccount(user.Id))
-							.Where(
-								account => account.Provider == AuthServiceProvider.Apple || account.AccessTokenValue != null
-							)
-							.OrderByDescending(
-								account => account.DateUserAccountAssociated
-							)
-							.Select(
-								account => new AuthServiceAccountAssociation(account)
-							)
-					}
+					subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(user, subscriptionStatus),
+					subscriptionPaymentMethod: (
+						subscriptionStatus?.Provider == SubscriptionProvider.Stripe ?
+							new SubscriptionPaymentMethodClientModel(
+								await db.GetDefaultPaymentMethodForSubscriptionAccountAsync(
+									provider: SubscriptionProvider.Stripe,
+									providerAccountId: subscriptionStatus.ProviderAccountId
+								)
+							) :
+							null
+					)
 				);
 			}
 		}
@@ -828,14 +839,13 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpGet]
-		public async Task<JsonResult> WebAppUserProfile() {
+		public async Task<ActionResult<WebAppUserProfileClientModel>> WebAppUserProfile() {
 			var userId = User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(
-					new {
-						UserAccount = await db.GetUserAccountById(userId),
-						DisplayPreference = await db.GetDisplayPreference(userId)
-					}
+				return new WebAppUserProfileClientModel(
+					displayPreference: await db.GetDisplayPreference(userId),
+					subscriptionStatus: await db.GetCurrentSubscriptionStatusForUserAccountAsync(userId),
+					userAccount: await db.GetUserAccountById(userId)
 				);
 			}
 		}
