@@ -21,7 +21,7 @@ namespace api {
 							)
 							.AddJsonFile(
 								path: $"appsettings.{context.HostingEnvironment.EnvironmentName}.json",
-								optional: false,
+								optional: true,
 								reloadOnChange: true
 							);
 					}
