@@ -80,24 +80,34 @@ namespace api {
 				.Configure<TokenizationOptions>(config.GetSection("Tokenization"));
 			// configure services
 			Stripe.StripeConfiguration.ApiKey = subscriptionsOpts.StripeApiSecretKey;
-			var appleAuthClientSecretSigningKey = new SigningCredentials(
-				new ECDsaSecurityKey(
-					new ECDsaCng(
-						CngKey.Import(
-							Convert.FromBase64String(
-								PemParser
-									.Parse(
-										File.ReadAllText(authOpts.AppleAuth.ClientSecretSigningKeyPath)
-									)
-									.Single()
-									.EncodedBody
-							),
-							CngKeyBlobFormat.Pkcs8PrivateBlob
+			SigningCredentials appleAuthClientSecretSigningKey;
+			if (env.IsProduction()) {
+				appleAuthClientSecretSigningKey = new SigningCredentials(
+					new ECDsaSecurityKey(
+						new ECDsaCng(
+							CngKey.Import(
+								Convert.FromBase64String(
+									PemParser
+										.Parse(
+											File.ReadAllText(authOpts.AppleAuth.ClientSecretSigningKeyPath)
+										)
+										.Single()
+										.EncodedBody
+								),
+								CngKeyBlobFormat.Pkcs8PrivateBlob
+							)
 						)
-					)
-				),
-				SecurityAlgorithms.EcdsaSha256
-			);
+					),
+					SecurityAlgorithms.EcdsaSha256
+				);
+			} else {
+				appleAuthClientSecretSigningKey = new SigningCredentials(
+					new SymmetricSecurityKey(
+						new byte[] { 0 }
+					),
+					SecurityAlgorithms.None
+				);
+			}
 			// setup fonts
 			var textFontFamily = new FontCollection()
 				.Install("fonts/museo-sans-300.ttf");
