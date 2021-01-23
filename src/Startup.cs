@@ -163,12 +163,16 @@ namespace api {
 			);
 			// configure http clients
 			X509Certificate2 apnsClientCert;
-			using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
-				apnsClientCert = store.Certificates.Find(
-					findType: X509FindType.FindByThumbprint,
-					findValue: pushOpts.ClientCertThumbprint,
-					validOnly: false
-				)[0];
+			if (env.IsProduction()) {
+				using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
+					apnsClientCert = store.Certificates.Find(
+						findType: X509FindType.FindByThumbprint,
+						findValue: pushOpts.ClientCertThumbprint,
+						validOnly: false
+					)[0];
+				}
+			} else {
+				apnsClientCert = new X509Certificate2();
 			}
 			services
 				.AddHttpClient()
