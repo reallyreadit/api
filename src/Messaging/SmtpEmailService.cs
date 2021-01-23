@@ -6,6 +6,7 @@ using MimeKit;
 using MimeKit.Text;
 using Mvc.RenderViewToString;
 using api.BackgroundProcessing;
+using System;
 
 namespace api.Messaging {
 	public class SmtpEmailService: EmailService {
@@ -28,6 +29,12 @@ namespace api.Messaging {
 			smtpOptions = emailOpts.Value.SmtpServer;
 		}
 		public override async Task Send(params EmailMessage[] messages) {
+			if (
+				String.IsNullOrWhiteSpace(smtpOptions.Host) ||
+				smtpOptions.Port == 0
+			) {
+				return;
+			}
 			using (var client = new SmtpClient()) {
 				await client.ConnectAsync(smtpOptions.Host, smtpOptions.Port);
 				foreach (var message in messages) {
