@@ -84,6 +84,13 @@
     	"Hashids": {
     		"Salt": "AAAAAAAAAAAAAAAAAAAAAA=="
     	},
+    	"PushNotifications": {
+    		"ApnsServer": {
+    			"Protocol": "https",
+    			"Host": "api.sandbox.push.apple.com"
+    		},
+    		"ClientCertThumbprint": ""
+    	},
     	"ReadingVerification": {
     		"EncryptionKey": "AAAAAAAAAAAAAAAAAAAAAA=="
     	},
