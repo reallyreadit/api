@@ -111,7 +111,12 @@ namespace api {
 			// setup fonts
 			var textFontFamily = new FontCollection()
 				.Install("fonts/museo-sans-300.ttf");
-			var emojiFontFamily = SystemFonts.Find("Segoe UI Emoji");
+			var emojiFontFamily = SystemFonts.Find(
+				config
+					.GetSection("TwitterImageRendering")
+					.Get<TwitterImageRenderingOptions>()
+					.SystemEmojiFontName
+			);
 			services
 				.AddHostedService<QueuedHostedService>()
 				.AddScoped<AuthenticationService>()

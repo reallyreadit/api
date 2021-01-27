@@ -3,12 +3,13 @@
 1. Install the .NET Core 3.1 SDK: https://dotnet.microsoft.com/download
 2. Configure the ASP.NET core environment for development: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/environments?view=aspnetcore-3.1#set-the-environment
 
-        ASPNETCORE_ENVIRONMENT=Development
+        export ASPNETCORE_ENVIRONMENT=Development
 3. Create the following configuration files, making these changes:
 
     - Replace `PG_USER`, `PG_PASS` and `DB_NAME` under the `Database` section with the values you chose during the database setup.
+    - Set the value for `SystemEmojiFontName` under the `TwitterImageRendering` section. The default values are `Apple Color Emoji` or `Segoe UI Emoji` for macOS and Windows respectively.
 	 - Optionally set values for `Host` and `Port` under the `Email.SmtpServer` section if you want to capture email messages that would be sent by the server.
-	 - Optionally set the value for `StripeApiSecretKey` under the `Subscriptions` section if you want to perform test purchases through Stripe.
+	 - Optionally set the value for `StripeApiSecretKey` under the `Subscriptions` section if you want to perform test purchases through Stripe.	 
 
     Note the following regarding 3rd party services:
 	 - AppleID authentication is not supported in development mode.
@@ -108,6 +109,9 @@
     	},
     	"Tokenization": {
     		"EncryptionKey": "AAAAAAAAAAAAAAAAAAAAAA=="
+    	},
+    	"TwitterImageRendering": {
+    		"SystemEmojiFontName": ""
     	}
     }
     ```
