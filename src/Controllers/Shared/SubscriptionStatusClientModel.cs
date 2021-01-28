@@ -12,7 +12,7 @@ namespace api.Controllers.Shared {
 		public static SubscriptionStatusClientModel FromSubscriptionStatus(UserAccount user, SubscriptionStatus status) {
 			var isUserFreeForLife = user.DateCreated < new DateTime(2021, 1, 1);
 			if (status == null) {
-				return new SubscriptionStatusNeverSubscribedViewModel(
+				return new SubscriptionStatusNeverSubscribedClientModel(
 					isUserFreeForLife: isUserFreeForLife
 				);
 			}
@@ -25,7 +25,7 @@ namespace api.Controllers.Shared {
 			var subscriptionState = status.GetCurrentState(DateTime.UtcNow);
 			switch (subscriptionState) {
 				case SubscriptionState.Active:
-					return new SubscriptionStatusActiveViewModel(
+					return new SubscriptionStatusActiveClientModel(
 						provider: provider,
 						price: price,
 						currentPeriodBeginDate: status.LatestPeriod.BeginDate,
@@ -33,7 +33,7 @@ namespace api.Controllers.Shared {
 						isUserFreeForLife: isUserFreeForLife
 					);
 				case SubscriptionState.Lapsed:
-					return new SubscriptionStatusLapsedViewModel(
+					return new SubscriptionStatusLapsedClientModel(
 						provider: provider,
 						price: price,
 						lastPeriodEndDate: status.LatestPeriod.EndDate,
@@ -41,7 +41,7 @@ namespace api.Controllers.Shared {
 					);
 				case SubscriptionState.Incomplete:
 				case SubscriptionState.IncompleteExpired:
-					return new SubscriptionStatusIncompleteViewModel(
+					return new SubscriptionStatusIncompleteClientModel(
 						provider: provider,
 						price: price,
 						requiresConfirmation:
@@ -63,8 +63,8 @@ namespace api.Controllers.Shared {
 		public SubscriptionStatusClientModelType Type { get; }
 		public bool IsUserFreeForLife { get; }
 	}
-	public class SubscriptionStatusNeverSubscribedViewModel : SubscriptionStatusClientModel {
-		public SubscriptionStatusNeverSubscribedViewModel(
+	public class SubscriptionStatusNeverSubscribedClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusNeverSubscribedClientModel(
 			bool isUserFreeForLife
 		) :
 		base (
@@ -74,8 +74,8 @@ namespace api.Controllers.Shared {
 
 		}
 	}
-	public class SubscriptionStatusIncompleteViewModel : SubscriptionStatusClientModel {
-		public SubscriptionStatusIncompleteViewModel(
+	public class SubscriptionStatusIncompleteClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusIncompleteClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
 			bool requiresConfirmation,
@@ -93,8 +93,8 @@ namespace api.Controllers.Shared {
 		public SubscriptionPriceClientModel Price { get; }
 		public bool RequiresConfirmation { get; }
 	}
-	public class SubscriptionStatusActiveViewModel : SubscriptionStatusClientModel {
-		public SubscriptionStatusActiveViewModel(
+	public class SubscriptionStatusActiveClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusActiveClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
 			DateTime currentPeriodBeginDate,
@@ -115,8 +115,8 @@ namespace api.Controllers.Shared {
 		public DateTime CurrentPeriodBeginDate { get; }
 		public DateTime CurrentPeriodEndDate { get; }
 	}
-	public class SubscriptionStatusLapsedViewModel : SubscriptionStatusClientModel {
-		public SubscriptionStatusLapsedViewModel(
+	public class SubscriptionStatusLapsedClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusLapsedClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
 			DateTime lastPeriodEndDate,
