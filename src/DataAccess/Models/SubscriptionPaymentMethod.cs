@@ -10,6 +10,7 @@ namespace api.DataAccess.Models {
 		public SubscriptionPaymentMethodWallet Wallet { get; set; }
 		public SubscriptionPaymentMethodBrand Brand { get; set; }
 		public string LastFourDigits { get; set; }
+		public string Country { get; set; }
 		public int ExpirationMonth { get; set; }
 		public int ExpirationYear { get; set; }
 	}

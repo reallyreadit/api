@@ -910,7 +910,7 @@ namespace api.DataAccess {
 					);
 					var dispatch = dispatches.SingleOrDefault(dispatch => dispatch.ReceiptId == row.ReceiptId);
 					if (dispatch != null) {
-						dispatch.Items.Add(comment);	
+						dispatch.Items.Add(comment);
 					} else {
 						dispatches.Add(
 							new NotificationDigestDispatch<NotificationDigestComment>(
@@ -919,7 +919,7 @@ namespace api.DataAccess {
 								userName: row.UserName,
 								emailAddress: row.EmailAddress,
 								items: new List<NotificationDigestComment>() {
-									comment	
+									comment
 								}
 							)
 						);
@@ -1824,6 +1824,7 @@ namespace api.DataAccess {
 			SubscriptionPaymentMethodWallet wallet,
 			SubscriptionPaymentMethodBrand brand,
 			string lastFourDigits,
+			string country,
 			int expirationMonth,
 			int expirationYear
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
@@ -1836,6 +1837,7 @@ namespace api.DataAccess {
 				wallet = ConvertEnumToString(wallet),
 				brand = ConvertEnumToString(brand),
 				last_four_digits = lastFourDigits,
+				country,
 				expiration_month = expirationMonth,
 				expiration_year = expirationYear
 			},

@@ -286,7 +286,7 @@ namespace api.Controllers.Subscriptions {
 		) {
 			// TODO: This entire mess of an operation should be locked with some type of db-generated token
 			// to prevent the possibility that multiple requests for the same account are running concurrently.
-			
+
 			// retrieve the readup user account, subscription status and stripe account
 			UserAccount userAccount;
 			SubscriptionAccount subscriptionAccount;
@@ -311,7 +311,7 @@ namespace api.Controllers.Subscriptions {
 						account => account.Provider == SubscriptionProvider.Stripe
 					);
 			}
-				
+
 			// create and assign if one doesn't exist
 			if (subscriptionAccount == null) {
 				// create the stripe customer
@@ -410,6 +410,7 @@ namespace api.Controllers.Subscriptions {
 							wallet: cardWallet,
 							brand: cardBrand,
 							lastFourDigits: stripePaymentMethod.Card.Last4,
+							country: stripePaymentMethod.Card.Country,
 							expirationMonth: stripePaymentMethodExpirationMonth,
 							expirationYear: stripePaymentMethodExpirationYear
 						);
@@ -603,7 +604,7 @@ namespace api.Controllers.Subscriptions {
 									);
 							} catch (Exception invoiceGetEx) {
 								logger.LogError(invoiceGetEx, "Failed to get Stripe invoice with id: {InvoiceId}.", stripeSubscription.LatestInvoiceId);
-								return Problem("Failed to get invoice.", statusCode: 500);	
+								return Problem("Failed to get invoice.", statusCode: 500);
 							}
 						} else {
 							logger.LogError(invoicePayEx, "Failed to pay Stripe invoice with id: {InvoiceId}.", stripeSubscription.LatestInvoiceId);
