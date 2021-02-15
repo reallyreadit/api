@@ -323,6 +323,8 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionDistributionAuthorCalculation>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionDistributionAuthorReport>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionStatusLatestPeriod>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<TagMetadata>();
 			// configure Dapper

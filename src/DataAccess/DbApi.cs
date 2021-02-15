@@ -1731,6 +1731,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<SubscriptionDistributionCalculation> CalculateDistributionForSubscriptionPeriodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPeriodId
+		) => await connection.QuerySingleAsync<SubscriptionDistributionCalculation>(
+			sql: "subscriptions.calculate_distribution_for_period",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_period_id = providerPeriodId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionPrice> CreateCustomSubscriptionPriceAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
@@ -1745,6 +1757,24 @@ namespace api.DataAccess {
 				date_created = dateCreated,
 				amount
 			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionPeriodDistribution> CreateDistributionForSubscriptionPeriodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPeriodId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriodDistribution>(
+			sql: "subscriptions.create_distribution_for_period",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_period_id = providerPeriodId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<SubscriptionPeriodDistribution>> CreateDistributionsForCompletedSubscriptionPeriodsAsync(
+			this NpgsqlConnection connection
+		) => await connection.QueryAsync<SubscriptionPeriodDistribution>(
+			sql: "subscriptions.create_distributions_for_completed_periods",
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<SubscriptionAccount> CreateOrUpdateSubscriptionAccountAsync(
@@ -1928,6 +1958,28 @@ namespace api.DataAccess {
 			sql: "subscriptions.get_price_levels_for_provider",
 			param: new {
 				provider = ConvertEnumToString(provider)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionDistributionReport> RunDistributionReportForSubscriptionPeriodCalculationAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPeriodId
+		) => await connection.QuerySingleAsync<SubscriptionDistributionReport>(
+			sql: "subscriptions.run_distribution_report_for_period_calculation",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_period_id = providerPeriodId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<SubscriptionDistributionReport> RunDistributionReportForSubscriptionPeriodDistributionsAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QuerySingleAsync<SubscriptionDistributionReport>(
+			sql: "subscriptions.run_distribution_report_for_period_distributions",
+			param: new {
+				user_account_id = userAccountId
 			},
 			commandType: CommandType.StoredProcedure
 		);

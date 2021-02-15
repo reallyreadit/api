@@ -199,6 +199,44 @@ namespace api.Controllers.Subscriptions {
 		}
 
 		[HttpGet]
+		public async Task<SubscriptionDistributionSummaryResponse> DistributionSummary() {
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				var status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId);
+				var state = status?.GetCurrentState(DateTime.UtcNow);
+				SubscriptionDistributionReportClientModel currentPeriod;
+				if (state == SubscriptionState.Active) {
+					currentPeriod = new SubscriptionDistributionReportClientModel(
+						await db.RunDistributionReportForSubscriptionPeriodCalculationAsync(
+							provider: status.Provider,
+							providerPeriodId: status.LatestPeriod.ProviderPeriodId
+						)
+					);
+				} else {
+					currentPeriod = SubscriptionDistributionReportClientModel.Empty;
+				}
+				SubscriptionDistributionReportClientModel completedPeriods;
+				if (state != null) {
+					completedPeriods = new SubscriptionDistributionReportClientModel(
+						await db.RunDistributionReportForSubscriptionPeriodDistributionsAsync(
+							userAccountId: userAccountId
+						)
+					);
+				} else {
+					completedPeriods = SubscriptionDistributionReportClientModel.Empty;
+				}
+				return new SubscriptionDistributionSummaryResponse(
+					subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(
+						await db.GetUserAccountById(userAccountId),
+						status
+					),
+					currentPeriod: currentPeriod,
+					completedPeriods: completedPeriods
+				);
+			}
+		}
+
+		[HttpGet]
 		public async Task<ActionResult<SubscriptionPriceLevelsResponse>> PriceLevels(
 			[FromQuery] SubscriptionPriceLevelsRequest request
 		) {
