@@ -242,7 +242,7 @@ namespace api.Controllers.Subscriptions {
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				return new SubscriptionPriceLevelsResponse(
-					prices: (await db.GetSubscriptionPriceLevelsForProviderAsync(
+					prices: (await db.GetStandardSubscriptionPriceLevelsForProviderAsync(
 							request.Provider.ToSubscriptionProvider()
 						))
 						.Select(

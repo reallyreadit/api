@@ -1907,6 +1907,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<SubscriptionPriceLevel>> GetStandardSubscriptionPriceLevelsForProviderAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider
+		) => await connection.QueryAsync<SubscriptionPriceLevel>(
+			sql: "subscriptions.get_standard_price_levels_for_provider",
+			param: new {
+				provider = ConvertEnumToString(provider)
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionPaymentMethod> GetSubscriptionPaymentMethodAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
@@ -1948,16 +1958,6 @@ namespace api.DataAccess {
 			sql: "subscriptions.get_subscription_statuses_for_user_account",
 			param: new {
 				user_account_id = userAccountId
-			},
-			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<IEnumerable<SubscriptionPriceLevel>> GetSubscriptionPriceLevelsForProviderAsync(
-			this NpgsqlConnection connection,
-			SubscriptionProvider provider
-		) => await connection.QueryAsync<SubscriptionPriceLevel>(
-			sql: "subscriptions.get_price_levels_for_provider",
-			param: new {
-				provider = ConvertEnumToString(provider)
 			},
 			commandType: CommandType.StoredProcedure
 		);
