@@ -4,9 +4,10 @@ using api.DataAccess.Models;
 namespace api.Controllers.Shared {
 	public enum SubscriptionStatusClientModelType {
 		NeverSubscribed = 1,
-		Incomplete = 2,
-		Active = 3,
-		Lapsed = 4
+		PaymentConfirmationRequired = 2,
+		PaymentFailed = 3,
+		Active = 4,
+		Lapsed = 5
 	}
 	public abstract class SubscriptionStatusClientModel {
 		public static SubscriptionStatusClientModel FromSubscriptionStatus(UserAccount user, SubscriptionStatus status) {
@@ -41,12 +42,20 @@ namespace api.Controllers.Shared {
 					);
 				case SubscriptionState.Incomplete:
 				case SubscriptionState.IncompleteExpired:
-					return new SubscriptionStatusIncompleteClientModel(
+					if (
+						subscriptionState == SubscriptionState.Incomplete &&
+						status.LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.RequiresConfirmation
+					) {
+						return new SubscriptionStatusPaymentConfirmationRequiredClientModel(
+							provider: provider,
+							price: price,
+							invoiceId: status.LatestPeriod.ProviderPeriodId,
+							isUserFreeForLife: isUserFreeForLife
+						);
+					}
+					return new SubscriptionStatusPaymentFailedClientModel(
 						provider: provider,
 						price: price,
-						requiresConfirmation:
-							subscriptionState == SubscriptionState.Incomplete &&
-							status.LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.RequiresConfirmation,
 						isUserFreeForLife: isUserFreeForLife
 					);
 				default:
@@ -74,24 +83,40 @@ namespace api.Controllers.Shared {
 
 		}
 	}
-	public class SubscriptionStatusIncompleteClientModel : SubscriptionStatusClientModel {
-		public SubscriptionStatusIncompleteClientModel(
+	public class SubscriptionStatusPaymentConfirmationRequiredClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusPaymentConfirmationRequiredClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
-			bool requiresConfirmation,
+			string invoiceId,
 			bool isUserFreeForLife
 		) :
 		base(
-			type: SubscriptionStatusClientModelType.Incomplete,
+			type: SubscriptionStatusClientModelType.PaymentConfirmationRequired,
 			isUserFreeForLife: isUserFreeForLife
 		) {
 			Provider = provider;
 			Price = price;
-			RequiresConfirmation = requiresConfirmation;
+			InvoiceId = invoiceId;
 		}
 		public SubscriptionProviderClientValue Provider { get; }
 		public SubscriptionPriceClientModel Price { get; }
-		public bool RequiresConfirmation { get; }
+		public string InvoiceId { get; }
+	}
+	public class SubscriptionStatusPaymentFailedClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusPaymentFailedClientModel(
+			SubscriptionProviderClientValue provider,
+			SubscriptionPriceClientModel price,
+			bool isUserFreeForLife
+		) :
+		base (
+			type: SubscriptionStatusClientModelType.PaymentFailed,
+			isUserFreeForLife: isUserFreeForLife
+		) {
+			Provider = provider;
+			Price = price;
+		}
+		public SubscriptionProviderClientValue Provider { get; }
+		public SubscriptionPriceClientModel Price { get; }
 	}
 	public class SubscriptionStatusActiveClientModel : SubscriptionStatusClientModel {
 		public SubscriptionStatusActiveClientModel(
