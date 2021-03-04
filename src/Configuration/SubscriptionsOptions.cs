@@ -5,5 +5,6 @@ namespace api.Configuration {
 		public string AppStoreProductionUrl { get; set; }
 		public string StripeApiSecretKey { get; set; }
 		public string StripeSubscriptionProductId { get; set; }
+		public string StripeWebhookSigningSecret { get; set; }
 	}
 }

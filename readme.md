@@ -9,7 +9,8 @@
     - Replace `PG_USER`, `PG_PASS` and `DB_NAME` under the `Database` section with the values you chose during the database setup.
     - Set the value for `SystemEmojiFontName` under the `TwitterImageRendering` section. The default values are `Apple Color Emoji` or `Segoe UI Emoji` for macOS and Windows respectively.
 	 - Optionally set values for `Host` and `Port` under the `Email.SmtpServer` section if you want to capture email messages that would be sent by the server.
-	 - Optionally set the value for `StripeApiSecretKey` under the `Subscriptions` section if you want to perform test purchases through Stripe.	 
+	 - Optionally set the value for `StripeApiSecretKey` under the `Subscriptions` section if you want to perform test purchases through Stripe.
+	 - Optionally set the value for `StripeWebhookSigningSecret` under the `Subscriptions` section if you want to receive and process Stripe webhook events.
 
     Note the following regarding 3rd party services:
 	 - AppleID authentication is not supported in development mode.
@@ -112,7 +113,8 @@
     		"AppStoreSandboxUrl": "https://sandbox.itunes.apple.com/verifyReceipt",
     		"AppStoreProductionUrl": "https://buy.itunes.apple.com/verifyReceipt",
     		"StripeApiSecretKey": "",
-    		"StripeSubscriptionProductId": "prod_v1_subscription"
+    		"StripeSubscriptionProductId": "prod_v1_subscription",
+    		"StripeWebhookSigningSecret": ""
     	},
     	"Tokenization": {
     		"EncryptionKey": "AAAAAAAAAAAAAAAAAAAAAA=="
