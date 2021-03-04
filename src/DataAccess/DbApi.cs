@@ -1983,24 +1983,6 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<SubscriptionPeriod> UpdateSubscriptionPeriodPaymentStatusAsync(
-			this NpgsqlConnection connection,
-			SubscriptionProvider provider,
-			string providerPeriodId,
-			string providerPaymentMethodId,
-			SubscriptionPaymentStatus paymentStatus,
-			DateTime? datePaid
-		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
-			sql: "subscriptions.update_subscription_period_payment_status",
-			param: new {
-				provider = ConvertEnumToString(provider),
-				provider_period_id = providerPeriodId,
-				provider_payment_method_id = providerPaymentMethodId,
-				payment_status = ConvertEnumToString(paymentStatus),
-				date_paid = datePaid
-			},
-			commandType: CommandType.StoredProcedure
-		);
 		public static async Task<SubscriptionPaymentMethod> UpdateSubscriptionPaymentMethodAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,

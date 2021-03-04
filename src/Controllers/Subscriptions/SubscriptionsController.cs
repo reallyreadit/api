@@ -7,6 +7,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 using api.Authentication;
+using api.BackgroundProcessing;
 using api.Configuration;
 using api.Controllers.Shared;
 using api.DataAccess;
@@ -24,96 +25,160 @@ namespace api.Controllers.Subscriptions {
 		private readonly IHttpClientFactory httpClientFactory;
 		private readonly ILogger<SubscriptionsController> logger;
 		private readonly SubscriptionsOptions subscriptionsOptions;
+		private readonly IBackgroundTaskQueue taskQueue;
 
 		public SubscriptionsController(
 			IOptions<DatabaseOptions> databaseOptions,
 			IHttpClientFactory httpClientFactory,
 			ILogger<SubscriptionsController> logger,
-			IOptions<SubscriptionsOptions> subscriptionsOptions
+			IOptions<SubscriptionsOptions> subscriptionsOptions,
+			IBackgroundTaskQueue taskQueue
 		) {
 			this.databaseOptions = databaseOptions.Value;
 			this.httpClientFactory = httpClientFactory;
 			this.logger = logger;
 			this.subscriptionsOptions = subscriptionsOptions.Value;
+			this.taskQueue = taskQueue;
 		}
 
-		[AllowAnonymous]
-		[HttpPost]
-		public async Task<IActionResult> AppStoreNotification() {
-			var timestamp = DateTime.UtcNow.ToString("s");
-			using (
-				var body = new StreamReader(Request.Body)
-			) {
-				await System.IO.File.WriteAllTextAsync(
-					path: $@"logs/{timestamp.Replace(':', '-')}_AppStoreNotification_{Path.GetRandomFileName()}",
-					contents: "Date: " + DateTime.UtcNow.ToString("s") + "\nContent-Type: " + Request.ContentType + "\nBody:\n" + (await body.ReadToEndAsync())
-				);
-			}
-			return Ok();
-		}
-
-		// must allow anonymous access since this can be called by the transaction observer after a user signs out
-		//[AllowAnonymous]
-		[HttpPost]
-		public async Task<ActionResult<AppleSubscriptionValidationResponse>> AppleSubscriptionValidation(
-			[FromBody] AppleSubscriptionValidationRequest request
-		) {
-			// debugging
-			var timestamp = DateTime.UtcNow.ToString("s");
-			await System.IO.File.WriteAllTextAsync(
-				path: $@"logs/{timestamp.Replace(':', '-')}_AppleSubscriptionValidation_{Path.GetRandomFileName()}",
-				contents: request.Base64EncodedReceipt
-			);
-			// if (!User.Identity.IsAuthenticated) {
-			// 	return BadRequest();
-			// }
-
-			// verify receipt with app store
-			AppStoreReceiptVerificationResponse response;
-			using (var httpClient = this.httpClientFactory.CreateClient()) {
-				var appStoreResponse = await httpClient.PostAsync(
-					requestUri: subscriptionsOptions.AppStoreSandboxUrl,
-					new StringContent(
-						content: JsonSerializer.Serialize(
-							new AppStoreReceiptVerificationRequest {
-								ReceiptData = request.Base64EncodedReceipt,
-								Password = subscriptionsOptions.AppleAppSecret,
-								ExcludeOldTransactions = false
-							}
-						),
-						encoding: Encoding.UTF8,
-						mediaType: "application/json"
-					)
-				);
-				response = JsonSerializer.Deserialize<AppStoreReceiptVerificationResponse>(
-					await appStoreResponse.Content.ReadAsStringAsync()
-				);
+		/// <summary>Attempts to create or update the subscription period associated with the Invoice.</summary>
+		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
+		/// <returns>A SubscriptionPeriod or null.</returns>
+		/// <param name="invoice">An Invoice with an expanded PaymentIntent property.</param>
+		private async Task<SubscriptionPeriod> CreateOrUpdateSubscriptionPeriodAsync(Stripe.Invoice invoice) {
+			// There should only be a single line item.
+			var invoiceLineItem = invoice.Lines.SingleOrDefault();
+			if (invoiceLineItem == null) {
+				logger.LogError("Unexpected number of line items on Stripe invoice with id: {InvoiceId}.", invoice.Id);
+				return null;
 			}
 
-			if (response.LatestReceiptInfo == null || !response.LatestReceiptInfo.Any()) {
-				return new AppleSubscriptionEmptyReceiptResponse();
-			}
-
+			// Create or update the subscription period.
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				// sync to database
-				var userAccountId = User.GetUserAccountId();
-				var accountGroups = response.LatestReceiptInfo.GroupBy(
-					transaction => transaction.OriginalTransactionId
-				);
+				try {
+					return await db.CreateOrUpdateSubscriptionPeriodAsync(
+						provider: SubscriptionProvider.Stripe,
+						providerSubscriptionId: invoice.SubscriptionId,
+						providerPeriodId: invoice.Id,
+						providerPriceId: invoiceLineItem.Price.Id,
+						providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
+						beginDate: DateTimeOffset
+							.FromUnixTimeSeconds(invoiceLineItem.Period.Start)
+							.UtcDateTime,
+						endDate: DateTimeOffset
+							.FromUnixTimeSeconds(invoiceLineItem.Period.End)
+							.UtcDateTime,
+						dateCreated: invoice.Created,
+						paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
+						datePaid: invoice.StatusTransitions.PaidAt,
+						dateRefunded: null,
+						refundReason: null
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to create or update subscription period associated with Stripe invoice with id: {InvoiceId}.", invoice.Id);
+					return null;
+				}
+			}
+		}
+
+		/// <summary>Attempts to create a StripePaymentResponse from the PaymentIntent.</summary>
+		/// <remarks>If an error occurrs it will be logged and a ProblemDetails ObjectResult will be returned.</remarks>
+		/// <returns>A StripePaymentResponse or a ProblemDetails ObjectResult.</returns>
+		/// <param name="paymentIntent">A Stripe PaymentIntent object.</param>
+		/// <param name="userAccount">An optional UserAccount. If null the UserAccount will be fetched from the database using the current user's id.</param>
+		private async Task<ActionResult<StripePaymentResponse>> CreateStripePaymentResponseActionResultAsync(Stripe.PaymentIntent paymentIntent, UserAccount userAccount = null) {
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					return StripePaymentResponse.FromPaymentIntent(
+						paymentIntent,
+						SubscriptionStatusClientModel.FromSubscriptionStatus(
+							userAccount ??
+							await db.GetUserAccountById(
+								userAccountId: userAccountId
+							),
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(
+								userAccountId: userAccountId
+							)
+						)
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to create StripePaymentResponse for payment intent with id: {PaymentIntentId} and user with id: {UserId}", paymentIntent.Id, userAccountId);
+					return Problem($"Failed to create response object.", statusCode: 500);
+				}
+			}
+		}
+
+		/// <summary>Attempts to get the Invoice and associated PaymentIntent.</summary>
+		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
+		/// <returns>An Invoice with an expanded PaymentIntent property or null.</returns>
+		private async Task<Stripe.Invoice> GetInvoiceWithPaymentIntentAsync(string invoiceId) {
+			try {
+				return await new Stripe.InvoiceService()
+					.GetAsync(
+						id: invoiceId,
+						options: new Stripe.InvoiceGetOptions {
+							Expand = new List<string> {
+								StripeInvoiceExpandProperties.PaymentIntent
+							}
+						}
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to get Stripe invoice with id: {InvoiceId} for user with id: {UserId}.", invoiceId, User.GetUserAccountIdOrDefault());
+				return null;
+			}
+		}
+
+		/// <summary>Attempts to pay the Invoice.</summary>
+		/// <remarks>
+		/// <para>If a CardError occurrs an attempt will be made to get an updated Invoice.</para>
+		/// <para>All other types of errors will be logged and the return value will be null.</para>
+		/// </remarks>
+		/// <returns>An Invoice with an expanded PaymentIntent property or null.</returns>
+		private async Task<Stripe.Invoice> PayInvoiceHandlingCardErrorsAsync(string invoiceId) {
+			try {
+				return await new Stripe.InvoiceService()
+					.PayAsync(
+						id: invoiceId,
+						options: new Stripe.InvoicePayOptions {
+							Expand = new List<string> {
+								StripeInvoiceExpandProperties.PaymentIntent
+							}
+						}
+					);
+			} catch (Exception ex) {
+				if ((ex as Stripe.StripeException)?.StripeError.Type == StripeErrorType.CardError) {
+					return await GetInvoiceWithPaymentIntentAsync(invoiceId: invoiceId);
+				} else {
+					logger.LogError(ex, "Failed to pay Stripe invoice with id: {InvoiceId}.", invoiceId);
+					return null;
+				}
+			}
+		}
+
+		/// <summary>Creates or updates accounts, subscriptions and periods from records supplied by an App Store notification or device receipt verification response.</summary>
+		private async Task SyncSubscriptionsFromReceiptAsync(AppStoreLatestReceiptInfo[] records, string latestBase64Receipt) {
+			if (records == null || !records.Any() || String.IsNullOrWhiteSpace(latestBase64Receipt)) {
+				return;
+			}
+			var accountGroups = records.GroupBy(
+				transaction => transaction.OriginalTransactionId
+			);
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				foreach (var accountGroup in accountGroups) {
 					var originalTransaction = accountGroup.Single(
 						transaction => transaction.TransactionId == transaction.OriginalTransactionId
 					);
 					var originalTransactionId = originalTransaction.TransactionId;
 					var originalPurchaseDate = DateTimeOffset
-							.FromUnixTimeMilliseconds(
-								Int64.Parse(originalTransaction.PurchaseDateMs)
-							)
-							.UtcDateTime;
+						.FromUnixTimeMilliseconds(
+							Int64.Parse(originalTransaction.PurchaseDateMs)
+						)
+						.UtcDateTime;
 					await db.CreateOrUpdateSubscriptionAccountAsync(
 						provider: SubscriptionProvider.Apple,
 						providerAccountId: originalTransaction.TransactionId,
-						userAccountId: userAccountId,
+						userAccountId: User.GetUserAccountIdOrDefault(),
 						dateCreated: originalPurchaseDate
 					);
 					await db.CreateOrUpdateSubscriptionAsync(
@@ -122,7 +187,7 @@ namespace api.Controllers.Subscriptions {
 						providerAccountId: originalTransaction.TransactionId,
 						dateCreated: originalPurchaseDate,
 						dateTerminated: null,
-						latestReceipt: response.LatestReceipt
+						latestReceipt: latestBase64Receipt
 					);
 					foreach (var transaction in accountGroup) {
 						var purchaseDate = DateTimeOffset
@@ -158,19 +223,102 @@ namespace api.Controllers.Subscriptions {
 						);
 					}
 				}
+			}
+		}
 
-				// return current status
-				var latestTransaction = response.LatestReceiptInfo
-					.OrderByDescending(
-						transaction => transaction.ExpiresDateMs
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> AppStoreNotification() {
+			// read the body text
+			string body;
+			using (
+				var bodyReader = new StreamReader(Request.Body)
+			) {
+				body = await bodyReader.ReadToEndAsync();
+			}
+			// parse the app store event
+			AppStoreNotification notification;
+			try {
+				notification = JsonSerializer.Deserialize<AppStoreNotification>(body);
+				if (notification.Password != subscriptionsOptions.AppleAppSecret) {
+					throw new ArgumentException($"Invalid App Store Notification password: {notification.Password}");
+				}
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to parse App Store notification request body with content: {Body}.", body);
+				return BadRequest();
+			}
+			// sync to database as background task so we can return immediately
+			taskQueue.QueueBackgroundWorkItem(
+				async cancellationToken => {
+					await SyncSubscriptionsFromReceiptAsync(notification.UnifiedReceipt.LatestReceiptInfo, notification.UnifiedReceipt.LatestReceipt);
+				}
+			);
+			// log notification
+			await System.IO.File.WriteAllTextAsync(
+				path: $@"logs/{DateTime.UtcNow.ToString("s").Replace(':', '-')}_AppStoreNotification_{Path.GetRandomFileName()}",
+				contents: body
+			);
+			// return ok
+			return Ok();
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<AppleSubscriptionValidationResponse>> AppleSubscriptionValidation(
+			[FromBody] AppleSubscriptionValidationRequest request
+		) {
+			// log receipt
+			await System.IO.File.WriteAllTextAsync(
+				path: $@"logs/{DateTime.UtcNow.ToString("s").Replace(':', '-')}_AppleSubscriptionValidation_{User.GetUserAccountId()}_{Path.GetRandomFileName()}",
+				contents: request.Base64EncodedReceipt
+			);
+
+			// verify receipt with app store
+			AppStoreReceiptVerificationResponse response;
+			using (var httpClient = this.httpClientFactory.CreateClient()) {
+				var appStoreResponse = await httpClient.PostAsync(
+					requestUri: subscriptionsOptions.AppStoreSandboxUrl,
+					new StringContent(
+						content: JsonSerializer.Serialize(
+							new AppStoreReceiptVerificationRequest {
+								ReceiptData = request.Base64EncodedReceipt,
+								Password = subscriptionsOptions.AppleAppSecret,
+								ExcludeOldTransactions = false
+							}
+						),
+						encoding: Encoding.UTF8,
+						mediaType: "application/json"
 					)
-					.First();
+				);
+				var responseContent = await appStoreResponse.Content.ReadAsStringAsync();
+				try {
+					response = JsonSerializer.Deserialize<AppStoreReceiptVerificationResponse>(responseContent);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to parse App Store receipt verification response body with content: {Body}.", responseContent);
+					return Problem("Failed to verify receipt with App Store.", statusCode: 500);
+				}
+			}
+
+			if (response.LatestReceiptInfo == null || !response.LatestReceiptInfo.Any()) {
+				return new AppleSubscriptionEmptyReceiptResponse();
+			}
+
+			// sync to database
+			await SyncSubscriptionsFromReceiptAsync(response.LatestReceiptInfo, response.LatestReceipt);
+
+			// return current status
+			var latestTransaction = response.LatestReceiptInfo
+				.OrderByDescending(
+					transaction => transaction.ExpiresDateMs
+				)
+				.First();
+
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				var subscriptionStatus = await db.GetSubscriptionStatusForSubscriptionAccountAsync(
 					provider: SubscriptionProvider.Apple,
 					providerAccountId: latestTransaction.OriginalTransactionId
 				);
 				var subscriptionUser = await db.GetUserAccountById(subscriptionStatus.UserAccountId);
-				if (subscriptionUser.Id == userAccountId) {
+				if (subscriptionUser.Id == User.GetUserAccountId()) {
 					return new AppleSubscriptionAssociatedWithCurrentUserResponse(
 						SubscriptionStatusClientModel.FromSubscriptionStatus(
 							user: subscriptionUser,
@@ -185,16 +333,11 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
-		// must allow anonymous access since this can be called by the transaction observer after a user signs out
-		[AllowAnonymous]
 		[HttpPost]
 		public IActionResult AppleSubscriptionPurchaseFailure(
 			[FromBody] AppleSubscriptionPurchaseFailureRequest request
 		) {
-			this.logger.LogInformation("Received Apple subscription purchase failure with code: {Code} and description: {Description}", request.Code, request.Description);
-			if (!User.Identity.IsAuthenticated) {
-				return BadRequest();
-			}
+			logger.LogError("Received Apple subscription purchase failure with code: {Code} and description: {Description} for user with id: {UserId}.", request.Code, request.Description, User.GetUserAccountId());
 			return Ok();
 		}
 
@@ -275,47 +418,15 @@ namespace api.Controllers.Subscriptions {
 			[FromBody] StripePaymentConfirmationRequest request
 		) {
 			var userAccountId = User.GetUserAccountId();
-			Stripe.Invoice invoice;
-			try {
-				invoice = await new Stripe.InvoiceService()
-					.GetAsync(
-						id: request.InvoiceId,
-						options: new Stripe.InvoiceGetOptions {
-							Expand = new List<string> {
-								StripeInvoiceExpandProperties.PaymentIntent
-							}
-						}
-					);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to get payment intent with id: {PaymentIntentId} for confirmation for user with id: {UserId}.", request.InvoiceId, userAccountId);
+			var invoice = await GetInvoiceWithPaymentIntentAsync(invoiceId: request.InvoiceId);
+			if (invoice == null) {
 				return Problem("Subscription not found.", statusCode: 500);
 			}
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				try {
-					await db.UpdateSubscriptionPeriodPaymentStatusAsync(
-						provider: SubscriptionProvider.Stripe,
-						providerPeriodId: invoice.Id,
-						providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
-						paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
-						datePaid: invoice.StatusTransitions.PaidAt
-					);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to update payment status for invoice with id: {InvoiceId}. Stripe request id: {RequestId}.", invoice.Id, invoice.StripeResponse.RequestId);
-					return Problem("Failed to update payment status.", statusCode: 500);
-				}
-				try {
-					return StripePaymentResponse.FromPaymentIntent(
-						invoice.PaymentIntent,
-						SubscriptionStatusClientModel.FromSubscriptionStatus(
-							await db.GetUserAccountById(userAccountId),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId)
-						)
-					);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to create payment confirmation response object for invoice with id: {InvoiceId}. Stripe request id: {RequestId}.", invoice.Id, invoice.StripeResponse.RequestId);
-					return Problem($"Failed to create response object.", statusCode: 500);
-				}
+			var subscriptionPeriod = await CreateOrUpdateSubscriptionPeriodAsync(invoice);
+			if (subscriptionPeriod == null) {
+				return Problem("Failed to update payment status.", statusCode: 500);
 			}
+			return await CreateStripePaymentResponseActionResultAsync(invoice.PaymentIntent);
 		}
 
 		[HttpPost]
@@ -616,66 +727,16 @@ namespace api.Controllers.Subscriptions {
 				// only process if incomplete, otherwise continue to subscription creation
 				if (stripeSubscription.Status == api.Subscriptions.StripeSubscriptionStatus.Incomplete) {
 					// attempt to pay the existing invoice
-					Stripe.Invoice invoice;
-					try {
-						invoice = await new Stripe.InvoiceService()
-							.PayAsync(
-								id: stripeSubscription.LatestInvoiceId,
-								options: new Stripe.InvoicePayOptions {
-									Expand = new List<string> {
-										StripeInvoiceExpandProperties.PaymentIntent
-									}
-								}
-							);
-					} catch (Exception invoicePayEx) {
-						if ((invoicePayEx as Stripe.StripeException)?.StripeError.Type == StripeErrorType.CardError) {
-							// refresh the invoice and process the response based on the payment intent status
-							try {
-								invoice = await new Stripe.InvoiceService()
-									.GetAsync(
-										id: stripeSubscription.LatestInvoiceId,
-										options: new Stripe.InvoiceGetOptions {
-											Expand = new List<string> {
-												StripeInvoiceExpandProperties.PaymentIntent
-											}
-										}
-									);
-							} catch (Exception invoiceGetEx) {
-								logger.LogError(invoiceGetEx, "Failed to get Stripe invoice with id: {InvoiceId}.", stripeSubscription.LatestInvoiceId);
-								return Problem("Failed to get invoice.", statusCode: 500);
-							}
-						} else {
-							logger.LogError(invoicePayEx, "Failed to pay Stripe invoice with id: {InvoiceId}.", stripeSubscription.LatestInvoiceId);
-							return Problem("Failed to pay invoice.", statusCode: 500);
-						}
+					var invoice = await PayInvoiceHandlingCardErrorsAsync(invoiceId: stripeSubscription.LatestInvoiceId);
+					if (invoice == null) {
+						return Problem("Failed to pay invoice.", statusCode: 500);
 					}
 					// update the period payment status and return
-					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-						try {
-							await db.UpdateSubscriptionPeriodPaymentStatusAsync(
-								provider: SubscriptionProvider.Stripe,
-								providerPeriodId: invoice.Id,
-								providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
-								paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
-								datePaid: invoice.StatusTransitions.PaidAt
-							);
-						} catch (Exception ex) {
-							logger.LogError(ex, "Failed to update payment status for invoice with id: {InvoiceId}. Stripe request id: {RequestId}.", invoice.Id, invoice.StripeResponse.RequestId);
-							return Problem("Failed to update payment status.", statusCode: 500);
-						}
-						try {
-							return StripePaymentResponse.FromPaymentIntent(
-								invoice.PaymentIntent,
-								SubscriptionStatusClientModel.FromSubscriptionStatus(
-									userAccount,
-									await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id)
-								)
-							);
-						} catch (Exception ex) {
-							logger.LogError(ex, "Failed to create payment confirmation response object for invoice with id: {InvoiceId}. Stripe request id: {RequestId}.", invoice.Id, invoice.StripeResponse.RequestId);
-							return Problem($"Failed to create response object.", statusCode: 500);
-						}
+					var updatedSubscriptionPeriod = await CreateOrUpdateSubscriptionPeriodAsync(invoice);
+					if (updatedSubscriptionPeriod == null) {
+						return Problem("Failed to update payment status.", statusCode: 500);
 					}
+					return await CreateStripePaymentResponseActionResultAsync(invoice.PaymentIntent, userAccount);
 				}
 			}
 
@@ -700,13 +761,6 @@ namespace api.Controllers.Subscriptions {
 				return Problem("Failed to create Stripe subscription.", statusCode: 500);
 			}
 
-			// there should only be a single line item
-			var invoiceLineItem = stripeSubscription.LatestInvoice.Lines.SingleOrDefault();
-			if (invoiceLineItem == null) {
-				logger.LogError("Unexpected number of line items on Stripe invoice with id: {InvoiceId}. Stripe request id: {RequestId}.", stripeSubscription.LatestInvoice.Id, stripeSubscription.StripeResponse.RequestId);
-				return Problem("Invalid invoice line item.", statusCode: 500);
-			}
-
 			// create the subscription
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				try {
@@ -718,41 +772,80 @@ namespace api.Controllers.Subscriptions {
 						dateTerminated: null,
 						latestReceipt: null
 					);
-					await db.CreateOrUpdateSubscriptionPeriodAsync(
-						provider: SubscriptionProvider.Stripe,
-						providerSubscriptionId: stripeSubscription.Id,
-						providerPeriodId: stripeSubscription.LatestInvoiceId,
-						providerPriceId: invoiceLineItem.Price.Id,
-						providerPaymentMethodId: stripeSubscription.LatestInvoice.PaymentIntent.PaymentMethodId,
-						beginDate: DateTimeOffset
-							.FromUnixTimeSeconds(invoiceLineItem.Period.Start)
-							.UtcDateTime,
-						endDate: DateTimeOffset
-							.FromUnixTimeSeconds(invoiceLineItem.Period.End)
-							.UtcDateTime,
-						dateCreated: stripeSubscription.Created,
-						paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(stripeSubscription.LatestInvoice.PaymentIntent.Status),
-						datePaid: stripeSubscription.LatestInvoice.StatusTransitions.PaidAt,
-						dateRefunded: null,
-						refundReason: null
-					);
-					try {
-						return StripePaymentResponse.FromPaymentIntent(
-							stripeSubscription.LatestInvoice.PaymentIntent,
-							SubscriptionStatusClientModel.FromSubscriptionStatus(
-								userAccount,
-								await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id)
-							)
-						);
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to create payment confirmation response object for invoice with id: {InvoiceId}. Stripe request id: {RequestId}.", stripeSubscription.LatestInvoiceId, stripeSubscription.StripeResponse.RequestId);
-						return Problem($"Failed to create response object.", statusCode: 500);
-					}
 				} catch (Exception ex) {
 					logger.LogError(ex, "Failed to create subscription for Stripe subscription with id: {SubscriptionId}. Stripe request id: {RequestId}.", stripeSubscription.Id, stripeSubscription.StripeResponse.RequestId);
 					return Problem("Failed to create subscription.", statusCode: 500);
 				}
 			}
+
+			// Create the subscription period.
+			var newSubscriptionPeriod = await CreateOrUpdateSubscriptionPeriodAsync(stripeSubscription.LatestInvoice);
+			if (newSubscriptionPeriod == null) {
+				return Problem("Failed to create subscription period.", statusCode: 500);
+			}
+
+			// Return a StripePaymentResponse.
+			return await CreateStripePaymentResponseActionResultAsync(stripeSubscription.LatestInvoice.PaymentIntent, userAccount);
+		}
+
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<IActionResult> StripeWebhook() {
+			// read the body text
+			string body;
+			using (
+				var bodyReader = new StreamReader(Request.Body)
+			) {
+				body = await bodyReader.ReadToEndAsync();
+			}
+			// parse the stripe event
+			Stripe.Event stripeEvent;
+			try {
+				stripeEvent = Stripe.EventUtility.ConstructEvent(body, Request.Headers["Stripe-Signature"], subscriptionsOptions.StripeWebhookSigningSecret);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to parse Stripe webhook request body with content: {Body}.", body);
+				return BadRequest();
+			}
+			// handle the stripe event as a background task so we can return immediately and keep the stripe servers happy
+			taskQueue.QueueBackgroundWorkItem(
+				async cancellationToken => {
+					switch (stripeEvent.Type) {
+						// finalize and pay renewal invoices immediately in order to avoid 1-hour delay
+						case Stripe.Events.InvoiceCreated:
+							var newInvoice = stripeEvent.Data.Object as Stripe.Invoice;
+							if (newInvoice.BillingReason == StripeInvoiceBillingReason.SubscriptionCycle) {
+								// the invoice must be finalized first
+								// method throws if invoice has already been finalized
+								try {
+									await new Stripe.InvoiceService()
+										.FinalizeInvoiceAsync(id: newInvoice.Id);
+								} catch (Exception ex) {
+									logger.LogError(ex, "Failed to finalize Stripe subscription renewal invoice with id: {InvoiceId}.", newInvoice.Id);
+								}
+								// then attempt payment and create the new period using the payment status
+								newInvoice = await PayInvoiceHandlingCardErrorsAsync(invoiceId: newInvoice.Id);
+								if (newInvoice != null) {
+									await CreateOrUpdateSubscriptionPeriodAsync(newInvoice);
+								}
+							}
+							break;
+						// The following three payment events should generally be handled during the normal initial and renewal payment processing flows but there are
+						// situations where the client may have failed to complete a request after payment confirmation or some other unexpected server error occurred
+						// so we should handle them here as well as a backup. The invoice update database function is designed to be called any number of times in any order.
+						case Stripe.Events.InvoicePaid:
+						case Stripe.Events.InvoicePaymentActionRequired:
+						case Stripe.Events.InvoicePaymentFailed:
+							var updatedInvoice = stripeEvent.Data.Object as Stripe.Invoice;
+							// The PaymentIntent is required to update the payment status and is not included with the webhook object so we need to fetch a new invoice.
+							await CreateOrUpdateSubscriptionPeriodAsync(
+								await GetInvoiceWithPaymentIntentAsync(invoiceId: updatedInvoice.Id)
+							);
+							break;
+					}
+				}
+			);
+			// return
+			return Ok();
 		}
 	}
 }
