@@ -13,6 +13,15 @@ namespace api.Subscriptions {
 		public const string InvalidRequestError = "invalid_request_error";
 		public const string RateLimitError = "rate_limit_error";
 	}
+	public static class StripeInvoiceBillingReason {
+		public const string Manual = "manual";
+		public const string Subscription = "subscription";
+		public const string SubscriptionCreate = "subscription_create";
+		public const string SubscriptionCycle = "subscription_cycle";
+		public const string SubscriptionThreshold = "subscription_threshold";
+		public const string SubscriptionUpdate = "subscription_update";
+		public const string Upcoming = "upcoming";
+	}
 	public static class StripeInvoiceExpandProperties {
 		public const string PaymentIntent = "payment_intent";
 	}
