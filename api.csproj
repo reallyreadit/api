@@ -31,6 +31,7 @@
   <ItemGroup>
     <Content Include="fonts/*" CopyToPublishDirectory="Always" />
     <Content Include="keys/*" CopyToPublishDirectory="Always" />
+    <Content Remove="logs/*" />
   </ItemGroup>
 
 </Project>
