@@ -52,14 +52,14 @@ namespace api.Messaging {
 						request.ReplyToAddresses.Add($"{message.ReplyTo.Name} <{message.ReplyTo.Address}>");
 					}
 					// mail link debugging (this is the only version that has worked to prevent link errors so far)
-					if (message.Subject.StartsWith("AOTD:")) {
+					/*if (message.Subject.StartsWith("AOTD:")) {
 						logger.LogError(
 							"{Subject}\nTo: {ToAddress}\nBody: {Body}",
 							message.Subject,
 							message.To.Address,
 							message.Body
 						);
-					}
+					}*/
 					// SendEmailAsync will throw an exception if the email address contains illegal characters
 					try {
 						var response = await client.SendEmailAsync(request);
