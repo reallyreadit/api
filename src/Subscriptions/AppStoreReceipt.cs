@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace api.Subscriptions {
 	/// <summary>The decoded version of the encoded receipt data sent with the request to the App Store.</summary>
 	/// <remarks>https://developer.apple.com/documentation/appstorereceipts/responsebody/receipt</remarks>
-	class AppStoreReceipt {
+	public class AppStoreReceipt {
 		/// <summary>See <c>app_item_id</c>.</summary>
 		[JsonPropertyName("adam_id")]
 		public long AdamId { get; set; }

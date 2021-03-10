@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace api.Subscriptions {
 	/// <summary>The JSON contents you submit with the request to the App Store</summary>
 	/// <remarks>To receive a decoded receipt for validation, send a request with the encoded receipt data and app password to the App Store. For auto-renewable subscriptions, optionally include an exclusion flag. Send this JSON data using the HTTP POST request method.</remarks>
-	class AppStoreReceiptVerificationRequest {
+	public class AppStoreReceiptVerificationRequest {
 		/// <summary>(Required) The Base64-encoded receipt data.</summary>
 		[JsonPropertyName("receipt-data")]
 		public string ReceiptData { get; set; }

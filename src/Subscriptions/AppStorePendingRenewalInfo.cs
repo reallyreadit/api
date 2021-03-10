@@ -6,7 +6,7 @@ namespace api.Subscriptions {
 	/// <para>In the JSON file, <c>pending_renewal_info</c> is an array in which each element contains the pending renewal information for each auto-renewable subscription identified by the <c>product_id</c>. A pending renewal may refer to a renewal that is scheduled in the future or a renewal that failed in the past for some reason. It is only returned for app receipts that contain auto-renewable subscriptions.</para>
 	/// <para>You can use this value to get critical information about any pending renewal transactions for an auto-renewable subscription.</para>
 	/// </remarks>
-	class AppStorePendingRenewalInfo {
+	public class AppStorePendingRenewalInfo {
 		/// <summary>The current renewal preference for the auto-renewable subscription. The value for this key corresponds to the <c>productIdentifier</c> property of the product that the customer’s subscription renews. This field is only present if the user downgrades or crossgrades to a subscription of a different duration for the subsequent subscription period.</summary>
 		[JsonPropertyName("auto_renew_product_id")]
 		public string AutoRenewProductId { get; set; }

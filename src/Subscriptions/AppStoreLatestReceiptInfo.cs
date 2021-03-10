@@ -4,7 +4,7 @@ namespace api.Subscriptions {
 	/// <summary></summary>
 	/// <remarks>https://developer.apple.com/documentation/appstorereceipts/responsebody/latest_receipt_info</remarks>
 	/// <remarks>https://developer.apple.com/documentation/appstoreservernotifications/unified_receipt/latest_receipt_info</remarks>
-	class AppStoreLatestReceiptInfo : AppStoreInAppPurchaseReceipt {
+	public class AppStoreLatestReceiptInfo : AppStoreInAppPurchaseReceipt {
 		/// <summary>
 		/// <para>An indicator that a subscription has been canceled due to an upgrade. This field is only present for upgrade transactions.</para>
 		/// <para>Value: <c>true</c></para>

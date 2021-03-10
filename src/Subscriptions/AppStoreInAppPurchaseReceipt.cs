@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace api.Subscriptions {
 	/// <summary></summary>
 	/// <remarks>https://developer.apple.com/documentation/appstorereceipts/responsebody/receipt/in_app</remarks>
-	class AppStoreInAppPurchaseReceipt {
+	public class AppStoreInAppPurchaseReceipt {
 		/// <summary>The time Apple customer support canceled a transaction, in a date-time format similar to the ISO 8601. This field is only present for refunded transactions.</summary>
 		[JsonPropertyName("cancellation_date")]
 		public string CancellationDate { get; set; }

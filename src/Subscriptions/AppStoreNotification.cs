@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace api.Subscriptions {
 	/// <summary>The JSON data sent in the server notification from the App Store.</summary>
 	/// <remarks>Use the information in the response body to react quickly to changes in your users’ subscription states. The fields available in any one notification sent to your server are dependent on the <c>notification_type</c>, which indicates the event that triggered the notification.</remarks>
-	class AppStoreNotification {
+	public class AppStoreNotification {
 		/// <summary>An identifier that App Store Connect generates and the App Store uses to uniquely identify the auto-renewable subscription that the user’s subscription renews. Treat this value as a 64-bit integer.</summary>
 		[JsonPropertyName("auto_renew_adam_id")]
 		public string AutoRenewAdamId { get; set; }

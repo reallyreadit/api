@@ -2,7 +2,7 @@ using System.Text.Json.Serialization;
 
 namespace api.Subscriptions {
 	/// <summary>The JSON data returned in the response from the App Store.</summary>
-	class AppStoreReceiptVerificationResponse {
+	public class AppStoreReceiptVerificationResponse {
 		/// <summary>
 		/// <para>The environment for which the receipt was generated.</para>
 		/// <para>Possible values: <c>Sandbox</c>, <c>Production</c></para>
