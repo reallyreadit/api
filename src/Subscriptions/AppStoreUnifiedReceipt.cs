@@ -3,7 +3,7 @@ using System.Text.Json.Serialization;
 namespace api.Subscriptions {
 	/// <summary>An object that contains information about the most-recent, in-app purchase transactions for the app.</summary>
 	/// <remarks>https://developer.apple.com/documentation/appstoreservernotifications/unified_receipt</remarks>
-	public class AppStoreUnifiedReceipt {
+	public class AppStoreUnifiedReceipt : IAppStoreUnifiedReceipt {
 		/// <summary>
 		/// <para>The environment for which App Store generated the receipt.</para>
 		/// <para>Possible values: <c>Sandbox</c>, <c>Production</c></para>

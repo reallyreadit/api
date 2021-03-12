@@ -157,11 +157,11 @@ namespace api.Controllers.Subscriptions {
 		}
 
 		/// <summary>Creates or updates accounts, subscriptions and periods from records supplied by an App Store notification or device receipt verification response.</summary>
-		private async Task SyncSubscriptionsFromReceiptAsync(AppStoreLatestReceiptInfo[] records, string latestBase64Receipt) {
-			if (records == null || !records.Any() || String.IsNullOrWhiteSpace(latestBase64Receipt)) {
+		private async Task SyncSubscriptionsFromReceiptAsync(IAppStoreUnifiedReceipt receipt) {
+			if (receipt.LatestReceiptInfo == null || !receipt.LatestReceiptInfo.Any() || String.IsNullOrWhiteSpace(receipt.LatestReceipt)) {
 				return;
 			}
-			var accountGroups = records.GroupBy(
+			var accountGroups = receipt.LatestReceiptInfo.GroupBy(
 				transaction => transaction.OriginalTransactionId
 			);
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
@@ -186,7 +186,7 @@ namespace api.Controllers.Subscriptions {
 						providerSubscriptionId: originalTransaction.TransactionId,
 						providerAccountId: originalTransaction.TransactionId,
 						dateCreated: originalPurchaseDate,
-						latestReceipt: latestBase64Receipt
+						latestReceipt: receipt.LatestReceipt
 					);
 					foreach (var transaction in accountGroup) {
 						var purchaseDate = DateTimeOffset
@@ -249,7 +249,7 @@ namespace api.Controllers.Subscriptions {
 			// sync to database as background task so we can return immediately
 			taskQueue.QueueBackgroundWorkItem(
 				async cancellationToken => {
-					await SyncSubscriptionsFromReceiptAsync(notification.UnifiedReceipt.LatestReceiptInfo, notification.UnifiedReceipt.LatestReceipt);
+					await SyncSubscriptionsFromReceiptAsync(notification.UnifiedReceipt);
 				}
 			);
 			// log notification
@@ -302,7 +302,7 @@ namespace api.Controllers.Subscriptions {
 			}
 
 			// sync to database
-			await SyncSubscriptionsFromReceiptAsync(response.LatestReceiptInfo, response.LatestReceipt);
+			await SyncSubscriptionsFromReceiptAsync(response);
 
 			// return current status
 			var latestTransaction = response.LatestReceiptInfo
