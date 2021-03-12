@@ -231,8 +231,8 @@ namespace api.Controllers.Subscriptions {
 						providerPriceId: renewalInfo.AutoRenewProductId,
 						expirationIntent: renewalInfo.ExpirationIntent
 					);
+				}
 			}
-		}
 		}
 
 		private async Task<AppStoreReceiptVerificationResponse> VerifyAppStoreReceipt(string base64EncodedReceipt) {
@@ -312,8 +312,8 @@ namespace api.Controllers.Subscriptions {
 			// verify receipt with app store
 			var response = await VerifyAppStoreReceipt(request.Base64EncodedReceipt);
 			if (response == null) {
-					return Problem("Failed to verify receipt with App Store.", statusCode: 500);
-				}
+				return Problem("Failed to verify receipt with App Store.", statusCode: 500);
+			}
 
 			if (response.LatestReceiptInfo == null || !response.LatestReceiptInfo.Any()) {
 				return new AppleSubscriptionEmptyReceiptResponse();
@@ -454,6 +454,55 @@ namespace api.Controllers.Subscriptions {
 					)
 				);
 			}
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<SubscriptionStatusResponse>> StripeAutoRenewStatus(
+			[FromBody] StripeAutoRenewStatusRequest request
+		) {
+			SubscriptionStatus status;
+			UserAccount user;
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
+				user = await db.GetUserAccountById(userAccountId: userAccountId);
+			}
+			if (
+				status.Provider == SubscriptionProvider.Stripe &&
+				status.IsAutoRenewEnabled() != request.AutoRenewEnabled
+			) {
+				try {
+					await new Stripe.SubscriptionService()
+						.UpdateAsync(
+							id: status.ProviderSubscriptionId,
+							options: new Stripe.SubscriptionUpdateOptions {
+								CancelAtPeriodEnd = !request.AutoRenewEnabled
+							}
+						);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to update auto-renew setting for Stripe subscription with id: {SubscriptionId}.", status.ProviderSubscriptionId);
+					return Problem("Failed to update subscription.", statusCode: 500);
+				}
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					try {
+						await db.CreateSubscriptionRenewalStatusChangeAsync(
+							provider: SubscriptionProvider.Stripe,
+							providerSubscriptionId: status.ProviderSubscriptionId,
+							dateCreated: DateTime.UtcNow,
+							autoRenewEnabled: request.AutoRenewEnabled,
+							providerPriceId: status.LatestPeriod.ProviderPriceId,
+							expirationIntent: null
+						);
+					} catch (Exception ex) {
+						logger.LogError(ex, "Failed to create a subscription renewal status change for Stripe subscription with id: {SubscriptionId}.", status.ProviderSubscriptionId);
+						return Problem("Failed to update subscription.", statusCode: 500);
+					}
+					status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
+				}
+			}
+			return new SubscriptionStatusResponse(
+				SubscriptionStatusClientModel.FromSubscriptionStatus(user, status)
+			);
 		}
 
 		[HttpPost]
