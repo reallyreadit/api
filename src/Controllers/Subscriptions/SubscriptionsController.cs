@@ -225,6 +225,34 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		private async Task<AppStoreReceiptVerificationResponse> VerifyAppStoreReceipt(string base64EncodedReceipt) {
+			AppStoreReceiptVerificationResponse response;
+			using (var httpClient = this.httpClientFactory.CreateClient()) {
+				var appStoreResponse = await httpClient.PostAsync(
+					requestUri: subscriptionsOptions.AppStoreSandboxUrl,
+					new StringContent(
+						content: JsonSerializer.Serialize(
+							new AppStoreReceiptVerificationRequest {
+								ReceiptData = base64EncodedReceipt,
+								Password = subscriptionsOptions.AppleAppSecret,
+								ExcludeOldTransactions = false
+							}
+						),
+						encoding: Encoding.UTF8,
+						mediaType: "application/json"
+					)
+				);
+				var responseContent = await appStoreResponse.Content.ReadAsStringAsync();
+				try {
+					response = JsonSerializer.Deserialize<AppStoreReceiptVerificationResponse>(responseContent);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to parse App Store receipt verification response body with content: {Body}.", responseContent);
+					response = null;
+				}
+			}
+			return response;
+		}
+
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> AppStoreNotification() {
@@ -272,30 +300,10 @@ namespace api.Controllers.Subscriptions {
 			);
 
 			// verify receipt with app store
-			AppStoreReceiptVerificationResponse response;
-			using (var httpClient = this.httpClientFactory.CreateClient()) {
-				var appStoreResponse = await httpClient.PostAsync(
-					requestUri: subscriptionsOptions.AppStoreSandboxUrl,
-					new StringContent(
-						content: JsonSerializer.Serialize(
-							new AppStoreReceiptVerificationRequest {
-								ReceiptData = request.Base64EncodedReceipt,
-								Password = subscriptionsOptions.AppleAppSecret,
-								ExcludeOldTransactions = false
-							}
-						),
-						encoding: Encoding.UTF8,
-						mediaType: "application/json"
-					)
-				);
-				var responseContent = await appStoreResponse.Content.ReadAsStringAsync();
-				try {
-					response = JsonSerializer.Deserialize<AppStoreReceiptVerificationResponse>(responseContent);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to parse App Store receipt verification response body with content: {Body}.", responseContent);
+			var response = await VerifyAppStoreReceipt(request.Base64EncodedReceipt);
+			if (response == null) {
 					return Problem("Failed to verify receipt with App Store.", statusCode: 500);
 				}
-			}
 
 			if (response.LatestReceiptInfo == null || !response.LatestReceiptInfo.Any()) {
 				return new AppleSubscriptionEmptyReceiptResponse();
