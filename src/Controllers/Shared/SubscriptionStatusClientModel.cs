@@ -26,11 +26,28 @@ namespace api.Controllers.Shared {
 			var subscriptionState = status.GetCurrentState(DateTime.UtcNow);
 			switch (subscriptionState) {
 				case SubscriptionState.Active:
+					var autoRenewEnabled = status.IsAutoRenewEnabled();
+					SubscriptionPriceClientModel autoRenewPrice;
+					if (autoRenewEnabled) {
+						if (status.LatestRenewalStatusChange?.PriceAmount != null) {
+							autoRenewPrice = new SubscriptionPriceClientModel(
+								id: status.LatestRenewalStatusChange.ProviderPriceId,
+								name: status.LatestRenewalStatusChange.PriceLevelName,
+								amount: status.LatestRenewalStatusChange.PriceAmount.Value
+							);
+						} else {
+							autoRenewPrice = price;
+						}
+					} else {
+						autoRenewPrice = null;
+					}
 					return new SubscriptionStatusActiveClientModel(
 						provider: provider,
 						price: price,
 						currentPeriodBeginDate: status.LatestPeriod.BeginDate,
 						currentPeriodEndDate: status.LatestPeriod.EndDate,
+						autoRenewEnabled: autoRenewEnabled,
+						autoRenewPrice: autoRenewPrice,
 						isUserFreeForLife: isUserFreeForLife
 					);
 				case SubscriptionState.Lapsed:
@@ -124,6 +141,8 @@ namespace api.Controllers.Shared {
 			SubscriptionPriceClientModel price,
 			DateTime currentPeriodBeginDate,
 			DateTime currentPeriodEndDate,
+			bool autoRenewEnabled,
+			SubscriptionPriceClientModel autoRenewPrice,
 			bool isUserFreeForLife
 		) :
 		base(
@@ -134,11 +153,15 @@ namespace api.Controllers.Shared {
 			Price = price;
 			CurrentPeriodBeginDate = currentPeriodBeginDate;
 			CurrentPeriodEndDate = currentPeriodEndDate;
+			AutoRenewEnabled = autoRenewEnabled;
+			AutoRenewPrice = autoRenewPrice;
 		}
 		public SubscriptionProviderClientValue Provider { get; }
 		public SubscriptionPriceClientModel Price { get; }
 		public DateTime CurrentPeriodBeginDate { get; }
 		public DateTime CurrentPeriodEndDate { get; }
+		public bool AutoRenewEnabled { get; }
+		public SubscriptionPriceClientModel AutoRenewPrice { get; }
 	}
 	public class SubscriptionStatusLapsedClientModel : SubscriptionStatusClientModel {
 		public SubscriptionStatusLapsedClientModel(
