@@ -9,6 +9,7 @@ namespace api.DataAccess.Models {
 		public DateTime DateCreated { get; set; }
 		public string LatestReceipt { get; set; }
 		public SubscriptionStatusLatestPeriod LatestPeriod { get; set; }
+		public SubscriptionStatusLatestRenewalStatusChange LatestRenewalStatusChange { get; set; }
 		public SubscriptionState GetCurrentState(DateTime utcNow) {
 			if (LatestPeriod.EndDate <= utcNow) {
 				return SubscriptionState.Lapsed;
@@ -23,5 +24,6 @@ namespace api.DataAccess.Models {
 			}
 			return SubscriptionState.IncompleteExpired;
 		}
+		public bool IsAutoRenewEnabled() => LatestRenewalStatusChange == null || LatestRenewalStatusChange.AutoRenewEnabled;
 	}
 }

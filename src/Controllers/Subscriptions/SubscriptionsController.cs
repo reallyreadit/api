@@ -222,7 +222,17 @@ namespace api.Controllers.Subscriptions {
 						);
 					}
 				}
+				foreach (var renewalInfo in receipt.PendingRenewalInfo) {
+					await db.CreateSubscriptionRenewalStatusChangeAsync(
+						provider: SubscriptionProvider.Apple,
+						providerSubscriptionId: renewalInfo.OriginalTransactionId,
+						dateCreated: DateTime.UtcNow,
+						autoRenewEnabled: renewalInfo.AutoRenewStatus == "1",
+						providerPriceId: renewalInfo.AutoRenewProductId,
+						expirationIntent: renewalInfo.ExpirationIntent
+					);
 			}
+		}
 		}
 
 		private async Task<AppStoreReceiptVerificationResponse> VerifyAppStoreReceipt(string base64EncodedReceipt) {

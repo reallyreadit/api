@@ -1871,6 +1871,26 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<SubscriptionRenewalStatusChange> CreateSubscriptionRenewalStatusChangeAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerSubscriptionId,
+			DateTime dateCreated,
+			bool autoRenewEnabled,
+			string providerPriceId,
+			string expirationIntent
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionRenewalStatusChange>(
+			sql: "subscriptions.create_subscription_renewal_status_change",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_subscription_id = providerSubscriptionId,
+				date_created = dateCreated,
+				auto_renew_enabled = autoRenewEnabled,
+				provider_price_id = providerPriceId,
+				expiration_intent = expirationIntent
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionStatus> GetCurrentSubscriptionStatusForUserAccountAsync(
 			this NpgsqlConnection connection,
 			long userAccountId

@@ -326,6 +326,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionDistributionAuthorCalculation>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionDistributionAuthorReport>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionStatusLatestPeriod>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionStatusLatestRenewalStatusChange>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<TagMetadata>();
 			// configure Dapper
 			Dapper.DefaultTypeMap.MatchNamesWithUnderscores = true;
