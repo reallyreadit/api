@@ -7,7 +7,7 @@ namespace api.DataAccess.Models {
 		public string ProviderAccountId { get; set; }
 		public string ProviderSubscriptionId { get; set; }
 		public DateTime DateCreated { get; set; }
-		public DateTime? DateTerminated { get; set; }
+		public string LatestReceipt { get; set; }
 		public SubscriptionStatusLatestPeriod LatestPeriod { get; set; }
 		public SubscriptionState GetCurrentState(DateTime utcNow) {
 			if (LatestPeriod.EndDate <= utcNow) {
