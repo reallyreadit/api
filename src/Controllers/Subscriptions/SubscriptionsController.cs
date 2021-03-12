@@ -396,6 +396,32 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		[HttpPost]
+		public async Task<SubscriptionStatusResponse> AppleSubscriptionStatusUpdateRequest() {
+			SubscriptionStatus status;
+			UserAccount user;
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
+				user = await db.GetUserAccountById(userAccountId: userAccountId);
+			}
+			if (
+				status.Provider == SubscriptionProvider.Apple &&
+				!String.IsNullOrWhiteSpace(status.LatestReceipt)
+			) {
+				var receiptResponse = await VerifyAppStoreReceipt(status.LatestReceipt);
+				if (receiptResponse != null) {
+					await SyncSubscriptionsFromReceiptAsync(receiptResponse);
+					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+						status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
+					}
+				}
+			}
+			return new SubscriptionStatusResponse(
+				SubscriptionStatusClientModel.FromSubscriptionStatus(user, status)
+			);
+		}
+
 		[HttpGet]
 		public async Task<ActionResult<SubscriptionPriceLevelsResponse>> PriceLevels(
 			[FromQuery] SubscriptionPriceLevelsRequest request
