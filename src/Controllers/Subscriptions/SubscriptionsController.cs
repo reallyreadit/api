@@ -186,7 +186,6 @@ namespace api.Controllers.Subscriptions {
 						providerSubscriptionId: originalTransaction.TransactionId,
 						providerAccountId: originalTransaction.TransactionId,
 						dateCreated: originalPurchaseDate,
-						dateTerminated: null,
 						latestReceipt: latestBase64Receipt
 					);
 					foreach (var transaction in accountGroup) {
@@ -769,7 +768,6 @@ namespace api.Controllers.Subscriptions {
 						providerSubscriptionId: stripeSubscription.Id,
 						providerAccountId: stripeSubscription.CustomerId,
 						dateCreated: stripeSubscription.Created,
-						dateTerminated: null,
 						latestReceipt: null
 					);
 				} catch (Exception ex) {

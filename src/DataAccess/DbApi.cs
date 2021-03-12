@@ -1799,7 +1799,6 @@ namespace api.DataAccess {
 			string providerSubscriptionId,
 			string providerAccountId,
 			DateTime dateCreated,
-			DateTime? dateTerminated,
 			string latestReceipt
 		) => await connection.QuerySingleOrDefaultAsync<Subscription>(
 			sql: "subscriptions.create_or_update_subscription",
@@ -1808,7 +1807,6 @@ namespace api.DataAccess {
 				provider_subscription_id = providerSubscriptionId,
 				provider_account_id = providerAccountId,
 				date_created = dateCreated,
-				date_terminated = dateTerminated,
 				latest_receipt = latestReceipt
 			},
 			commandType: CommandType.StoredProcedure
