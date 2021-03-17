@@ -337,6 +337,62 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		/// <summary>Updates a Stripe subscription auto-renew status or schedules a price downgrade.</summary>
+		/// <remarks>
+		/// <para>A valid <c>providerPriceId</c> is always required.</para>
+		/// <para>If <c>autoRenewEnabled</c> is <c>false</c> then <c>providerPriceId</c> must be equal to the current price, otherwise a lower price may be provided to schedule a downgrade.</para>
+		/// </remarks>
+		/// <returns>A <c>SubscriptionRenewalStatusChange</c> instance if successful or null if an error occurred.</returns>
+		private async Task<SubscriptionRenewalStatusChange> UpdateStripeSubscriptionAutoRenewStatus(string providerSubscriptionId, bool autoRenewEnabled, string providerPriceId) {
+			// set up the stripe subscription service
+			var stripeSubscriptionService = new Stripe.SubscriptionService();
+			// retrieve the stripe subscription in order to get the subscription item id
+			Stripe.Subscription stripeSubscription;
+			try {
+				stripeSubscription = await stripeSubscriptionService.GetAsync(
+					id: providerSubscriptionId
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to get Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+				return null;
+			}
+			// update the subscription
+			try {
+				stripeSubscription = await stripeSubscriptionService.UpdateAsync(
+					id: providerSubscriptionId,
+					options: new Stripe.SubscriptionUpdateOptions {
+						CancelAtPeriodEnd = !autoRenewEnabled,
+						Items = new List<Stripe.SubscriptionItemOptions> {
+							new Stripe.SubscriptionItemOptions {
+								Id = stripeSubscription.Items.Data[0].Id,
+								Price = providerPriceId
+							}
+						},
+						ProrationBehavior = StripeSubscriptionProrationBehavior.None
+					}
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to update Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+				return null;
+			}
+			// update the auto-renew status
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					return await db.CreateSubscriptionRenewalStatusChangeAsync(
+						provider: SubscriptionProvider.Stripe,
+						providerSubscriptionId: providerSubscriptionId,
+						dateCreated: stripeSubscription.StripeResponse.Date?.UtcDateTime ?? DateTime.UtcNow,
+						autoRenewEnabled: autoRenewEnabled,
+						providerPriceId: providerPriceId,
+						expirationIntent: null
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to create a subscription renewal status change for Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+					return null;
+				}
+			}
+		}
+
 		private async Task<AppStoreReceiptVerificationResponse> VerifyAppStoreReceipt(string base64EncodedReceipt) {
 			AppStoreReceiptVerificationResponse response;
 			using (var httpClient = this.httpClientFactory.CreateClient()) {
@@ -572,32 +628,15 @@ namespace api.Controllers.Subscriptions {
 				status.Provider == SubscriptionProvider.Stripe &&
 				status.IsAutoRenewEnabled() != request.AutoRenewEnabled
 			) {
-				try {
-					await new Stripe.SubscriptionService()
-						.UpdateAsync(
-							id: status.ProviderSubscriptionId,
-							options: new Stripe.SubscriptionUpdateOptions {
-								CancelAtPeriodEnd = !request.AutoRenewEnabled
-							}
-						);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to update auto-renew setting for Stripe subscription with id: {SubscriptionId}.", status.ProviderSubscriptionId);
-					return Problem("Failed to update subscription.", statusCode: 500);
-				}
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					try {
-						await db.CreateSubscriptionRenewalStatusChangeAsync(
-							provider: SubscriptionProvider.Stripe,
+				var statusChange = await UpdateStripeSubscriptionAutoRenewStatus(
 							providerSubscriptionId: status.ProviderSubscriptionId,
-							dateCreated: DateTime.UtcNow,
 							autoRenewEnabled: request.AutoRenewEnabled,
-							providerPriceId: status.LatestPeriod.ProviderPriceId,
-							expirationIntent: null
+					providerPriceId: status.LatestPeriod.ProviderPriceId
 						);
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to create a subscription renewal status change for Stripe subscription with id: {SubscriptionId}.", status.ProviderSubscriptionId);
+				if (statusChange == null) {
 						return Problem("Failed to update subscription.", statusCode: 500);
 					}
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 					status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
 				}
 			}
