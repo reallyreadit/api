@@ -357,6 +357,11 @@ namespace api.Controllers.Subscriptions {
 				var responseContent = await appStoreResponse.Content.ReadAsStringAsync();
 				try {
 					response = JsonSerializer.Deserialize<AppStoreReceiptVerificationResponse>(responseContent);
+					// log receipt
+					await System.IO.File.WriteAllTextAsync(
+						path: $@"logs/{DateTime.UtcNow.ToString("s").Replace(':', '-')}_AppleSubscriptionValidation_{User.GetUserAccountId()}_{Path.GetRandomFileName()}",
+						contents: responseContent
+					);
 				} catch (Exception ex) {
 					logger.LogError(ex, "Failed to parse App Store receipt verification response body with content: {Body}.", responseContent);
 					response = null;
@@ -405,12 +410,6 @@ namespace api.Controllers.Subscriptions {
 		public async Task<ActionResult<AppleSubscriptionValidationResponse>> AppleSubscriptionValidation(
 			[FromBody] AppleSubscriptionValidationRequest request
 		) {
-			// log receipt
-			await System.IO.File.WriteAllTextAsync(
-				path: $@"logs/{DateTime.UtcNow.ToString("s").Replace(':', '-')}_AppleSubscriptionValidation_{User.GetUserAccountId()}_{Path.GetRandomFileName()}",
-				contents: request.Base64EncodedReceipt
-			);
-
 			// verify receipt with app store
 			var response = await VerifyAppStoreReceipt(request.Base64EncodedReceipt);
 			if (response == null) {
