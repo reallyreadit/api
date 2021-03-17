@@ -58,6 +58,11 @@ namespace api.Subscriptions {
 	public static class StripeSubscriptionExpandProperties {
 		public const string LatestInvoicePaymentIntent = "latest_invoice.payment_intent";
 	}
+	public static class StripeSubscriptionProrationBehavior {
+		public const string AlwaysInvoice = "always_invoice";
+		public const string CreateProrations = "create_prorations";
+		public const string None = "none";
+	}
 	public static class StripeSubscriptionStatus {
 		public const string Incomplete = "incomplete";
 		public const string IncompleteExpired = "incomplete_expired";
