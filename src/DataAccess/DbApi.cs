@@ -1743,14 +1743,14 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<SubscriptionPrice> CreateCustomSubscriptionPriceAsync(
+		public static async Task<SubscriptionPriceLevel> CreateCustomSubscriptionPriceLevelAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
 			string providerPriceId,
 			DateTime dateCreated,
 			int amount
-		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPrice>(
-			sql: "subscriptions.create_custom_price",
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPriceLevel>(
+			sql: "subscriptions.create_custom_price_level",
 			param: new {
 				provider = ConvertEnumToString(provider),
 				provider_price_id = providerPriceId,
@@ -1901,12 +1901,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<SubscriptionPrice> GetCustomSubscriptionPriceForProviderAsync(
+		public static async Task<SubscriptionPriceLevel> GetCustomSubscriptionPriceLevelForProviderAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
 			int amount
-		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPrice>(
-			sql: "subscriptions.get_custom_price_for_provider",
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPriceLevel>(
+			sql: "subscriptions.get_custom_price_level_for_provider",
 			param: new {
 				provider = ConvertEnumToString(provider),
 				amount

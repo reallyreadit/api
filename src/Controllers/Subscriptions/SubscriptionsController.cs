@@ -129,6 +129,108 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		/// <summary>Will return a <c>SubscriptionPriceLevel</c> from the given price selection.</summary>
+		/// <remarks>
+		/// <para>A new custom price will be created if one does not already exist.</para>
+		/// <para>If an error occurrs it will be logged and the return value will be null.</para>
+		/// </remarks>
+		/// <returns>A <c>SubscriptionPriceLevel</c> or null.</returns>
+		public async Task<SubscriptionPriceLevel> GetOrCreatePriceLevelFromPriceSelectionAsync(ISubscriptionPriceSelection selection) {
+			// check for a price level or custom amount
+			if (
+				!String.IsNullOrWhiteSpace(selection.PriceLevelId)
+			) {
+				// check the price level id against the standard price levels
+				return await GetStandardPriceLevel(SubscriptionProvider.Stripe, selection.PriceLevelId);
+			} else {
+				// verify the custom amount
+				if (selection.CustomPriceAmount < 2500 || selection.CustomPriceAmount > 100000) {
+					logger.LogError("Subscription custom price out of range: {Price}.", selection.CustomPriceAmount);
+					return null;
+				}
+				// check for an existing price that matches the custom amount
+				SubscriptionPriceLevel customPrice;
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					customPrice = await db.GetCustomSubscriptionPriceLevelForProviderAsync(
+						provider: SubscriptionProvider.Stripe,
+						amount: selection.CustomPriceAmount
+					);
+				}
+				if (customPrice != null) {
+					// use the existing price
+					return customPrice;
+				} else {
+					// create a new stripe price
+					Stripe.Price stripeCustomPrice;
+					try {
+						stripeCustomPrice = await new Stripe.PriceService()
+							.CreateAsync(
+								new Stripe.PriceCreateOptions {
+									Currency = "usd",
+									UnitAmount = selection.CustomPriceAmount,
+									Product = subscriptionsOptions.StripeSubscriptionProductId,
+									Recurring = new Stripe.PriceRecurringOptions {
+										Interval = "month"
+									},
+									Nickname = $"Custom Level ({(selection.CustomPriceAmount / 100).ToString("c2")})"
+								}
+							);
+					} catch (Exception ex) {
+						logger.LogError(ex, "Failed to create new Stripe price with amount: {Amount}.", selection.CustomPriceAmount);
+						return null;
+					}
+					// create a new custom price (returns existing price if one already exists)
+					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+						try {
+							customPrice = await db.CreateCustomSubscriptionPriceLevelAsync(
+								provider: SubscriptionProvider.Stripe,
+								providerPriceId: stripeCustomPrice.Id,
+								dateCreated: stripeCustomPrice.Created,
+								amount: (int)stripeCustomPrice.UnitAmount.Value
+							);
+						} catch (Exception ex) {
+							logger.LogError(ex, "Failed to create price with id: {PriceId}. Stripe request id: {RequestId}.", stripeCustomPrice.Id, stripeCustomPrice.StripeResponse.RequestId);
+							return null;
+						}
+					}
+					// check for a duplicate stripe price
+					if (customPrice.ProviderPriceId != stripeCustomPrice.Id) {
+						logger.LogError("Created duplicate custom price with id: {PriceId}.", stripeCustomPrice.Id);
+						try {
+							await new Stripe.PriceService()
+								.UpdateAsync(
+									id: stripeCustomPrice.Id,
+									options: new Stripe.PriceUpdateOptions {
+										Active = false
+									}
+								);
+						} catch (Exception ex) {
+							logger.LogError(ex, "Failed to deactivate duplicate custom price with id: {PriceId}.", stripeCustomPrice.Id);
+						}
+					}
+					// return the custom price
+					return customPrice;
+				}
+			}
+		}
+
+		private async Task<SubscriptionPriceLevel> GetStandardPriceLevel(SubscriptionProvider provider, string providerPriceId) {
+			SubscriptionPriceLevel[] standardPriceLevels;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				standardPriceLevels = (
+						await db.GetStandardSubscriptionPriceLevelsForProviderAsync(provider)
+					)
+					.ToArray();
+			}
+			var result = standardPriceLevels?.SingleOrDefault(
+				priceLevel => priceLevel.ProviderPriceId == providerPriceId
+			);
+			if (result == null) {
+				logger.LogError("Invalid standard price level id: {PriceLevelId}.", providerPriceId);
+			}
+			return result;
+		}
+
 		/// <summary>Attempts to pay the Invoice.</summary>
 		/// <remarks>
 		/// <para>If a CardError occurrs an attempt will be made to get an updated Invoice.</para>
@@ -711,83 +813,11 @@ namespace api.Controllers.Subscriptions {
 				}
 			}
 
-			// resolve the price from the request
-			string priceId;
-			// check for a price level or custom amount
-			if (
-				!String.IsNullOrWhiteSpace(request.PriceLevelId)
-			) {
-				// use the price level id
-				priceId = request.PriceLevelId;
-			} else {
-				// verify the custom amount
-				if (request.CustomPriceAmount < 2500 || request.CustomPriceAmount > 100000) {
-					logger.LogError("Subscription custom price out of range: {Price}.", request.CustomPriceAmount);
-					return Problem("Invalid custom price.", statusCode: 500);
-				}
-				// check for an existing price that matches the custom amount
-				SubscriptionPrice customPrice;
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					customPrice = await db.GetCustomSubscriptionPriceForProviderAsync(
-						provider: SubscriptionProvider.Stripe,
-						amount: request.CustomPriceAmount
-					);
-				}
-				if (customPrice != null) {
-					// use the existing price
-					priceId = customPrice.ProviderPriceId;
-				} else {
-					// create a new stripe price
-					Stripe.Price stripeCustomPrice;
-					try {
-						stripeCustomPrice = await new Stripe.PriceService()
-							.CreateAsync(
-								new Stripe.PriceCreateOptions {
-									Currency = "usd",
-									UnitAmount = request.CustomPriceAmount,
-									Product = subscriptionsOptions.StripeSubscriptionProductId,
-									Recurring = new Stripe.PriceRecurringOptions {
-										Interval = "month"
-									}
+			// get the price level from the request
+			var priceLevel = await GetOrCreatePriceLevelFromPriceSelectionAsync(request);
+			if (priceLevel == null) {
+				return Problem("Unable to resolve price.", statusCode: 500);
 								}
-							);
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to create new Stripe price with amount: {Amount}.", request.CustomPriceAmount);
-						return Problem("Failed to create custom price.", statusCode: 500);
-					}
-					// create a new custom price (returns existing price if one already exists)
-					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-						try {
-							customPrice = await db.CreateCustomSubscriptionPriceAsync(
-								provider: SubscriptionProvider.Stripe,
-								providerPriceId: stripeCustomPrice.Id,
-								dateCreated: stripeCustomPrice.Created,
-								amount: (int)stripeCustomPrice.UnitAmount.Value
-							);
-						} catch (Exception ex) {
-							logger.LogError(ex, "Failed to create price with id: {PriceId}. Stripe request id: {RequestId}.", stripeCustomPrice.Id, stripeCustomPrice.StripeResponse.RequestId);
-							return Problem("Failed to store custom price.", statusCode: 500);
-						}
-					}
-					// check for a duplicate stripe price
-					if (customPrice.ProviderPriceId != stripeCustomPrice.Id) {
-						logger.LogError("Created duplicate custom price with id: {PriceId}.", stripeCustomPrice.Id);
-						try {
-							await new Stripe.PriceService()
-								.UpdateAsync(
-									id: stripeCustomPrice.Id,
-									options: new Stripe.PriceUpdateOptions {
-										Active = false
-									}
-								);
-						} catch (Exception ex) {
-							logger.LogError(ex, "Failed to deactivate duplicate custom price with id: {PriceId}.", stripeCustomPrice.Id);
-						}
-					}
-					// assign the price id from the custom price
-					priceId = customPrice.ProviderPriceId;
-				}
-			}
 
 			// first check for an unexpired, incomplete subscription with a matching price and attempt to pay it if found
 			SubscriptionStatus matchingIncompleteSubscription;
@@ -796,7 +826,7 @@ namespace api.Controllers.Subscriptions {
 					.SingleOrDefault(
 						subscriptionStatus =>
 							subscriptionStatus.GetCurrentState(DateTime.UtcNow) == SubscriptionState.Incomplete &&
-							subscriptionStatus.LatestPeriod.ProviderPriceId == priceId
+							subscriptionStatus.LatestPeriod.ProviderPriceId == priceLevel.ProviderPriceId
 					);
 			}
 			Stripe.Subscription stripeSubscription;
@@ -840,7 +870,7 @@ namespace api.Controllers.Subscriptions {
 							Customer = subscriptionAccount.ProviderAccountId,
 							Items = new List<Stripe.SubscriptionItemOptions> {
 								new Stripe.SubscriptionItemOptions {
-									Price = priceId
+									Price = priceLevel.ProviderPriceId
 								}
 							},
 							Expand = new List<string> {
@@ -849,7 +879,7 @@ namespace api.Controllers.Subscriptions {
 						}
 					);
 			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to create Stripe subscription with price id: {PriceId} for customer with id: {CustomerId}.", priceId, subscriptionAccount.ProviderAccountId);
+				logger.LogError(ex, "Failed to create Stripe subscription with price id: {PriceId} for customer with id: {CustomerId}.", priceLevel.ProviderPriceId, subscriptionAccount.ProviderAccountId);
 				return Problem("Failed to create Stripe subscription.", statusCode: 500);
 			}
 
