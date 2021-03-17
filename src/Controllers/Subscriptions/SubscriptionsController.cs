@@ -629,13 +629,13 @@ namespace api.Controllers.Subscriptions {
 				status.IsAutoRenewEnabled() != request.AutoRenewEnabled
 			) {
 				var statusChange = await UpdateStripeSubscriptionAutoRenewStatus(
-							providerSubscriptionId: status.ProviderSubscriptionId,
-							autoRenewEnabled: request.AutoRenewEnabled,
+					providerSubscriptionId: status.ProviderSubscriptionId,
+					autoRenewEnabled: request.AutoRenewEnabled,
 					providerPriceId: status.LatestPeriod.ProviderPriceId
-						);
+				);
 				if (statusChange == null) {
-						return Problem("Failed to update subscription.", statusCode: 500);
-					}
+					return Problem("Failed to update subscription.", statusCode: 500);
+				}
 				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 					status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
 				}
@@ -659,6 +659,70 @@ namespace api.Controllers.Subscriptions {
 				return Problem("Failed to update payment status.", statusCode: 500);
 			}
 			return await CreateStripePaymentResponseActionResultAsync(invoice.PaymentIntent);
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<StripePaymentResponse>> StripePriceChange(
+			[FromBody] StripePriceChangeRequest request
+		) {
+			// get the new price amount
+			int newPriceAmount;
+			if (
+				!String.IsNullOrWhiteSpace(request.PriceLevelId)
+			) {
+				var standardPriceLevel = await GetStandardPriceLevel(SubscriptionProvider.Stripe, request.PriceLevelId);
+				if (standardPriceLevel == null) {
+					return Problem("Invalid price selection.", statusCode: 400);
+				}
+				newPriceAmount = standardPriceLevel.Amount;
+			} else {
+				newPriceAmount = request.CustomPriceAmount;
+			}
+			// retrieve the current subscription status
+			SubscriptionStatus status;
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
+			}
+			// validate the price change
+			SubscriptionPriceLevel newPrice;
+			if (
+				status.Provider != SubscriptionProvider.Stripe ||
+				(
+					newPriceAmount == status.LatestPeriod.PriceAmount &&
+					(
+						status.LatestRenewalStatusChange == null ||
+						status.LatestRenewalStatusChange.ProviderPriceId == status.LatestPeriod.ProviderPriceId
+					)
+				) ||
+				(newPrice = await GetOrCreatePriceLevelFromPriceSelectionAsync(request)) == null
+			) {
+				return Problem("Invalid price selection.", statusCode: 400);
+			}
+			// check if we're upgrading or downgrading
+			if (newPriceAmount > status.LatestPeriod.PriceAmount) {
+				// perform an upgrade
+				throw new NotImplementedException("Can't upgrade yet");
+			} else {
+				// perform a downgrade
+				var statusChange = await UpdateStripeSubscriptionAutoRenewStatus(
+					providerSubscriptionId: status.ProviderSubscriptionId,
+					autoRenewEnabled: true,
+					providerPriceId: newPrice.ProviderPriceId
+				);
+				if (statusChange == null) {
+					return Problem("Failed to update subscription.", statusCode: 500);
+				}
+				// return a payment success
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					return new StripePaymentSucceededResponse(
+						SubscriptionStatusClientModel.FromSubscriptionStatus(
+							await db.GetUserAccountById(userAccountId: userAccountId),
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId)
+						)
+					);
+				}
+			}
 		}
 
 		[HttpPost]
@@ -855,7 +919,7 @@ namespace api.Controllers.Subscriptions {
 			var priceLevel = await GetOrCreatePriceLevelFromPriceSelectionAsync(request);
 			if (priceLevel == null) {
 				return Problem("Unable to resolve price.", statusCode: 500);
-								}
+			}
 
 			// first check for an unexpired, incomplete subscription with a matching price and attempt to pay it if found
 			SubscriptionStatus matchingIncompleteSubscription;
