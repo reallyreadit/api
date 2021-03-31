@@ -1771,10 +1771,14 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
-		public static async Task<IEnumerable<SubscriptionPeriodDistribution>> CreateDistributionsForCompletedSubscriptionPeriodsAsync(
-			this NpgsqlConnection connection
+		public static async Task<IEnumerable<SubscriptionPeriodDistribution>> CreateDistributionsForLapsedSubscriptionPeriodsAsync(
+			this NpgsqlConnection connection,
+			long? userAccountId
 		) => await connection.QueryAsync<SubscriptionPeriodDistribution>(
-			sql: "subscriptions.create_distributions_for_completed_periods",
+			sql: "subscriptions.create_distributions_for_lapsed_periods",
+			param: new {
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<SubscriptionAccount> CreateOrUpdateSubscriptionAccountAsync(
@@ -1824,7 +1828,8 @@ namespace api.DataAccess {
 			SubscriptionPaymentStatus paymentStatus,
 			DateTime? datePaid,
 			DateTime? dateRefunded,
-			string refundReason
+			string refundReason,
+			int? prorationDiscount
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
 			sql: "subscriptions.create_or_update_subscription_period",
 			param: new {
@@ -1839,7 +1844,8 @@ namespace api.DataAccess {
 				payment_status = ConvertEnumToString(paymentStatus),
 				date_paid = datePaid,
 				date_refunded = dateRefunded,
-				refund_reason = refundReason
+				refund_reason = refundReason,
+				proration_discount = prorationDiscount
 			},
 			commandType: CommandType.StoredProcedure
 		);

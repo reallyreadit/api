@@ -41,46 +41,6 @@ namespace api.Controllers.Subscriptions {
 			this.taskQueue = taskQueue;
 		}
 
-		/// <summary>Attempts to create or update the subscription period associated with the Invoice.</summary>
-		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
-		/// <returns>A SubscriptionPeriod or null.</returns>
-		/// <param name="invoice">An Invoice with an expanded PaymentIntent property.</param>
-		private async Task<SubscriptionPeriod> CreateOrUpdateSubscriptionPeriodAsync(Stripe.Invoice invoice) {
-			// There should only be a single line item.
-			var invoiceLineItem = invoice.Lines.SingleOrDefault();
-			if (invoiceLineItem == null) {
-				logger.LogError("Unexpected number of line items on Stripe invoice with id: {InvoiceId}.", invoice.Id);
-				return null;
-			}
-
-			// Create or update the subscription period.
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				try {
-					return await db.CreateOrUpdateSubscriptionPeriodAsync(
-						provider: SubscriptionProvider.Stripe,
-						providerSubscriptionId: invoice.SubscriptionId,
-						providerPeriodId: invoice.Id,
-						providerPriceId: invoiceLineItem.Price.Id,
-						providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
-						beginDate: DateTimeOffset
-							.FromUnixTimeSeconds(invoiceLineItem.Period.Start)
-							.UtcDateTime,
-						endDate: DateTimeOffset
-							.FromUnixTimeSeconds(invoiceLineItem.Period.End)
-							.UtcDateTime,
-						dateCreated: invoice.Created,
-						paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
-						datePaid: invoice.StatusTransitions.PaidAt,
-						dateRefunded: null,
-						refundReason: null
-					);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to create or update subscription period associated with Stripe invoice with id: {InvoiceId}.", invoice.Id);
-					return null;
-				}
-			}
-		}
-
 		/// <summary>Attempts to create a StripePaymentResponse from the PaymentIntent.</summary>
 		/// <remarks>If an error occurrs it will be logged and a ProblemDetails ObjectResult will be returned.</remarks>
 		/// <returns>A StripePaymentResponse or a ProblemDetails ObjectResult.</returns>
@@ -214,6 +174,19 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		/// <summary>Attempts to get the price amount from the selection.</summary>
+		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
+		/// <returns>The price as an integer or null.</returns>
+		private async Task<int?> GetPriceAmountAsync(ISubscriptionPriceSelection selection) {
+			if (
+				!String.IsNullOrWhiteSpace(selection.PriceLevelId)
+			) {
+				return (await GetStandardPriceLevel(SubscriptionProvider.Stripe, selection.PriceLevelId))?.Amount;
+			} else {
+				return selection.CustomPriceAmount;
+			}
+		}
+
 		private async Task<SubscriptionPriceLevel> GetStandardPriceLevel(SubscriptionProvider provider, string providerPriceId) {
 			SubscriptionPriceLevel[] standardPriceLevels;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
@@ -229,6 +202,50 @@ namespace api.Controllers.Subscriptions {
 				logger.LogError("Invalid standard price level id: {PriceLevelId}.", providerPriceId);
 			}
 			return result;
+		}
+
+		/// <summary>Attempts to get the <c>Subscription</c> along with the latest <c>Invoice</c> and its <c>PaymentIntent</c>.</summary>
+		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
+		/// <returns>A <c>Subscription</c> with expanded <c>LatestInvoice</c> and <c>PaymentIntent</c> properties or null.</returns>
+		private async Task<Stripe.Subscription> GetStripeSubscriptionWithLatestInvoiceAsync(string providerSubscriptionId) {
+			try {
+				return await new Stripe.SubscriptionService()
+					.GetAsync(
+						id: providerSubscriptionId,
+						options: new Stripe.SubscriptionGetOptions {
+							Expand = new List<string> {
+								StripeSubscriptionExpandProperties.LatestInvoicePaymentIntent
+							}
+						}
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to get Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+				return null;
+			}
+		}
+
+		/// <summary>Attempts to retrieve the SubscriptionItem Id for the Subscription in order to generate a price change options item.</summary>
+		/// <remarks>If any errors occur they will be logged and the return value will be null.</remarks>
+		/// <returns>A SubscriptionItemOptions list or null.</returns>
+		private async Task<List<Stripe.SubscriptionItemOptions>> GetSubscriptionItemOptionsForPriceChangeAsync(string providerSubscriptionId, string providerPriceId) {
+			// retrieve the stripe subscription in order to get the subscription item id
+			Stripe.Subscription stripeSubscription;
+			try {
+				stripeSubscription = await new Stripe.SubscriptionService()
+					.GetAsync(
+						id: providerSubscriptionId
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to get Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+				return null;
+			}
+			// assign the new price to the existing subscription item id
+			return new List<Stripe.SubscriptionItemOptions> {
+				new Stripe.SubscriptionItemOptions {
+					Id = stripeSubscription.Items.Data[0].Id,
+					Price = providerPriceId
+				}
+			};
 		}
 
 		/// <summary>Attempts to pay the Invoice.</summary>
@@ -253,6 +270,224 @@ namespace api.Controllers.Subscriptions {
 					return await GetInvoiceWithPaymentIntentAsync(invoiceId: invoiceId);
 				} else {
 					logger.LogError(ex, "Failed to pay Stripe invoice with id: {InvoiceId}.", invoiceId);
+					return null;
+				}
+			}
+		}
+
+		/// <summary>Handles all invoice payment events and creates or updates the associated subscription period when appropriate.</summary>
+		/// <remarks>If an error occurrs it will be logged and <c>success</c> will be <c>false</c>.</remarks>
+		/// <returns>A success indicator and the associated period. The period will be null if success is false and may be null if success is true.</returns>
+		/// <param name="invoice">An Invoice with an expanded PaymentIntent property.</param>
+		private async Task<( bool IsSuccessful, SubscriptionPeriod Period )> ProcessInvoicePaymentAttemptAsync(Stripe.Invoice invoice) {
+			// There should only be a single regular line item.
+			Stripe.InvoiceLineItem
+				subscriptionLineItem = invoice.Lines.SingleOrDefault(
+					line => !line.Proration
+				),
+				prorationLineItem = invoice.Lines.SingleOrDefault(
+					line => line.Proration
+				);
+			if (subscriptionLineItem == null) {
+				logger.LogError("Unexpected number of line items on Stripe invoice with id: {InvoiceId}.", invoice.Id);
+				return (
+					IsSuccessful: false,
+					Period: null
+				);
+			}
+
+			// Check the billing reason and handle accordingly.
+			switch (invoice.BillingReason) {
+				case StripeInvoiceBillingReason.SubscriptionCycle:
+					// Cancel the subscription if a renewal payment fails. Otherwise invoices will continue to be generated.
+					// Cancelling automatically via Stripe payment settings also effects pending update payments so we can't use it
+					// and must handle it manually here instead.
+					if (invoice.PaymentIntent.Status == StripePaymentIntentStatus.RequiresPaymentMethod) {
+						// CancelAsync throws with resource_missing if the subscription has already been cancelled.
+						try {
+							await new Stripe.SubscriptionService()
+								.CancelAsync(
+									id: invoice.SubscriptionId
+								);
+						} catch (Exception ex) {
+							if ((ex as Stripe.StripeException)?.StripeError.Code != StripeErrorCode.ResourceMissing) {
+								logger.LogError("Error cancelling Stripe subscription with id: {SubscriptionId} from invoice with id: {InvoiceId}.", invoice.SubscriptionId, invoice.Id);
+							}
+						}
+					}
+					break;
+				case StripeInvoiceBillingReason.SubscriptionUpdate:
+					// Ignore unpaid update invoices.
+					if (!invoice.Paid) {
+						return (
+							IsSuccessful: true,
+							Period: null
+						);
+					}
+					// Make sure the subscription is not set to cancel at period end. The subscription could have been in an active/pending cancellation
+					// state when the upgrade was attempted and Stripe does not clear the state on upgrade completion so we have to do it manually.
+					await UpdateStripeSubscriptionAsync(
+						providerSubscriptionId: invoice.SubscriptionId,
+						options: new Stripe.SubscriptionUpdateOptions {
+							CancelAtPeriodEnd = false
+						}
+					);
+					break;
+			}
+
+			// Create or update the subscription period.
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					return (
+						IsSuccessful: true,
+						Period: await db.CreateOrUpdateSubscriptionPeriodAsync(
+							provider: SubscriptionProvider.Stripe,
+							providerSubscriptionId: invoice.SubscriptionId,
+							providerPeriodId: invoice.Id,
+							providerPriceId: subscriptionLineItem.Price.Id,
+							providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
+							beginDate: DateTimeOffset
+								.FromUnixTimeSeconds(subscriptionLineItem.Period.Start)
+								.UtcDateTime,
+							endDate: DateTimeOffset
+								.FromUnixTimeSeconds(subscriptionLineItem.Period.End)
+								.UtcDateTime,
+							dateCreated: invoice.Created,
+							paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
+							datePaid: invoice.StatusTransitions.PaidAt,
+							dateRefunded: null,
+							refundReason: null,
+							prorationDiscount: prorationLineItem != null ?
+								new Nullable<int>((int)prorationLineItem.Amount * -1) :
+								null
+						)
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to create or update subscription period associated with Stripe invoice with id: {InvoiceId}.", invoice.Id);
+					return (
+						IsSuccessful: false,
+						Period: null
+					);
+				}
+			}
+		}
+
+		private async Task<SubscriptionPaymentMethod> SetDefaultPaymentMethodAsync(string providerPaymentMethodId, string providerAccountId) {
+			// attach stripe payment method to stripe customer (successful no-op if already attached and we need the payment method object either way)
+			Stripe.PaymentMethod stripePaymentMethod;
+			try {
+				stripePaymentMethod = await new Stripe.PaymentMethodService()
+					.AttachAsync(
+						providerPaymentMethodId,
+						new Stripe.PaymentMethodAttachOptions {
+							Customer = providerAccountId
+						}
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to attach Stripe payment method with id: {PaymentMethodId} to Stripe customer with id: {CustomerId}.", providerPaymentMethodId, providerAccountId);
+				return null;
+			}
+
+			// this should never fail but we should check anyway since values are longs for some reason
+			int
+				stripePaymentMethodExpirationMonth,
+				stripePaymentMethodExpirationYear;
+			try {
+				stripePaymentMethodExpirationMonth = Convert.ToInt32(stripePaymentMethod.Card.ExpMonth);
+				stripePaymentMethodExpirationYear = Convert.ToInt32(stripePaymentMethod.Card.ExpYear);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Invalid value for card expiration month: {ExpirationMonth} or year: {ExpirationYear} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.ExpMonth, stripePaymentMethod.Card.ExpYear, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
+				return null;
+			}
+
+			// check for an existing readup payment method
+			SubscriptionPaymentMethod paymentMethod;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				paymentMethod = await db.GetSubscriptionPaymentMethodAsync(
+					provider: SubscriptionProvider.Stripe,
+					providerPaymentMethodId: stripePaymentMethod.Id
+				);
+			}
+
+			// create if it doesn't exist or update if it's changed
+			if (paymentMethod == null) {
+				// create readup payment method
+				var cardWallet = SubscriptionPaymentMethodWalletExtensions.FromStripePaymentMethodWalletString(stripePaymentMethod.Card.Wallet?.Type);
+				if (cardWallet == SubscriptionPaymentMethodWallet.Unknown) {
+					// non-critical error. log but keep going
+					logger.LogError("Unexpected value for card wallet: {Wallet} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.Wallet?.Type, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
+				}
+				var cardBrand = SubscriptionPaymentMethodBrandExtensions.FromStripePaymentMethodBrandString(stripePaymentMethod.Card.Brand);
+				if (cardBrand == SubscriptionPaymentMethodBrand.None) {
+					// non-critical error. log but keep going
+					logger.LogError("Unexpected value for card brand: {Brand} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.Brand, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
+				}
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					try {
+						await db.CreateSubscriptionPaymentMethodAsync(
+							provider: SubscriptionProvider.Stripe,
+							providerPaymentMethodId: stripePaymentMethod.Id,
+							providerAccountId: providerAccountId,
+							dateCreated: stripePaymentMethod.Created,
+							wallet: cardWallet,
+							brand: cardBrand,
+							lastFourDigits: stripePaymentMethod.Card.Last4,
+							country: stripePaymentMethod.Card.Country,
+							expirationMonth: stripePaymentMethodExpirationMonth,
+							expirationYear: stripePaymentMethodExpirationYear
+						);
+					} catch (Exception ex) {
+						logger.LogError(ex, "Failed to create payment method for Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
+						return null;
+					}
+				}
+			} else if (
+				paymentMethod.ExpirationMonth != stripePaymentMethodExpirationMonth ||
+				paymentMethod.ExpirationYear != stripePaymentMethodExpirationYear
+			) {
+				// update the payment method
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					try {
+						paymentMethod = await db.UpdateSubscriptionPaymentMethodAsync(
+							provider: SubscriptionProvider.Stripe,
+							providerPaymentMethodId: stripePaymentMethod.Id,
+							eventSource: SubscriptionEventSource.UserAction,
+							expirationMonth: stripePaymentMethodExpirationMonth,
+							expirationYear: stripePaymentMethodExpirationYear
+						);
+					} catch (Exception ex) {
+						logger.LogError(ex, "Failed to update payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
+						return null;
+					}
+				}
+			}
+
+			// update stripe customer's default invoice payment method (successful no-op if already default)
+			try {
+				await new Stripe.CustomerService()
+					.UpdateAsync(
+						providerAccountId,
+						new Stripe.CustomerUpdateOptions() {
+							InvoiceSettings = new Stripe.CustomerInvoiceSettingsOptions {
+								DefaultPaymentMethod = stripePaymentMethod.Id
+							}
+						}
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to set Stripe payment method with id: {PaymentMethodId} as default for Stripe customer with id: {CustomerId}.", stripePaymentMethod.Id, providerAccountId);
+				return null;
+			}
+
+			// set the readup default payment method (successful no-op if already default)
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					return await db.AssignDefaultSubscriptionPaymentMethod(
+						provider: SubscriptionProvider.Stripe,
+						providerAccountId: providerAccountId,
+						providerPaymentMethodId: stripePaymentMethod.Id
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to set payment method with id: {PaymentMethodId} as default for subscription account with id: {CustomerId}.", stripePaymentMethod.Id, providerAccountId);
 					return null;
 				}
 			}
@@ -290,7 +525,11 @@ namespace api.Controllers.Subscriptions {
 						dateCreated: originalPurchaseDate,
 						latestReceipt: receipt.LatestReceipt
 					);
-					foreach (var transaction in accountGroup) {
+					foreach (
+						var transaction in accountGroup.OrderBy(
+							transaction => transaction.PurchaseDateMs
+						)
+					) {
 						var purchaseDate = DateTimeOffset
 							.FromUnixTimeMilliseconds(
 								Int64.Parse(transaction.PurchaseDateMs)
@@ -320,7 +559,8 @@ namespace api.Controllers.Subscriptions {
 										.UtcDateTime
 								 ) :
 								null,
-							refundReason: transaction.CancellationReason
+							refundReason: transaction.CancellationReason,
+							prorationDiscount: null
 						);
 					}
 				}
@@ -337,6 +577,22 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		/// <summary>Attempts to update a Stripe subscription.</summary>
+		/// <remarks>If any errors occur they will be logged and the return value will be null.</remarks>
+		/// <returns>An updated Subscription or null.</returns>
+		private async Task<Stripe.Subscription> UpdateStripeSubscriptionAsync(string providerSubscriptionId, Stripe.SubscriptionUpdateOptions options) {
+			try {
+				return await new Stripe.SubscriptionService()
+					.UpdateAsync(
+						id: providerSubscriptionId,
+						options: options
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to update Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+				return null;
+			}
+		}
+
 		/// <summary>Updates a Stripe subscription auto-renew status or schedules a price downgrade.</summary>
 		/// <remarks>
 		/// <para>A valid <c>providerPriceId</c> is always required.</para>
@@ -344,35 +600,24 @@ namespace api.Controllers.Subscriptions {
 		/// </remarks>
 		/// <returns>A <c>SubscriptionRenewalStatusChange</c> instance if successful or null if an error occurred.</returns>
 		private async Task<SubscriptionRenewalStatusChange> UpdateStripeSubscriptionAutoRenewStatus(string providerSubscriptionId, bool autoRenewEnabled, string providerPriceId) {
-			// set up the stripe subscription service
-			var stripeSubscriptionService = new Stripe.SubscriptionService();
-			// retrieve the stripe subscription in order to get the subscription item id
-			Stripe.Subscription stripeSubscription;
-			try {
-				stripeSubscription = await stripeSubscriptionService.GetAsync(
-					id: providerSubscriptionId
-				);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to get Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+			// get the item options to set the price
+			var items = await GetSubscriptionItemOptionsForPriceChangeAsync(
+				providerSubscriptionId: providerSubscriptionId,
+				providerPriceId: providerPriceId
+			);
+			if (items == null) {
 				return null;
 			}
 			// update the subscription
-			try {
-				stripeSubscription = await stripeSubscriptionService.UpdateAsync(
-					id: providerSubscriptionId,
-					options: new Stripe.SubscriptionUpdateOptions {
-						CancelAtPeriodEnd = !autoRenewEnabled,
-						Items = new List<Stripe.SubscriptionItemOptions> {
-							new Stripe.SubscriptionItemOptions {
-								Id = stripeSubscription.Items.Data[0].Id,
-								Price = providerPriceId
-							}
-						},
-						ProrationBehavior = StripeSubscriptionProrationBehavior.None
-					}
-				);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to update Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+			var stripeSubscription = await UpdateStripeSubscriptionAsync(
+				providerSubscriptionId: providerSubscriptionId,
+				options: new Stripe.SubscriptionUpdateOptions {
+					CancelAtPeriodEnd = !autoRenewEnabled,
+					Items = items,
+					ProrationBehavior = StripeSubscriptionProrationBehavior.None
+				}
+			);
+			if (stripeSubscription == null) {
 				return null;
 			}
 			// update the auto-renew status
@@ -654,8 +899,8 @@ namespace api.Controllers.Subscriptions {
 			if (invoice == null) {
 				return Problem("Subscription not found.", statusCode: 500);
 			}
-			var subscriptionPeriod = await CreateOrUpdateSubscriptionPeriodAsync(invoice);
-			if (subscriptionPeriod == null) {
+			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice);
+			if (!invoiceProcessResult.IsSuccessful) {
 				return Problem("Failed to update payment status.", statusCode: 500);
 			}
 			return await CreateStripePaymentResponseActionResultAsync(invoice.PaymentIntent);
@@ -666,17 +911,9 @@ namespace api.Controllers.Subscriptions {
 			[FromBody] StripePriceChangeRequest request
 		) {
 			// get the new price amount
-			int newPriceAmount;
-			if (
-				!String.IsNullOrWhiteSpace(request.PriceLevelId)
-			) {
-				var standardPriceLevel = await GetStandardPriceLevel(SubscriptionProvider.Stripe, request.PriceLevelId);
-				if (standardPriceLevel == null) {
-					return Problem("Invalid price selection.", statusCode: 400);
-				}
-				newPriceAmount = standardPriceLevel.Amount;
-			} else {
-				newPriceAmount = request.CustomPriceAmount;
+			var newPriceAmount = await GetPriceAmountAsync(request);
+			if (!newPriceAmount.HasValue) {
+				return Problem("Invalid price selection.", statusCode: 400);
 			}
 			// retrieve the current subscription status
 			SubscriptionStatus status;
@@ -701,8 +938,35 @@ namespace api.Controllers.Subscriptions {
 			}
 			// check if we're upgrading or downgrading
 			if (newPriceAmount > status.LatestPeriod.PriceAmount) {
-				// perform an upgrade
-				throw new NotImplementedException("Can't upgrade yet");
+				// get the item options for the upgrade
+				var upgradeItems = await GetSubscriptionItemOptionsForPriceChangeAsync(
+					providerSubscriptionId: status.ProviderSubscriptionId,
+					providerPriceId: newPrice.ProviderPriceId
+				);
+				if (upgradeItems == null) {
+					return Problem("Failed to lookup subscription.", statusCode: 500);
+				}
+				// update the subscription
+				var updatedSubscription = await UpdateStripeSubscriptionAsync(
+					providerSubscriptionId: status.ProviderSubscriptionId,
+					options: new Stripe.SubscriptionUpdateOptions {
+						BillingCycleAnchor = Stripe.SubscriptionBillingCycleAnchor.Now,
+						Expand = new List<string> {
+							StripeSubscriptionExpandProperties.LatestInvoicePaymentIntent
+						},
+						Items = upgradeItems,
+						PaymentBehavior = StripeSubscriptionPaymentBehavior.PendingIfIncomplete
+					}
+				);
+				if (updatedSubscription == null) {
+					return Problem("Failed to update subscription.", statusCode: 500);
+				}
+				// process the payment attempt
+				var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(updatedSubscription.LatestInvoice);
+				if (!invoiceProcessResult.IsSuccessful) {
+					return Problem("Failed to create new period.", statusCode: 500);
+				}
+				return await CreateStripePaymentResponseActionResultAsync(updatedSubscription.LatestInvoice.PaymentIntent);
 			} else {
 				// perform a downgrade
 				var statusChange = await UpdateStripeSubscriptionAutoRenewStatus(
@@ -727,7 +991,7 @@ namespace api.Controllers.Subscriptions {
 
 		[HttpPost]
 		public async Task<ActionResult<StripePaymentResponse>> StripeSubscription(
-			[FromBody] StripeSubscriptionCreationRequest request
+			[FromBody] StripeSubscriptionPaymentRequest request
 		) {
 			// TODO: This entire mess of an operation should be locked with some type of db-generated token
 			// to prevent the possibility that multiple requests for the same account are running concurrently.
@@ -796,123 +1060,13 @@ namespace api.Controllers.Subscriptions {
 				}
 			}
 
-			// attach stripe payment method to stripe customer (successful no-op if already attached and we need the payment method object either way)
-			Stripe.PaymentMethod stripePaymentMethod;
-			try {
-				stripePaymentMethod = await new Stripe.PaymentMethodService()
-					.AttachAsync(
-						request.PaymentMethodId,
-						new Stripe.PaymentMethodAttachOptions {
-							Customer = subscriptionAccount.ProviderAccountId
-						}
-					);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to attach Stripe payment method with id: {PaymentMethodId} to Stripe customer with id: {CustomerId}.", request.PaymentMethodId, subscriptionAccount.ProviderAccountId);
-				return Problem("Failed to attach payment method.", statusCode: 500);
-			}
-
-			// this should never fail but we should check anyway since values are longs for some reason
-			int
-				stripePaymentMethodExpirationMonth,
-				stripePaymentMethodExpirationYear;
-			try {
-				stripePaymentMethodExpirationMonth = Convert.ToInt32(stripePaymentMethod.Card.ExpMonth);
-				stripePaymentMethodExpirationYear = Convert.ToInt32(stripePaymentMethod.Card.ExpYear);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Invalid value for card expiration month: {ExpirationMonth} or year: {ExpirationYear} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.ExpMonth, stripePaymentMethod.Card.ExpYear, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-				return Problem("Invalid card expiration date.", statusCode: 500);
-			}
-
-			// check for an existing readup payment method
-			SubscriptionPaymentMethod paymentMethod;
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				paymentMethod = await db.GetSubscriptionPaymentMethodAsync(
-					provider: SubscriptionProvider.Stripe,
-					providerPaymentMethodId: stripePaymentMethod.Id
-				);
-			}
-
-			// create if it doesn't exist or update if it's changed
+			// set the default payment method
+			var paymentMethod = await SetDefaultPaymentMethodAsync(
+				providerPaymentMethodId: request.PaymentMethodId,
+				providerAccountId: subscriptionAccount.ProviderAccountId
+			);
 			if (paymentMethod == null) {
-				// create readup payment method
-				var cardWallet = SubscriptionPaymentMethodWalletExtensions.FromStripePaymentMethodWalletString(stripePaymentMethod.Card.Wallet?.Type);
-				if (cardWallet == SubscriptionPaymentMethodWallet.Unknown) {
-					// non-critical error. log but keep going
-					logger.LogError("Unexpected value for card wallet: {Wallet} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.Wallet?.Type, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-				}
-				var cardBrand = SubscriptionPaymentMethodBrandExtensions.FromStripePaymentMethodBrandString(stripePaymentMethod.Card.Brand);
-				if (cardBrand == SubscriptionPaymentMethodBrand.None) {
-					// non-critical error. log but keep going
-					logger.LogError("Unexpected value for card brand: {Brand} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.Brand, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-				}
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					try {
-						await db.CreateSubscriptionPaymentMethodAsync(
-							provider: SubscriptionProvider.Stripe,
-							providerPaymentMethodId: stripePaymentMethod.Id,
-							providerAccountId: subscriptionAccount.ProviderAccountId,
-							dateCreated: stripePaymentMethod.Created,
-							wallet: cardWallet,
-							brand: cardBrand,
-							lastFourDigits: stripePaymentMethod.Card.Last4,
-							country: stripePaymentMethod.Card.Country,
-							expirationMonth: stripePaymentMethodExpirationMonth,
-							expirationYear: stripePaymentMethodExpirationYear
-						);
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to create payment method for Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-						return Problem("Failed to create payment method.", statusCode: 500);
-					}
-				}
-			} else if (
-				paymentMethod.ExpirationMonth != stripePaymentMethodExpirationMonth ||
-				paymentMethod.ExpirationYear != stripePaymentMethodExpirationYear
-			) {
-				// update the payment method
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					try {
-						paymentMethod = await db.UpdateSubscriptionPaymentMethodAsync(
-							provider: SubscriptionProvider.Stripe,
-							providerPaymentMethodId: stripePaymentMethod.Id,
-							eventSource: SubscriptionEventSource.UserAction,
-							expirationMonth: stripePaymentMethodExpirationMonth,
-							expirationYear: stripePaymentMethodExpirationYear
-						);
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to update payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-						return Problem("Failed to update payment method.", statusCode: 500);
-					}
-				}
-			}
-
-			// update stripe customer's default invoice payment method (successful no-op if already default)
-			try {
-				await new Stripe.CustomerService()
-					.UpdateAsync(
-						subscriptionAccount.ProviderAccountId,
-						new Stripe.CustomerUpdateOptions() {
-							InvoiceSettings = new Stripe.CustomerInvoiceSettingsOptions {
-								DefaultPaymentMethod = stripePaymentMethod.Id
-							}
-						}
-					);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to set Stripe payment method with id: {PaymentMethodId} as default for Stripe customer with id: {CustomerId}.", stripePaymentMethod.Id, subscriptionAccount.ProviderAccountId);
-				return Problem("Failed to set default Stripe payment method.", statusCode: 500);
-			}
-
-			// set the readup default payment method (successful no-op if already default)
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				try {
-					await db.AssignDefaultSubscriptionPaymentMethod(
-						provider: SubscriptionProvider.Stripe,
-						providerAccountId: subscriptionAccount.ProviderAccountId,
-						providerPaymentMethodId: stripePaymentMethod.Id
-					);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to set payment method with id: {PaymentMethodId} as default for subscription account with id: {CustomerId}.", stripePaymentMethod.Id, subscriptionAccount.ProviderAccountId);
-					return Problem("Failed to set default payment method.", statusCode: 500);
-				}
+				return Problem("Unable to set payment method.", statusCode: 500);
 			}
 
 			// get the price level from the request
@@ -934,18 +1088,8 @@ namespace api.Controllers.Subscriptions {
 			Stripe.Subscription stripeSubscription;
 			if (matchingIncompleteSubscription != null) {
 				// attempt to get the subscription from stripe
-				try {
-					stripeSubscription = await new Stripe.SubscriptionService()
-						.GetAsync(
-							id: matchingIncompleteSubscription.ProviderSubscriptionId,
-							options: new Stripe.SubscriptionGetOptions {
-								Expand = new List<string> {
-									StripeSubscriptionExpandProperties.LatestInvoicePaymentIntent
-								}
-							}
-						);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to get Stripe subscription with id: {SubscriptionId}.", matchingIncompleteSubscription.ProviderSubscriptionId);
+				stripeSubscription = await GetStripeSubscriptionWithLatestInvoiceAsync(providerSubscriptionId: matchingIncompleteSubscription.ProviderSubscriptionId);
+				if (stripeSubscription == null) {
 					return Problem("Failed to verify existing subscription status.", statusCode: 500);
 				}
 				// only process if incomplete, otherwise continue to subscription creation
@@ -956,8 +1100,8 @@ namespace api.Controllers.Subscriptions {
 						return Problem("Failed to pay invoice.", statusCode: 500);
 					}
 					// update the period payment status and return
-					var updatedSubscriptionPeriod = await CreateOrUpdateSubscriptionPeriodAsync(invoice);
-					if (updatedSubscriptionPeriod == null) {
+					var invoicePaymentProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice);
+					if (!invoicePaymentProcessResult.IsSuccessful) {
 						return Problem("Failed to update payment status.", statusCode: 500);
 					}
 					return await CreateStripePaymentResponseActionResultAsync(invoice.PaymentIntent, userAccount);
@@ -992,7 +1136,8 @@ namespace api.Controllers.Subscriptions {
 						provider: SubscriptionProvider.Stripe,
 						providerSubscriptionId: stripeSubscription.Id,
 						providerAccountId: stripeSubscription.CustomerId,
-						dateCreated: stripeSubscription.Created,
+						// Ensure that the creation date of the subscription and first period match.
+						dateCreated: stripeSubscription.LatestInvoice.Created,
 						latestReceipt: null
 					);
 				} catch (Exception ex) {
@@ -1002,13 +1147,61 @@ namespace api.Controllers.Subscriptions {
 			}
 
 			// Create the subscription period.
-			var newSubscriptionPeriod = await CreateOrUpdateSubscriptionPeriodAsync(stripeSubscription.LatestInvoice);
-			if (newSubscriptionPeriod == null) {
+			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(stripeSubscription.LatestInvoice);
+			if (!invoiceProcessResult.IsSuccessful) {
 				return Problem("Failed to create subscription period.", statusCode: 500);
 			}
 
 			// Return a StripePaymentResponse.
 			return await CreateStripePaymentResponseActionResultAsync(stripeSubscription.LatestInvoice.PaymentIntent, userAccount);
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<StripePaymentResponse>> StripeUpgradePayment(
+			[FromBody] StripeSubscriptionPaymentRequest request
+		) {
+			// get the new price amount
+			var newPriceAmount = await GetPriceAmountAsync(request);
+			if (!newPriceAmount.HasValue) {
+				return Problem("Invalid price selection.", statusCode: 400);
+			}
+			// retrieve the current subscription status
+			SubscriptionStatus status;
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
+			}
+			// check for a matching pending upgrade
+			var stripeSubscription = await GetStripeSubscriptionWithLatestInvoiceAsync(providerSubscriptionId: status.ProviderSubscriptionId);
+			if (
+				stripeSubscription == null ||
+				stripeSubscription.LatestInvoice.BillingReason != StripeInvoiceBillingReason.SubscriptionUpdate ||
+				stripeSubscription.LatestInvoice.Status != StripeInvoiceStatus.Open ||
+				!stripeSubscription.LatestInvoice.Lines.Any(
+					line => line.Amount == newPriceAmount
+				)
+			) {
+				return Problem("Failed to verify pending upgrade.", statusCode: 500);
+			}
+			// update the default payment method
+			var paymentMethod = await SetDefaultPaymentMethodAsync(
+				providerPaymentMethodId: request.PaymentMethodId,
+				providerAccountId: status.ProviderAccountId
+			);
+			if (paymentMethod == null) {
+				return Problem("Unable to update method.", statusCode: 500);
+			}
+			// attempt to pay the upgrade invoice
+			var invoice = await PayInvoiceHandlingCardErrorsAsync(invoiceId: stripeSubscription.LatestInvoice.Id);
+			if (invoice == null) {
+				return Problem("Failed to pay invoice.", statusCode: 500);
+			}
+			// process the payment and return
+			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice);
+			if (!invoiceProcessResult.IsSuccessful) {
+				return Problem("Failed to update payment status.", statusCode: 500);
+			}
+			return await CreateStripePaymentResponseActionResultAsync(invoice.PaymentIntent);
 		}
 
 		[AllowAnonymous]
@@ -1048,7 +1241,7 @@ namespace api.Controllers.Subscriptions {
 								// then attempt payment and create the new period using the payment status
 								newInvoice = await PayInvoiceHandlingCardErrorsAsync(invoiceId: newInvoice.Id);
 								if (newInvoice != null) {
-									await CreateOrUpdateSubscriptionPeriodAsync(newInvoice);
+									await ProcessInvoicePaymentAttemptAsync(newInvoice);
 								}
 							}
 							break;
@@ -1060,7 +1253,7 @@ namespace api.Controllers.Subscriptions {
 						case Stripe.Events.InvoicePaymentFailed:
 							var updatedInvoice = stripeEvent.Data.Object as Stripe.Invoice;
 							// The PaymentIntent is required to update the payment status and is not included with the webhook object so we need to fetch a new invoice.
-							await CreateOrUpdateSubscriptionPeriodAsync(
+							await ProcessInvoicePaymentAttemptAsync(
 								await GetInvoiceWithPaymentIntentAsync(invoiceId: updatedInvoice.Id)
 							);
 							break;

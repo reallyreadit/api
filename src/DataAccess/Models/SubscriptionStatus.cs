@@ -11,18 +11,27 @@ namespace api.DataAccess.Models {
 		public SubscriptionStatusLatestPeriod LatestPeriod { get; set; }
 		public SubscriptionStatusLatestRenewalStatusChange LatestRenewalStatusChange { get; set; }
 		public SubscriptionState GetCurrentState(DateTime utcNow) {
-			if (LatestPeriod.EndDate <= utcNow) {
+			if (LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.Succeeded) {
+				if (LatestPeriod.RenewalGracePeriodEndDate > utcNow) {
+					return SubscriptionState.Active;
+				}
 				return SubscriptionState.Lapsed;
 			}
-			if (LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.Succeeded) {
-				return SubscriptionState.Active;
+			if (LatestPeriod.DateCreated == DateCreated) {
+				if (
+					utcNow.Subtract(LatestPeriod.DateCreated) < TimeSpan.FromHours(23)
+				) {
+					return SubscriptionState.Incomplete;
+				}
+				return SubscriptionState.IncompleteExpired;
 			}
 			if (
-				utcNow.Subtract(DateCreated) < TimeSpan.FromHours(23)
+				LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.RequiresConfirmation &&
+				utcNow.Subtract(LatestPeriod.DateCreated) < TimeSpan.FromHours(23)
 			) {
-				return SubscriptionState.Incomplete;
+				return SubscriptionState.RenewalRequiresConfirmation;
 			}
-			return SubscriptionState.IncompleteExpired;
+			return SubscriptionState.RenewalFailed;
 		}
 		public bool IsAutoRenewEnabled() => LatestRenewalStatusChange == null || LatestRenewalStatusChange.AutoRenewEnabled;
 	}

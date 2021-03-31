@@ -3,6 +3,8 @@ namespace api.DataAccess.Models {
 		Incomplete,
 		IncompleteExpired,
 		Active,
-		Lapsed
+		Lapsed,
+		RenewalRequiresConfirmation,
+		RenewalFailed
 	}
 }

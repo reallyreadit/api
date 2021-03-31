@@ -46,6 +46,7 @@ namespace api.Controllers.Shared {
 						price: price,
 						currentPeriodBeginDate: status.LatestPeriod.BeginDate,
 						currentPeriodEndDate: status.LatestPeriod.EndDate,
+						currentPeriodRenewalGracePeriodEndDate: status.LatestPeriod.RenewalGracePeriodEndDate,
 						autoRenewEnabled: autoRenewEnabled,
 						autoRenewPrice: autoRenewPrice,
 						isUserFreeForLife: isUserFreeForLife
@@ -55,13 +56,19 @@ namespace api.Controllers.Shared {
 						provider: provider,
 						price: price,
 						lastPeriodEndDate: status.LatestPeriod.EndDate,
+						lastPeriodRenewalGracePeriodEndDate: status.LatestPeriod.RenewalGracePeriodEndDate,
 						isUserFreeForLife: isUserFreeForLife
 					);
 				case SubscriptionState.Incomplete:
 				case SubscriptionState.IncompleteExpired:
+				case SubscriptionState.RenewalRequiresConfirmation:
+				case SubscriptionState.RenewalFailed:
 					if (
-						subscriptionState == SubscriptionState.Incomplete &&
-						status.LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.RequiresConfirmation
+						(
+							subscriptionState == SubscriptionState.Incomplete &&
+							status.LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.RequiresConfirmation
+						) ||
+						subscriptionState == SubscriptionState.RenewalRequiresConfirmation
 					) {
 						return new SubscriptionStatusPaymentConfirmationRequiredClientModel(
 							provider: provider,
@@ -141,6 +148,7 @@ namespace api.Controllers.Shared {
 			SubscriptionPriceClientModel price,
 			DateTime currentPeriodBeginDate,
 			DateTime currentPeriodEndDate,
+			DateTime currentPeriodRenewalGracePeriodEndDate,
 			bool autoRenewEnabled,
 			SubscriptionPriceClientModel autoRenewPrice,
 			bool isUserFreeForLife
@@ -153,6 +161,7 @@ namespace api.Controllers.Shared {
 			Price = price;
 			CurrentPeriodBeginDate = currentPeriodBeginDate;
 			CurrentPeriodEndDate = currentPeriodEndDate;
+			CurrentPeriodRenewalGracePeriodEndDate = currentPeriodRenewalGracePeriodEndDate;
 			AutoRenewEnabled = autoRenewEnabled;
 			AutoRenewPrice = autoRenewPrice;
 		}
@@ -160,6 +169,7 @@ namespace api.Controllers.Shared {
 		public SubscriptionPriceClientModel Price { get; }
 		public DateTime CurrentPeriodBeginDate { get; }
 		public DateTime CurrentPeriodEndDate { get; }
+		public DateTime CurrentPeriodRenewalGracePeriodEndDate { get; }
 		public bool AutoRenewEnabled { get; }
 		public SubscriptionPriceClientModel AutoRenewPrice { get; }
 	}
@@ -168,6 +178,7 @@ namespace api.Controllers.Shared {
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
 			DateTime lastPeriodEndDate,
+			DateTime lastPeriodRenewalGracePeriodEndDate,
 			bool isUserFreeForLife
 		) :
 		base(
@@ -177,9 +188,11 @@ namespace api.Controllers.Shared {
 			Provider = provider;
 			Price = price;
 			LastPeriodEndDate = lastPeriodEndDate;
+			LastPeriodRenewalGracePeriodEndDate = lastPeriodRenewalGracePeriodEndDate;
 		}
 		public SubscriptionProviderClientValue Provider { get; }
 		public SubscriptionPriceClientModel Price { get; }
 		public DateTime LastPeriodEndDate { get; }
+		public DateTime LastPeriodRenewalGracePeriodEndDate { get; }
 	}
 }

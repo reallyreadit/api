@@ -3,6 +3,7 @@ using System;
 namespace api.Subscriptions {
 	public static class StripeErrorCode {
 		public const string PaymentIntentAuthenticationError = "payment_intent_authentication_failure";
+		public const string ResourceMissing = "resource_missing";
 	}
 	public static class StripeErrorType {
 		public const string ApiConnectionError = "api_connection_error";
@@ -24,6 +25,13 @@ namespace api.Subscriptions {
 	}
 	public static class StripeInvoiceExpandProperties {
 		public const string PaymentIntent = "payment_intent";
+	}
+	public static class StripeInvoiceStatus {
+		public const string Draft = "draft";
+		public const string Open = "open";
+		public const string Paid = "paid";
+		public const string Uncollectible = "uncollectible";
+		public const string Void = "void";
 	}
 	public static class StripePaymentIntentExpandProperties {
 		public const string Invoice = "invoice";
@@ -57,6 +65,11 @@ namespace api.Subscriptions {
 	}
 	public static class StripeSubscriptionExpandProperties {
 		public const string LatestInvoicePaymentIntent = "latest_invoice.payment_intent";
+	}
+	public static class StripeSubscriptionPaymentBehavior {
+		public const string AllowIncomplete = "allow_incomplete";
+		public const string ErrorIfIncomplete = "error_if_incomplete";
+		public const string PendingIfIncomplete = "pending_if_incomplete";
 	}
 	public static class StripeSubscriptionProrationBehavior {
 		public const string AlwaysInvoice = "always_invoice";
