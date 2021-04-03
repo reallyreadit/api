@@ -779,6 +779,10 @@ namespace api.Controllers.Subscriptions {
 				}
 				SubscriptionDistributionReportClientModel completedPeriods;
 				if (state != null) {
+					// make sure any lapsed periods have been distributed before running the report
+					await db.CreateDistributionsForLapsedSubscriptionPeriodsAsync(
+						userAccountId: userAccountId
+					);
 					completedPeriods = new SubscriptionDistributionReportClientModel(
 						await db.RunDistributionReportForSubscriptionPeriodDistributionsAsync(
 							userAccountId: userAccountId
