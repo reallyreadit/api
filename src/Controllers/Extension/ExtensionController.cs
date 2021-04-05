@@ -630,7 +630,7 @@ namespace api.Controllers.Extension {
 				// also temporarily maintaining compatibility here
 				var userArticle = db.GetUserArticle(binder.UserPageId);
 				if (userArticle.UserAccountId == userAccountId) {
-					db.UpdateReadProgress(	
+					db.UpdateReadProgress(
 						userArticleId: binder.UserPageId,
 						readState: binder.ReadState,
 						analytics: this.GetClientAnalytics()
