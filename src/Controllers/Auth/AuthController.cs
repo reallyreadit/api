@@ -210,7 +210,7 @@ namespace api.Controllers.Auth {
 					Error = AuthenticationError.Cancelled
 				};
 			// check if the user is linking an existing account
-			} else if (User.Identity.IsAuthenticated) {	
+			} else if (User.Identity.IsAuthenticated) {
 				var (authServiceAccount, error) = await appleAuthService.LinkAccount(
 					sessionId: Request.Cookies.GetSessionIdCookieValue(),
 					rawIdToken: form.IdToken,
@@ -369,7 +369,7 @@ namespace api.Controllers.Auth {
 					);
 				}
 			} else {
-				response = new BrowserPopupResponseResponse(AuthenticationError.Unknown);	
+				response = new BrowserPopupResponseResponse(AuthenticationError.Unknown);
 			}
 			return Json(response);
 		}
@@ -569,7 +569,7 @@ namespace api.Controllers.Auth {
 					Error = AuthenticationError.Cancelled
 				};
 			// check if the user is linking an existing account
-			} else if (User.Identity.IsAuthenticated) {	
+			} else if (User.Identity.IsAuthenticated) {
 				var (authServiceAccount, error) = await twitterAuth.LinkAccount(
 					sessionId: Request.Cookies.GetSessionIdCookieValue(),
 					requestTokenValue: request.OAuthToken,
