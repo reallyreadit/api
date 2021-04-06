@@ -25,6 +25,8 @@ namespace api.DataAccess.Models {
 		[JsonIgnore]
 		public DateTime? DateDeleted { get; set; }
 		public DateTime? DateOrientationCompleted { get; set; }
+		[JsonIgnore]
+		public DateTime? SubscriptionEndDate { get; set; }
 		public bool IsPasswordSet => (
 			PasswordHash != null &&
 			PasswordSalt != null
