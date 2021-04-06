@@ -307,7 +307,7 @@ namespace api.Controllers.Auth {
 						requestId: requestId
 					);
 					if (token == null) {
-						return Problem("Failed to retrieve request token");
+						return Problem("Failed to retrieve request token", statusCode: 500);
 					}
 					response = new BrowserPopupRequestResponse(
 						requestId: requestId,
