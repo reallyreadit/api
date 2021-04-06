@@ -22,6 +22,7 @@ using api.Notifications;
 using api.Formatting;
 using Microsoft.Extensions.Logging;
 using api.Cookies;
+using api.Errors;
 
 namespace api.Controllers.Extension {
 	public class ExtensionController : Controller {
@@ -630,11 +631,19 @@ namespace api.Controllers.Extension {
 				// also temporarily maintaining compatibility here
 				var userArticle = db.GetUserArticle(binder.UserPageId);
 				if (userArticle.UserAccountId == userAccountId) {
-					db.UpdateReadProgress(
-						userArticleId: binder.UserPageId,
-						readState: binder.ReadState,
-						analytics: this.GetClientAnalytics()
-					);
+					try {
+						db.UpdateReadProgress(
+							userArticleId: binder.UserPageId,
+							readState: binder.ReadState,
+							analytics: this.GetClientAnalytics()
+						);
+					} catch (PostgresException ex) when (ex.Detail == ReadingErrorType.SubscriptionRequired) {
+						return Problem(
+							statusCode: 403,
+							type: ReadingErrorType.SubscriptionRequired,
+							title: "Subscription required."
+						);
+					}
 					return Json(
 						verificationService.AssignProofToken(
 							await db.GetArticle(userArticle.ArticleId, userAccountId),
