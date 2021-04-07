@@ -741,7 +741,9 @@ namespace api.Controllers.Subscriptions {
 					return new AppleSubscriptionAssociatedWithCurrentUserResponse(
 						SubscriptionStatusClientModel.FromSubscriptionStatus(
 							user: subscriptionUser,
-							status: subscriptionStatus
+							status: await db.GetCurrentSubscriptionStatusForUserAccountAsync(
+								userAccountId: User.GetUserAccountId()
+							)
 						)
 					);
 				} else {
