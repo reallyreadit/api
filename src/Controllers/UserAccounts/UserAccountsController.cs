@@ -320,12 +320,17 @@ namespace api.Controllers.UserAccounts {
 			[FromBody] EmailAddressBinder binder,
 			[FromServices] NotificationService notificationService
 		) {
+			// Do all the database work first.
+			UserAccount userAccount;
+			bool isEmailAddressConfirmed;
+			EmailConfirmation confirmation;
+			IEnumerable<SubscriptionAccount> subscriptionAccounts;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
+				userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
 				if (userAccount.Email == binder.Email) {
 					return BadRequest();
 				}
-				var isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
+				isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
 				var confirmations = db.ListEmailConfirmations(userAccount.Id);
 				if (
 					isEmailAddressConfirmed ||
@@ -340,18 +345,42 @@ namespace api.Controllers.UserAccounts {
 					} catch (Exception ex) {
 						return BadRequest((ex as ValidationException)?.Errors);
 					}
-					var confirmation = db.CreateEmailConfirmation(userAccount.Id);
+					confirmation = db.CreateEmailConfirmation(userAccount.Id);
 					if (isEmailAddressConfirmed) {
 						db.ConfirmEmailAddress(confirmation.Id);
 					}
-					var updatedUserAccount = await db.GetUserAccountById(userAccount.Id);
-					if (!isEmailAddressConfirmed) {
-						await notificationService.CreateEmailConfirmationNotification(userAccount.Id, confirmation.Id);
-					}
-					return Json(updatedUserAccount);
+					userAccount = await db.GetUserAccountById(userAccount.Id);
+					subscriptionAccounts = await db.GetSubscriptionAccountsForUserAccountAsync(
+						userAccountId: userAccount.Id
+					);
+				} else {
+					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
 			}
-			return BadRequest(new[] { "ResendLimitExceeded" });
+			// Update any associated Stripe Customer email addresses.
+			foreach (
+				var subscriptionAccount in subscriptionAccounts.Where(
+					account => account.Provider == SubscriptionProvider.Stripe
+				)
+			) {
+				try {
+					await new Stripe.CustomerService()
+						.UpdateAsync(
+							id: subscriptionAccount.ProviderAccountId,
+							options: new Stripe.CustomerUpdateOptions {
+								Email = userAccount.Email
+							}
+						);
+				} catch (Exception ex) {
+					log.LogError(ex, "Failed to update email address for Stripe Customer with id: {CustomerId} for UserAccount with id: {UserId}.", subscriptionAccount.ProviderAccountId, userAccount.Id);
+				}
+			}
+			// Sent a notification if confirmation is required.
+			if (!isEmailAddressConfirmed) {
+				await notificationService.CreateEmailConfirmationNotification(userAccount.Id, confirmation.Id);
+			}
+			// Return the updated user account.
+			return Json(userAccount);
 		}
 		[AllowAnonymous]
 		[HttpPost]
