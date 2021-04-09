@@ -41,6 +41,24 @@ namespace api.Controllers.Subscriptions {
 			this.taskQueue = taskQueue;
 		}
 
+		/// <summary>Attempts to cancel the <c>Subscription</c>.</summary>
+		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
+		/// <returns>A <c>Subscription</c> or <c>null</c>.</returns>
+		private async Task<Stripe.Subscription> CancelSubscriptionAsync(string providerSubscriptionId) {
+			// CancelAsync throws with resource_missing if the subscription has already been cancelled.
+			try {
+				return await new Stripe.SubscriptionService()
+					.CancelAsync(
+						id: providerSubscriptionId
+					);
+			} catch (Exception ex) {
+				if ((ex as Stripe.StripeException)?.StripeError.Code != StripeErrorCode.ResourceMissing) {
+					logger.LogError("Error cancelling Stripe subscription with id: {SubscriptionId}.", providerSubscriptionId);
+				}
+			}
+			return null;
+		}
+
 		/// <summary>Attempts to create a StripePaymentResponse from the PaymentIntent.</summary>
 		/// <remarks>If an error occurrs it will be logged and a ProblemDetails ObjectResult will be returned.</remarks>
 		/// <returns>A StripePaymentResponse or a ProblemDetails ObjectResult.</returns>
@@ -303,17 +321,9 @@ namespace api.Controllers.Subscriptions {
 					// Cancelling automatically via Stripe payment settings also effects pending update payments so we can't use it
 					// and must handle it manually here instead.
 					if (invoice.PaymentIntent.Status == StripePaymentIntentStatus.RequiresPaymentMethod) {
-						// CancelAsync throws with resource_missing if the subscription has already been cancelled.
-						try {
-							await new Stripe.SubscriptionService()
-								.CancelAsync(
-									id: invoice.SubscriptionId
-								);
-						} catch (Exception ex) {
-							if ((ex as Stripe.StripeException)?.StripeError.Code != StripeErrorCode.ResourceMissing) {
-								logger.LogError("Error cancelling Stripe subscription with id: {SubscriptionId} from invoice with id: {InvoiceId}.", invoice.SubscriptionId, invoice.Id);
-							}
-						}
+						await CancelSubscriptionAsync(
+							providerSubscriptionId: invoice.SubscriptionId
+						);
 					}
 					break;
 				case StripeInvoiceBillingReason.SubscriptionUpdate:
