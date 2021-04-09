@@ -17,7 +17,6 @@ using api.Analytics;
 using Microsoft.AspNetCore.Authorization;
 using api.Encryption;
 using System.Collections.Generic;
-using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Formatting;
 using Microsoft.Extensions.Logging;
@@ -600,22 +599,8 @@ namespace api.Controllers.Extension {
 						WordsRead = userArticle.WordsRead,
 						DateCompleted = userArticle.DateCompleted
 					},
-					User = (
-						this.ClientVersionIsGreaterThanOrEqualTo(
-							versions: new Dictionary<ClientType, SemanticVersion>() {
-								{ ClientType.IosApp, new SemanticVersion(5, 0, 0) },
-								{ ClientType.IosExtension, new SemanticVersion(5, 0, 0) },
-								{ ClientType.WebExtension, new SemanticVersion(0, 0, 0) }
-							}
-						) ?
-							await db.GetUserAccountById(
-								userAccountId: userAccountId
-							) :
-							new UserAccount_1_2_0(
-								user: await db.GetUserAccountById(
-									userAccountId: userAccountId
-								)
-							) as Object
+					User = await db.GetUserAccountById(
+						userAccountId: userAccountId
 					)
 				});
 			}

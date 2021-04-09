@@ -18,7 +18,6 @@ using Npgsql;
 using api.Security;
 using api.Commenting;
 using api.Analytics;
-using api.BackwardsCompatibility;
 using api.Notifications;
 using api.Routing;
 using Microsoft.Extensions.Logging;
@@ -87,70 +86,6 @@ namespace api.Controllers.UserAccounts {
 				request != null &&
 				!request.DateCompleted.HasValue &&
 				DateTime.UtcNow.Subtract(request.DateCreated).TotalHours < 24;
-		private async Task<Object> GetUserForClient(
-			UserAccount user,
-			NpgsqlConnection db
-		) => (
-			this.ClientVersionIsGreaterThanOrEqualTo(
-				versions: new Dictionary<ClientType, SemanticVersion>() {
-					{ ClientType.IosApp, new SemanticVersion(5, 0, 0) },
-					{ ClientType.WebAppClient, new SemanticVersion(1, 8, 0) },
-					{ ClientType.WebAppServer, new SemanticVersion(1, 8, 0) },
-					{ ClientType.WebEmbed, new SemanticVersion(1, 0, 0) }
-				}
-			) ?
-				user :
-				new UserAccount_1_2_0(
-					user: user,
-					preference: await db.GetNotificationPreference(
-						userAccountId: user.Id
-					),
-					timeZone: (
-						user.TimeZoneId.HasValue ?
-							await db.GetTimeZoneById(
-								id: user.TimeZoneId.Value
-							) :
-							null
-					)
-				) as Object
-		);
-		private async Task<Object> GetWebAppUserProfileForClient(
-			UserAccount user,
-			NpgsqlConnection db
-		) {
-			if (
-				this.ClientVersionIsGreaterThanOrEqualTo(
-					new Dictionary<ClientType, SemanticVersion>() {
-						{
-							ClientType.WebAppClient,
-							new SemanticVersion(1, 31, 0)
-						},
-						{
-							ClientType.WebEmbed,
-							new SemanticVersion(1, 0, 0)
-						}
-					}
-				)
-			) {
-				return new WebAppUserProfileClientModel(
-					await db.GetDisplayPreference(user.Id),
-					await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id),
-					user
-				);
-			}
-			return await GetUserForClient(user, db);
-		}
-		private async Task<JsonResult> JsonUser(
-			UserAccount user,
-			NpgsqlConnection db
-		) => (
-			Json(
-				data: await GetUserForClient(
-					user: user,
-					db: db
-				)
-			)
-		);
 		[AllowAnonymous]
 		[HttpPost]
       public async Task<IActionResult> CreateAccount(
@@ -184,7 +119,11 @@ namespace api.Controllers.UserAccounts {
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
 					return Json(
-						await GetWebAppUserProfileForClient(userAccount, db)
+						new WebAppUserProfileClientModel(
+							await db.GetDisplayPreference(userAccount.Id),
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
+							userAccount
+						)
 					);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
@@ -267,7 +206,11 @@ namespace api.Controllers.UserAccounts {
 					await notificationService.CreateWelcomeNotification(userAccount.Id);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
 					return Json(
-						await GetWebAppUserProfileForClient(userAccount, db)
+						new WebAppUserProfileClientModel(
+							await db.GetDisplayPreference(userAccount.Id),
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
+							userAccount
+						)
 					);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
@@ -362,7 +305,11 @@ namespace api.Controllers.UserAccounts {
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
 					await authenticationService.SignIn(userAccount, form.PushDevice);
 					return Json(
-						await GetWebAppUserProfileForClient(userAccount, db)
+						new WebAppUserProfileClientModel(
+							await db.GetDisplayPreference(userAccount.Id),
+							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
+							userAccount
+						)
 					);
 				}
 			}
@@ -401,10 +348,7 @@ namespace api.Controllers.UserAccounts {
 					if (!isEmailAddressConfirmed) {
 						await notificationService.CreateEmailConfirmationNotification(userAccount.Id, confirmation.Id);
 					}
-					return await JsonUser(
-						user: updatedUserAccount,
-						db: db
-					);
+					return Json(updatedUserAccount);
 				}
 			}
 			return BadRequest(new[] { "ResendLimitExceeded" });
@@ -459,9 +403,8 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public async Task<IActionResult> GetUserAccount() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return await JsonUser(
-					user: await db.GetUserAccountById(this.User.GetUserAccountId()),
-					db: db
+				return Json(
+					await db.GetUserAccountById(this.User.GetUserAccountId())
 				);
 			}
 		}
@@ -470,10 +413,7 @@ namespace api.Controllers.UserAccounts {
 		public async Task<IActionResult> GetSessionState() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(new {
-					UserAccount = await GetUserForClient(
-						user: await db.GetUserAccountById(this.User.GetUserAccountId()),
-						db: db
-					),
+					UserAccount = await db.GetUserAccountById(this.User.GetUserAccountId()),
 					NewReplyNotification = new {
 						LastReply = 0,
 						LastNewReplyAck = 0,
@@ -520,7 +460,11 @@ namespace api.Controllers.UserAccounts {
 				}
 				await authenticationService.SignIn(userAccount, form.PushDevice);
 				return Json(
-					await GetWebAppUserProfileForClient(userAccount, db)
+					new WebAppUserProfileClientModel(
+						await db.GetDisplayPreference(userAccount.Id),
+						await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
+						userAccount
+					)
 				);
 			}
 		}
@@ -551,10 +495,7 @@ namespace api.Controllers.UserAccounts {
 				var user = await db.GetUserAccountById(
 					userAccountId: preference.UserAccountId
 				);
-				return await JsonUser(
-					user: user,
-					db: db
-				);
+				return Json(user);
 			}
 		}
 		// deprecated
@@ -575,10 +516,7 @@ namespace api.Controllers.UserAccounts {
 				var user = await db.GetUserAccountById(
 					userAccountId: preference.UserAccountId
 				);
-				return await JsonUser(
-					user: user,
-					db: db
-				);
+				return Json(user);
 			}
 		}
 		// deprecated
@@ -724,7 +662,7 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpPost]
-		public async Task<JsonResult> ChangeTimeZone([FromBody] ChangeTimeZoneBinder binder) {
+		public JsonResult ChangeTimeZone([FromBody] ChangeTimeZoneBinder binder) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				long timeZoneId;
 				if (binder.Id.HasValue) {
@@ -732,9 +670,8 @@ namespace api.Controllers.UserAccounts {
 				} else {
 					timeZoneId = GetTimeZoneIdFromName(db.GetTimeZones(), binder.Name);
 				}
-				return await JsonUser(
-					user: db.UpdateTimeZone(this.User.GetUserAccountId(), timeZoneId),
-					db: db
+				return Json(
+					db.UpdateTimeZone(this.User.GetUserAccountId(), timeZoneId)
 				);
 			}
 		}
