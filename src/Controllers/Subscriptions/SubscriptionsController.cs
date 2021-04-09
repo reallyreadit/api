@@ -1353,6 +1353,10 @@ namespace api.Controllers.Subscriptions {
 								providerSubscriptionId: subscriptionId
 							);
 							break;
+						// Update payment method if we get a notification from the network via Stripe.
+						case Stripe.Events.PaymentMethodAutomaticallyUpdated:
+							await UpdatePaymentMethodFromStripeAsync(stripeEvent.Data.Object as Stripe.PaymentMethod, SubscriptionEventSource.ProviderNotification);
+							break;
 					}
 				}
 			);
