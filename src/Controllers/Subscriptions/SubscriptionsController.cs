@@ -929,6 +929,52 @@ namespace api.Controllers.Subscriptions {
 		}
 
 		[HttpPost]
+		public async Task<ActionResult<SubscriptionPaymentMethodUpdateResponse>> StripePaymentMethodUpdate(
+			[FromBody] SubscriptionPaymentMethodUpdateRequest request
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				var paymentMethod = await db.GetSubscriptionPaymentMethodAsync(
+					provider: SubscriptionProvider.Stripe,
+					providerPaymentMethodId: request.Id
+				);
+				if (paymentMethod == null) {
+					return Problem("Payment method not found.", statusCode: 404);
+				}
+				if (
+					paymentMethod.ExpirationMonth == request.ExpirationMonth &&
+					paymentMethod.ExpirationYear == request.ExpirationYear
+				) {
+					return new SubscriptionPaymentMethodUpdateResponse(
+						new SubscriptionPaymentMethodClientModel(paymentMethod)
+					);
+				}
+			}
+			Stripe.PaymentMethod stripePaymentMethod;
+			try {
+				stripePaymentMethod = await new Stripe.PaymentMethodService()
+					.UpdateAsync(
+						id: request.Id,
+						options: new Stripe.PaymentMethodUpdateOptions {
+							Card = new Stripe.PaymentMethodCardOptions {
+								ExpMonth = request.ExpirationMonth,
+								ExpYear = request.ExpirationYear
+							}
+						}
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to update Stripe payment method with id: {PaymentMethodId} and exp. month: {ExpMonth}, exp. year: {ExpYear}.", request.Id, request.ExpirationMonth, request.ExpirationYear);
+				return Problem("Failed to update payment method.", statusCode: 500);
+			}
+			var updatedPaymentMethod = await UpdatePaymentMethodFromStripeAsync(stripePaymentMethod, SubscriptionEventSource.UserAction);
+			if (updatedPaymentMethod == null) {
+				return Problem("Failed to update payment method.", statusCode: 500);
+			}
+			return new SubscriptionPaymentMethodUpdateResponse(
+				new SubscriptionPaymentMethodClientModel(updatedPaymentMethod)
+			);
+		}
+
+		[HttpPost]
 		public async Task<ActionResult<StripePaymentResponse>> StripePriceChange(
 			[FromBody] StripePriceChangeRequest request
 		) {
