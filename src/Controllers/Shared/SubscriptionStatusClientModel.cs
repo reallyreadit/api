@@ -57,6 +57,7 @@ namespace api.Controllers.Shared {
 						price: price,
 						lastPeriodEndDate: status.LatestPeriod.EndDate,
 						lastPeriodRenewalGracePeriodEndDate: status.LatestPeriod.RenewalGracePeriodEndDate,
+						dateRefunded: status.LatestPeriod.DateRefunded,
 						isUserFreeForLife: isUserFreeForLife
 					);
 				case SubscriptionState.Incomplete:
@@ -179,6 +180,7 @@ namespace api.Controllers.Shared {
 			SubscriptionPriceClientModel price,
 			DateTime lastPeriodEndDate,
 			DateTime lastPeriodRenewalGracePeriodEndDate,
+			DateTime? dateRefunded,
 			bool isUserFreeForLife
 		) :
 		base(
@@ -189,10 +191,12 @@ namespace api.Controllers.Shared {
 			Price = price;
 			LastPeriodEndDate = lastPeriodEndDate;
 			LastPeriodRenewalGracePeriodEndDate = lastPeriodRenewalGracePeriodEndDate;
+			LastPeriodDateRefunded = dateRefunded;
 		}
 		public SubscriptionProviderClientValue Provider { get; }
 		public SubscriptionPriceClientModel Price { get; }
 		public DateTime LastPeriodEndDate { get; }
 		public DateTime LastPeriodRenewalGracePeriodEndDate { get; }
+		public DateTime? LastPeriodDateRefunded { get; }
 	}
 }
