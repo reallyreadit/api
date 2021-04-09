@@ -12,7 +12,7 @@ namespace api.DataAccess.Models {
 		public SubscriptionStatusLatestRenewalStatusChange LatestRenewalStatusChange { get; set; }
 		public SubscriptionState GetCurrentState(DateTime utcNow) {
 			if (LatestPeriod.PaymentStatus == SubscriptionPaymentStatus.Succeeded) {
-				if (LatestPeriod.RenewalGracePeriodEndDate > utcNow) {
+				if (LatestPeriod.RenewalGracePeriodEndDate > utcNow && !LatestPeriod.DateRefunded.HasValue) {
 					return SubscriptionState.Active;
 				}
 				return SubscriptionState.Lapsed;
