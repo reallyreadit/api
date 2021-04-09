@@ -545,6 +545,21 @@ namespace api.Controllers.Subscriptions {
 								Int64.Parse(transaction.PurchaseDateMs)
 							)
 							.UtcDateTime;
+						Nullable<DateTime> refundDate;
+						string refundReason;
+						if (transaction.CancellationDateMs != null && transaction.IsUpgraded != "true") {
+							refundDate = new Nullable<DateTime>(
+								DateTimeOffset
+									.FromUnixTimeMilliseconds(
+										Int64.Parse(transaction.CancellationDateMs)
+									)
+									.UtcDateTime
+							);
+							refundReason = transaction.CancellationReason ?? "-1";
+						} else {
+							refundDate = null;
+							refundReason = null;
+						}
 						await db.CreateOrUpdateSubscriptionPeriodAsync(
 							provider: SubscriptionProvider.Apple,
 							providerPeriodId: transaction.WebOrderLineItemId,
@@ -560,16 +575,8 @@ namespace api.Controllers.Subscriptions {
 							dateCreated: purchaseDate,
 							paymentStatus: SubscriptionPaymentStatus.Succeeded,
 							datePaid: purchaseDate,
-							dateRefunded: transaction.CancellationDateMs != null ?
-								new Nullable<DateTime>(
-									DateTimeOffset
-										.FromUnixTimeMilliseconds(
-											Int64.Parse(transaction.CancellationDateMs)
-										)
-										.UtcDateTime
-								 ) :
-								null,
-							refundReason: transaction.CancellationReason,
+							dateRefunded: refundDate,
+							refundReason: refundReason,
 							prorationDiscount: null
 						);
 					}
