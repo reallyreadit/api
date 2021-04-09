@@ -398,18 +398,6 @@ namespace api.Controllers.Subscriptions {
 				return null;
 			}
 
-			// this should never fail but we should check anyway since values are longs for some reason
-			int
-				stripePaymentMethodExpirationMonth,
-				stripePaymentMethodExpirationYear;
-			try {
-				stripePaymentMethodExpirationMonth = Convert.ToInt32(stripePaymentMethod.Card.ExpMonth);
-				stripePaymentMethodExpirationYear = Convert.ToInt32(stripePaymentMethod.Card.ExpYear);
-			} catch (Exception ex) {
-				logger.LogError(ex, "Invalid value for card expiration month: {ExpirationMonth} or year: {ExpirationYear} on Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Card.ExpMonth, stripePaymentMethod.Card.ExpYear, stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-				return null;
-			}
-
 			// check for an existing readup payment method
 			SubscriptionPaymentMethod paymentMethod;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
@@ -443,8 +431,8 @@ namespace api.Controllers.Subscriptions {
 							brand: cardBrand,
 							lastFourDigits: stripePaymentMethod.Card.Last4,
 							country: stripePaymentMethod.Card.Country,
-							expirationMonth: stripePaymentMethodExpirationMonth,
-							expirationYear: stripePaymentMethodExpirationYear
+							expirationMonth: (int)stripePaymentMethod.Card.ExpMonth,
+							expirationYear: (int)stripePaymentMethod.Card.ExpYear
 						);
 					} catch (Exception ex) {
 						logger.LogError(ex, "Failed to create payment method for Stripe payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
@@ -452,24 +440,11 @@ namespace api.Controllers.Subscriptions {
 					}
 				}
 			} else if (
-				paymentMethod.ExpirationMonth != stripePaymentMethodExpirationMonth ||
-				paymentMethod.ExpirationYear != stripePaymentMethodExpirationYear
+				paymentMethod.ExpirationMonth != stripePaymentMethod.Card.ExpMonth ||
+				paymentMethod.ExpirationYear != stripePaymentMethod.Card.ExpYear
 			) {
 				// update the payment method
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					try {
-						paymentMethod = await db.UpdateSubscriptionPaymentMethodAsync(
-							provider: SubscriptionProvider.Stripe,
-							providerPaymentMethodId: stripePaymentMethod.Id,
-							eventSource: SubscriptionEventSource.UserAction,
-							expirationMonth: stripePaymentMethodExpirationMonth,
-							expirationYear: stripePaymentMethodExpirationYear
-						);
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to update payment method with id: {PaymentMethodId}. Stripe request id: {RequestId}.", stripePaymentMethod.Id, stripePaymentMethod.StripeResponse.RequestId);
-						return null;
-					}
-				}
+				paymentMethod = await UpdatePaymentMethodFromStripeAsync(stripePaymentMethod, SubscriptionEventSource.UserAction);
 			}
 
 			// update stripe customer's default invoice payment method (successful no-op if already default)
@@ -590,6 +565,30 @@ namespace api.Controllers.Subscriptions {
 						providerPriceId: renewalInfo.AutoRenewProductId,
 						expirationIntent: renewalInfo.ExpirationIntent
 					);
+				}
+			}
+		}
+
+		/// <summary>Attempts to update a <c>SubscriptionPaymentMethod</c> from a Stripe <c>PaymentMethod</c>.</summary>
+		/// <remarks>If any errors occur they will be logged and the return value will be <c>null</c>.</remarks>
+		/// <returns>An updated <c>SubscriptionPaymentMethod</c> or <c>null</c>.</returns>
+		private async Task<SubscriptionPaymentMethod> UpdatePaymentMethodFromStripeAsync(Stripe.PaymentMethod paymentMethod, SubscriptionEventSource eventSource) {
+			if (paymentMethod.Card == null) {
+				logger.LogError("Stripe PaymentMethod with id: {PaymentMethodId} does not contain a card object.", paymentMethod.Id);
+				return null;
+			}
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					return await db.UpdateSubscriptionPaymentMethodAsync(
+						provider: SubscriptionProvider.Stripe,
+						providerPaymentMethodId: paymentMethod.Id,
+						eventSource: eventSource,
+						expirationMonth: (int)paymentMethod.Card.ExpMonth,
+						expirationYear: (int)paymentMethod.Card.ExpYear
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to update payment method with id: {PaymentMethodId}.", paymentMethod.Id);
+					return null;
 				}
 			}
 		}
