@@ -5,6 +5,7 @@ namespace api.Controllers.Shared {
 		public SubscriptionPaymentMethodClientModel(
 			SubscriptionPaymentMethod paymentMethod
 		) {
+			Id = paymentMethod.ProviderPaymentMethodId;
 			Wallet = SubscriptionPaymentMethodWalletClientValueExtensions.FromSubscriptionPaymentMethodWallet(
 				paymentMethod.Wallet
 			);
@@ -15,6 +16,7 @@ namespace api.Controllers.Shared {
 			ExpirationMonth = paymentMethod.ExpirationMonth;
 			ExpirationYear	= paymentMethod.ExpirationYear;
 		}
+		public string Id { get; }
 		public SubscriptionPaymentMethodWalletClientValue Wallet { get; }
 		public SubscriptionPaymentMethodBrandClientValue Brand { get; }
 		public string LastFourDigits { get; }
