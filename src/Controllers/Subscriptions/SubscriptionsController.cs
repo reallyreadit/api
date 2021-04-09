@@ -1280,6 +1280,80 @@ namespace api.Controllers.Subscriptions {
 								await GetInvoiceWithPaymentIntentAsync(invoiceId: updatedInvoice.Id)
 							);
 							break;
+						// If a charge is disputed or refunded we need to cancel the subscription and update the associated subscription period.
+						case Stripe.Events.ChargeDisputeCreated:
+						case Stripe.Events.ChargeRefunded:
+							// Get the invoiceId and refund params.
+							DateTime dateRefunded;
+							string
+								refundReason,
+								invoiceId;
+							switch (stripeEvent.Type) {
+								case Stripe.Events.ChargeDisputeCreated:
+									var dispute = stripeEvent.Data.Object as Stripe.Dispute;
+									dateRefunded = dispute.Created;
+									refundReason = dispute.Reason ?? "charge.dispute.created";
+									try {
+										var disputedPaymentIntent = await new Stripe.PaymentIntentService()
+											.GetAsync(
+												id: dispute.PaymentIntentId
+											);
+										invoiceId = disputedPaymentIntent.InvoiceId;
+									} catch (Exception ex) {
+										logger.LogError(ex, "Failed to retrieve PaymentIntent with id: {PaymentIntentId} for {StripeEventType} event processing.", dispute.PaymentIntentId, stripeEvent.Type);
+										invoiceId = null;
+									}
+									break;
+								case Stripe.Events.ChargeRefunded:
+									var refundedCharge = stripeEvent.Data.Object as Stripe.Charge;
+									dateRefunded = refundedCharge.Created;
+									refundReason = refundedCharge.Refunds?.SingleOrDefault()?.Reason ?? "charge.refunded";
+									invoiceId = refundedCharge.InvoiceId;
+									break;
+								default:
+									throw new Exception($"Unexpected event type: {stripeEvent.Type}.");
+							}
+							if (invoiceId == null) {
+								break;
+							}
+							// Retrieve the period.
+							string subscriptionId;
+							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+								var refundedPeriod = await db.GetSubscriptionPeriodAsync(
+									provider: SubscriptionProvider.Stripe,
+									providerPeriodId: invoiceId
+								);
+								if (refundedPeriod == null) {
+									logger.LogError("Failed to retrieve SubscriptionPeriod with id: {PeriodId} for {StripeEventType} event processing.", invoiceId, stripeEvent.Type);
+									break;
+								}
+								subscriptionId = refundedPeriod.ProviderSubscriptionId;
+								// Update the period if not yet refunded.
+								try {
+									await db.CreateOrUpdateSubscriptionPeriodAsync(
+										provider: SubscriptionProvider.Stripe,
+										providerSubscriptionId: refundedPeriod.ProviderSubscriptionId,
+										providerPeriodId: refundedPeriod.ProviderPeriodId,
+										providerPriceId: refundedPeriod.ProviderPriceId,
+										providerPaymentMethodId: refundedPeriod.ProviderPaymentMethodId,
+										beginDate: refundedPeriod.BeginDate,
+										endDate: refundedPeriod.EndDate,
+										dateCreated: refundedPeriod.DateCreated,
+										paymentStatus: refundedPeriod.PaymentStatus,
+										datePaid: refundedPeriod.DatePaid,
+										dateRefunded: dateRefunded,
+										refundReason: refundReason,
+										prorationDiscount: null
+									);
+								} catch (Exception ex) {
+									logger.LogError(ex, "Failed to update SubscriptionPeriod with id: {PeriodId} for {StripeEventType} event processing.", invoiceId, stripeEvent.Type);
+								}
+							}
+							// Cancel the subscription.
+							await CancelSubscriptionAsync(
+								providerSubscriptionId: subscriptionId
+							);
+							break;
 					}
 				}
 			);
