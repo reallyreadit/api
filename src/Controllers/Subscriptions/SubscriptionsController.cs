@@ -1283,7 +1283,7 @@ namespace api.Controllers.Subscriptions {
 						case Stripe.Events.ChargeDisputeCreated:
 						case Stripe.Events.ChargeRefunded:
 							// Get the invoiceId and refund params.
-							DateTime dateRefunded;
+							Nullable<DateTime> dateRefunded;
 							string
 								refundReason,
 								invoiceId;
@@ -1305,14 +1305,29 @@ namespace api.Controllers.Subscriptions {
 									break;
 								case Stripe.Events.ChargeRefunded:
 									var refundedCharge = stripeEvent.Data.Object as Stripe.Charge;
-									dateRefunded = refundedCharge.Created;
-									refundReason = refundedCharge.Refunds?.SingleOrDefault()?.Reason ?? "charge.refunded";
-									invoiceId = refundedCharge.InvoiceId;
+									var refund = refundedCharge.Refunds
+										.OrderBy(
+											refund => refund.Created
+										)
+										.FirstOrDefault();
+									if (refund != null) {
+										dateRefunded = refund.Created;
+										refundReason = refund.Reason ?? "charge.refunded";
+										invoiceId = refundedCharge.InvoiceId;
+									} else {
+										dateRefunded = null;
+										refundReason = null;
+										invoiceId = null;
+									}
 									break;
 								default:
 									throw new Exception($"Unexpected event type: {stripeEvent.Type}.");
 							}
-							if (invoiceId == null) {
+							if (
+								dateRefunded == null ||
+								refundReason == null ||
+								invoiceId == null
+							) {
 								break;
 							}
 							// Retrieve the period.
