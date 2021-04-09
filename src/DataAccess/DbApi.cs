@@ -1953,6 +1953,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<SubscriptionPeriod> GetSubscriptionPeriodAsync(
+			this NpgsqlConnection connection,
+			SubscriptionProvider provider,
+			string providerPeriodId
+		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
+			sql: "subscriptions.get_subscription_period",
+			param: new {
+				provider = ConvertEnumToString(provider),
+				provider_period_id = providerPeriodId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<SubscriptionAccount>> GetSubscriptionAccountsForUserAccountAsync(
 			this NpgsqlConnection connection,
 			long userAccountId
