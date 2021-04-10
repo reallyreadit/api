@@ -222,6 +222,17 @@ namespace api.Controllers.Subscriptions {
 			return result;
 		}
 
+		private async Task<SubscriptionAccount> GetStripeSubscriptionAccountForUserAccountAsync() {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				var subscriptionAccounts = await db.GetSubscriptionAccountsForUserAccountAsync(
+					userAccountId: User.GetUserAccountId()
+				);
+				return subscriptionAccounts.SingleOrDefault(
+					account => account.Provider == SubscriptionProvider.Stripe
+				);
+			}
+		}
+
 		/// <summary>Attempts to get the <c>Subscription</c> along with the latest <c>Invoice</c> and its <c>PaymentIntent</c>.</summary>
 		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
 		/// <returns>A <c>Subscription</c> with expanded <c>LatestInvoice</c> and <c>PaymentIntent</c> properties or null.</returns>
@@ -1066,7 +1077,6 @@ namespace api.Controllers.Subscriptions {
 
 			// retrieve the readup user account, subscription status and stripe account
 			UserAccount userAccount;
-			SubscriptionAccount subscriptionAccount;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				// first check for an active subscription
 				var subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(
@@ -1082,12 +1092,10 @@ namespace api.Controllers.Subscriptions {
 				userAccount = await db.GetUserAccountById(
 					User.GetUserAccountId()
 				);
-				// check for an existing stripe account assigned to this user
-				subscriptionAccount = (await db.GetSubscriptionAccountsForUserAccountAsync(userAccount.Id))
-					.SingleOrDefault(
-						account => account.Provider == SubscriptionProvider.Stripe
-					);
 			}
+
+			// check for an existing stripe account assigned to this user
+			var subscriptionAccount = await GetStripeSubscriptionAccountForUserAccountAsync();
 
 			// create and assign if one doesn't exist
 			if (subscriptionAccount == null) {
