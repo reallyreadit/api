@@ -940,6 +940,26 @@ namespace api.Controllers.Subscriptions {
 		}
 
 		[HttpPost]
+		public async Task<ActionResult<SubscriptionPaymentMethodResponse>> StripePaymentMethodChange(
+			[FromBody] SubscriptionPaymentMethodChangeRequest request
+		) {
+			var subscriptionAccount = await GetStripeSubscriptionAccountForUserAccountAsync();
+			if (subscriptionAccount == null) {
+				return Problem("Subscription account not found.", statusCode: 500);
+			}
+			var paymentMethod = await SetDefaultPaymentMethodAsync(
+				providerPaymentMethodId: request.PaymentMethodId,
+				providerAccountId: subscriptionAccount.ProviderAccountId
+			);
+			if (paymentMethod == null) {
+				return Problem("Failed to update payment method.", statusCode: 500);
+			}
+			return new SubscriptionPaymentMethodResponse(
+				new SubscriptionPaymentMethodClientModel(paymentMethod)
+			);
+		}
+
+		[HttpPost]
 		public async Task<ActionResult<SubscriptionPaymentMethodResponse>> StripePaymentMethodUpdate(
 			[FromBody] SubscriptionPaymentMethodUpdateRequest request
 		) {
@@ -1066,6 +1086,27 @@ namespace api.Controllers.Subscriptions {
 					);
 				}
 			}
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<StripeSetupIntentResponse>> StripeSetupIntentRequest() {
+			var subscriptionAccount = await GetStripeSubscriptionAccountForUserAccountAsync();
+			if (subscriptionAccount == null) {
+				return Problem("Subscription account not found.", statusCode: 500);
+			}
+			Stripe.SetupIntent setupIntent;
+			try {
+				setupIntent = await new Stripe.SetupIntentService()
+					.CreateAsync(
+						new Stripe.SetupIntentCreateOptions {
+							Customer = subscriptionAccount.ProviderAccountId
+						}
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to create Stripe SetupIntent for UserAccount with Id: {UserId}.", User.GetUserAccountId());
+				return Problem("Failed to create SetupIntent.", statusCode: 500);
+			}
+			return new StripeSetupIntentResponse(clientSecret: setupIntent.ClientSecret);
 		}
 
 		[HttpPost]
