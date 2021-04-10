@@ -1,8 +1,8 @@
 using api.Controllers.Shared;
 
 namespace api.Controllers.Subscriptions {
-	public class SubscriptionPaymentMethodUpdateResponse {
-		public SubscriptionPaymentMethodUpdateResponse(
+	public class SubscriptionPaymentMethodResponse {
+		public SubscriptionPaymentMethodResponse(
 			SubscriptionPaymentMethodClientModel paymentMethod
 		) {
 			PaymentMethod = paymentMethod;

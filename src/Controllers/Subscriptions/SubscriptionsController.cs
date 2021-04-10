@@ -929,7 +929,7 @@ namespace api.Controllers.Subscriptions {
 		}
 
 		[HttpPost]
-		public async Task<ActionResult<SubscriptionPaymentMethodUpdateResponse>> StripePaymentMethodUpdate(
+		public async Task<ActionResult<SubscriptionPaymentMethodResponse>> StripePaymentMethodUpdate(
 			[FromBody] SubscriptionPaymentMethodUpdateRequest request
 		) {
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
@@ -944,7 +944,7 @@ namespace api.Controllers.Subscriptions {
 					paymentMethod.ExpirationMonth == request.ExpirationMonth &&
 					paymentMethod.ExpirationYear == request.ExpirationYear
 				) {
-					return new SubscriptionPaymentMethodUpdateResponse(
+					return new SubscriptionPaymentMethodResponse(
 						new SubscriptionPaymentMethodClientModel(paymentMethod)
 					);
 				}
@@ -969,7 +969,7 @@ namespace api.Controllers.Subscriptions {
 			if (updatedPaymentMethod == null) {
 				return Problem("Failed to update payment method.", statusCode: 500);
 			}
-			return new SubscriptionPaymentMethodUpdateResponse(
+			return new SubscriptionPaymentMethodResponse(
 				new SubscriptionPaymentMethodClientModel(updatedPaymentMethod)
 			);
 		}
