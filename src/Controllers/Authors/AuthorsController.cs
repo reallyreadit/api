@@ -1,5 +1,6 @@
 using System.Threading.Tasks;
 using api.Configuration;
+using api.Controllers.Shared;
 using api.DataAccess;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -31,9 +32,18 @@ namespace api.Controllers.AuthorsController {
 						new[] { "Author not found." }
 					);
 				}
+				var linkedUserAccount = await db.GetUserAccountByAuthorSlug(
+					authorSlug: author.Slug
+				);
+				var distributionReport = await db.RunAuthorDistributionReportForSubscriptionPeriodDistributionsAsync(
+					authorId: author.Id
+				);
 				return Json(
-					new AuthorProfile(
-						name: author.Name
+					new AuthorProfileClientModel(
+						name: author.Name,
+						slug: author.Slug,
+						totalEarnings: distributionReport.Amount,
+						userName: linkedUserAccount?.Name
 					)
 				);
 			}

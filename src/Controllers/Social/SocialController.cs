@@ -18,6 +18,7 @@ using api.ReadingVerification;
 using System.Collections.Generic;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Caching.Memory;
+using api.Controllers.Shared;
 
 namespace api.Controllers.Social {
 	public class SocialController : Controller {
@@ -485,12 +486,30 @@ namespace api.Controllers.Social {
 			[FromQuery] UserNameQuery query
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var profile = await db.GetProfile(
+					viewerUserId: User.GetUserAccountIdOrDefault(),
+					subjectUserName: query.UserName
+				);
+				AuthorProfileClientModel authorProfile;
+				var linkedAuthor = await db.GetAuthorByUserAccountName(
+					userAccountName: query.UserName
+				);
+				if (linkedAuthor != null) {
+					var distributionReport = await db.RunAuthorDistributionReportForSubscriptionPeriodDistributionsAsync(
+						authorId: linkedAuthor.Id
+					);
+					authorProfile = new AuthorProfileClientModel(
+						name: linkedAuthor.Name,
+						slug: linkedAuthor.Slug,
+						totalEarnings: distributionReport.Amount,
+						userName: profile.UserName
+					);
+				} else {
+					authorProfile = null;
+				}
 				return Json(
-					data: new Profile(
-						dbProfile: await db.GetProfile(
-							viewerUserId: User.GetUserAccountIdOrDefault(),
-							subjectUserName: query.UserName
-						),
+					data: new ProfileClientModel(
+						profile: profile,
 						leaderboardBadge: (
 								await db.GetUserLeaderboardRankings(
 									userAccountId: await db.GetUserAccountIdByName(
@@ -498,7 +517,8 @@ namespace api.Controllers.Social {
 									)
 								)
 							)
-							.GetBadge()
+							.GetBadge(),
+						authorProfile: authorProfile
 					)
 				);
 			}
