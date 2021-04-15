@@ -2017,6 +2017,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<SubscriptionDistributionAuthorReport> RunAuthorDistributionReportForSubscriptionPeriodDistributionsAsync(
+			this NpgsqlConnection connection,
+			long authorId
+		) => await connection.QuerySingleAsync<SubscriptionDistributionAuthorReport>(
+			sql: "subscriptions.run_author_distribution_report_for_period_distributions",
+			param: new {
+				author_id = authorId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionDistributionReport> RunDistributionReportForSubscriptionPeriodCalculationAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
