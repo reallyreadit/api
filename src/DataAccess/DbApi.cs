@@ -587,6 +587,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<Author> GetAuthorByUserAccountName(
+			this NpgsqlConnection conn,
+			string userAccountName
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "authors.get_author_by_user_account_name",
+			param: new {
+				user_account_name = userAccountName
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<Author>> GetAuthorsOfArticle(
 			this NpgsqlConnection conn,
 			long articleId
@@ -594,6 +604,16 @@ namespace api.DataAccess {
 			sql: "authors.get_authors_of_article",
 			param: new {
 				article_id = articleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<UserAccount> GetUserAccountByAuthorSlug(
+			this NpgsqlConnection conn,
+			string authorSlug
+		) => await conn.QuerySingleOrDefaultAsync<UserAccount>(
+			sql: "authors.get_user_account_by_author_slug",
+			param: new {
+				author_slug = authorSlug
 			},
 			commandType: CommandType.StoredProcedure
 		);
