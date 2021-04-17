@@ -1751,6 +1751,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<SubscriptionAllocationCalculation> CalculateAllocationForAllSubscriptionPeriodsAsync(
+			this NpgsqlConnection connection
+		) => await connection.QuerySingleAsync<SubscriptionAllocationCalculation>(
+			sql: "subscriptions.calculate_allocation_for_all_periods",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionDistributionCalculation> CalculateDistributionForSubscriptionPeriodAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
