@@ -15,6 +15,7 @@ using api.DataAccess.Models;
 using api.Subscriptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
@@ -874,6 +875,33 @@ namespace api.Controllers.Subscriptions {
 							)
 						)
 						.ToArray()
+				);
+			}
+		}
+
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<ActionResult<RevenueReportResponse>> RevenueReport(
+			[FromServices] IMemoryCache memoryCache,
+			[FromQuery] RevenueReportRequest request
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				SubscriptionAllocationCalculation allocationCalculation;
+				if (User.Identity.IsAuthenticated && !request.UseCache) {
+					allocationCalculation = await db.CalculateAllocationForAllSubscriptionPeriodsAsync();
+				} else {
+					allocationCalculation = await memoryCache.GetOrCreateAsync<SubscriptionAllocationCalculation>(
+						"RevenueReport",
+						async entry => {
+							entry.SetAbsoluteExpiration(
+								TimeSpan.FromMinutes(1)
+							);
+							return await db.CalculateAllocationForAllSubscriptionPeriodsAsync();
+						}
+					);
+				}
+				return new RevenueReportResponse(
+					new RevenueReportClientModel(allocationCalculation)
 				);
 			}
 		}
