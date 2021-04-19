@@ -684,11 +684,11 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
-		private async Task<AppStoreReceiptVerificationResponse> VerifyAppStoreReceipt(string base64EncodedReceipt) {
+		private async Task<AppStoreReceiptVerificationResponse> VerifyAppStoreReceipt(string base64EncodedReceipt, string appStoreUrl = null) {
 			AppStoreReceiptVerificationResponse response;
 			using (var httpClient = this.httpClientFactory.CreateClient()) {
 				var appStoreResponse = await httpClient.PostAsync(
-					requestUri: subscriptionsOptions.AppStoreSandboxUrl,
+					requestUri: appStoreUrl ?? subscriptionsOptions.AppStoreProductionUrl,
 					new StringContent(
 						content: JsonSerializer.Serialize(
 							new AppStoreReceiptVerificationRequest {
@@ -704,6 +704,13 @@ namespace api.Controllers.Subscriptions {
 				var responseContent = await appStoreResponse.Content.ReadAsStringAsync();
 				try {
 					response = JsonSerializer.Deserialize<AppStoreReceiptVerificationResponse>(responseContent);
+					// Check for sandbox error code and retry if necessary.
+					if (response.Status == 21007 && appStoreUrl != subscriptionsOptions.AppStoreSandboxUrl) {
+						return await VerifyAppStoreReceipt(
+							base64EncodedReceipt: base64EncodedReceipt,
+							appStoreUrl: subscriptionsOptions.AppStoreSandboxUrl
+						);
+					}
 					// log receipt
 					await System.IO.File.WriteAllTextAsync(
 						path: $@"logs/{DateTime.UtcNow.ToString("s").Replace(':', '-')}_AppleSubscriptionValidation_{User.GetUserAccountId()}_{Path.GetRandomFileName()}",
