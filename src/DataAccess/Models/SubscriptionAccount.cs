@@ -6,5 +6,6 @@ namespace api.DataAccess.Models {
 		public string ProviderAccountId { get; set; }
 		public long? UserAccountId { get; set; }
 		public DateTime DateCreated { get; set; }
+		public SubscriptionEnvironment Environment { get; set; }
 	}
 }

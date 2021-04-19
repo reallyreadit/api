@@ -313,6 +313,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventFrequency>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationEventType>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationPushUnregistrationReason>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionEnvironment>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionEventSource>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionPaymentMethodBrand>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionPaymentMethodWallet>();

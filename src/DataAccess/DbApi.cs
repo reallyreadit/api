@@ -1812,14 +1812,16 @@ namespace api.DataAccess {
 			SubscriptionProvider provider,
 			string providerAccountId,
 			long? userAccountId,
-			DateTime dateCreated
+			DateTime dateCreated,
+			SubscriptionEnvironment environment
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionAccount>(
 			sql: "subscriptions.create_or_update_subscription_account",
 			param: new {
 				provider = ConvertEnumToString(provider),
 				provider_account_id = providerAccountId,
 				user_account_id = userAccountId,
-				date_created = dateCreated
+				date_created = dateCreated,
+				environment = ConvertEnumToString(environment)
 			},
 			commandType: CommandType.StoredProcedure
 		);

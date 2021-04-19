@@ -88,6 +88,19 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		private SubscriptionEnvironment GetAccountEnvironment(SubscriptionEnvironment providerEnvironment) {
+			switch (subscriptionsOptions.ProviderAccountEnvironment) {
+				case SubscriptionEnvironmentOption.Default:
+					return providerEnvironment;
+				case SubscriptionEnvironmentOption.Production:
+					return SubscriptionEnvironment.Production;
+				case SubscriptionEnvironmentOption.Sandbox:
+					return SubscriptionEnvironment.Sandbox;
+				default:
+					throw new ArgumentException($"Unexpected SubscriptionEnvironment: {providerEnvironment}");
+			}
+		}
+
 		/// <summary>Attempts to get the Invoice and associated PaymentIntent.</summary>
 		/// <remarks>If an error occurrs it will be logged and the return value will be null.</remarks>
 		/// <returns>An Invoice with an expanded PaymentIntent property or null.</returns>
@@ -513,7 +526,12 @@ namespace api.Controllers.Subscriptions {
 						provider: SubscriptionProvider.Apple,
 						providerAccountId: originalTransaction.TransactionId,
 						userAccountId: User.GetUserAccountIdOrDefault(),
-						dateCreated: originalPurchaseDate
+						dateCreated: originalPurchaseDate,
+						environment: GetAccountEnvironment(
+							receipt.Environment == "Sandbox" ?
+								SubscriptionEnvironment.Sandbox :
+								SubscriptionEnvironment.Production
+						)
 					);
 					await db.CreateOrUpdateSubscriptionAsync(
 						provider: SubscriptionProvider.Apple,
@@ -1196,7 +1214,12 @@ namespace api.Controllers.Subscriptions {
 							provider: SubscriptionProvider.Stripe,
 							providerAccountId: stripeCustomer.Id,
 							userAccountId: userAccount.Id,
-							dateCreated: stripeCustomer.Created
+							dateCreated: stripeCustomer.Created,
+							environment: GetAccountEnvironment(
+								stripeCustomer.Livemode ?
+									SubscriptionEnvironment.Production :
+									SubscriptionEnvironment.Sandbox
+							)
 						);
 					} catch (Exception ex) {
 						logger.LogError(ex, "Failed to assign Stripe customer with id: {CustomerId} to user with account id: {UserAccountId}.", stripeCustomer.Id, userAccount.Id);

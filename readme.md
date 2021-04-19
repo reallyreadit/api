@@ -112,6 +112,7 @@
     	"Subscriptions": {
     		"AppStoreSandboxUrl": "https://sandbox.itunes.apple.com/verifyReceipt",
     		"AppStoreProductionUrl": "https://buy.itunes.apple.com/verifyReceipt",
+    		"ProviderAccountEnvironment": "Production",
     		"StripeApiSecretKey": "",
     		"StripeSubscriptionProductId": "prod_v1_subscription",
     		"StripeWebhookSigningSecret": ""
