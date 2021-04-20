@@ -12,6 +12,7 @@ using api.Configuration;
 using api.Controllers.Shared;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Notifications;
 using api.Subscriptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -25,6 +26,7 @@ namespace api.Controllers.Subscriptions {
 		private readonly DatabaseOptions databaseOptions;
 		private readonly IHttpClientFactory httpClientFactory;
 		private readonly ILogger<SubscriptionsController> logger;
+		private readonly NotificationService notificationService;
 		private readonly SubscriptionsOptions subscriptionsOptions;
 		private readonly IBackgroundTaskQueue taskQueue;
 
@@ -32,12 +34,14 @@ namespace api.Controllers.Subscriptions {
 			IOptions<DatabaseOptions> databaseOptions,
 			IHttpClientFactory httpClientFactory,
 			ILogger<SubscriptionsController> logger,
+			NotificationService notificationService,
 			IOptions<SubscriptionsOptions> subscriptionsOptions,
 			IBackgroundTaskQueue taskQueue
 		) {
 			this.databaseOptions = databaseOptions.Value;
 			this.httpClientFactory = httpClientFactory;
 			this.logger = logger;
+			this.notificationService = notificationService;
 			this.subscriptionsOptions = subscriptionsOptions.Value;
 			this.taskQueue = taskQueue;
 		}
@@ -116,7 +120,7 @@ namespace api.Controllers.Subscriptions {
 						}
 					);
 			} catch (Exception ex) {
-				logger.LogError(ex, "Failed to get Stripe invoice with id: {InvoiceId} for user with id: {UserId}.", invoiceId, User.GetUserAccountIdOrDefault());
+				logger.LogError(ex, "Failed to get Stripe invoice with id: {InvoiceId}.", invoiceId);
 				return null;
 			}
 		}
@@ -322,7 +326,7 @@ namespace api.Controllers.Subscriptions {
 		/// <remarks>If an error occurrs it will be logged and <c>success</c> will be <c>false</c>.</remarks>
 		/// <returns>A success indicator and the associated period. The period will be null if success is false and may be null if success is true.</returns>
 		/// <param name="invoice">An Invoice with an expanded PaymentIntent property.</param>
-		private async Task<( bool IsSuccessful, SubscriptionPeriod Period )> ProcessInvoicePaymentAttemptAsync(Stripe.Invoice invoice) {
+		private async Task<( bool IsSuccessful, SubscriptionPeriod Period )> ProcessInvoicePaymentAttemptAsync(Stripe.Invoice invoice, long? userAccountId) {
 			// There should only be a single regular line item.
 			Stripe.InvoiceLineItem
 				subscriptionLineItem = invoice.Lines.SingleOrDefault(
@@ -371,31 +375,29 @@ namespace api.Controllers.Subscriptions {
 			}
 
 			// Create or update the subscription period.
+			SubscriptionPeriod subscriptionPeriod;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				try {
-					return (
-						IsSuccessful: true,
-						Period: await db.CreateOrUpdateSubscriptionPeriodAsync(
-							provider: SubscriptionProvider.Stripe,
-							providerSubscriptionId: invoice.SubscriptionId,
-							providerPeriodId: invoice.Id,
-							providerPriceId: subscriptionLineItem.Price.Id,
-							providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
-							beginDate: DateTimeOffset
-								.FromUnixTimeSeconds(subscriptionLineItem.Period.Start)
-								.UtcDateTime,
-							endDate: DateTimeOffset
-								.FromUnixTimeSeconds(subscriptionLineItem.Period.End)
-								.UtcDateTime,
-							dateCreated: invoice.Created,
-							paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
-							datePaid: invoice.StatusTransitions.PaidAt,
-							dateRefunded: null,
-							refundReason: null,
-							prorationDiscount: prorationLineItem != null ?
-								new Nullable<int>((int)prorationLineItem.Amount * -1) :
-								null
-						)
+					subscriptionPeriod = await db.CreateOrUpdateSubscriptionPeriodAsync(
+						provider: SubscriptionProvider.Stripe,
+						providerSubscriptionId: invoice.SubscriptionId,
+						providerPeriodId: invoice.Id,
+						providerPriceId: subscriptionLineItem.Price.Id,
+						providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
+						beginDate: DateTimeOffset
+							.FromUnixTimeSeconds(subscriptionLineItem.Period.Start)
+							.UtcDateTime,
+						endDate: DateTimeOffset
+							.FromUnixTimeSeconds(subscriptionLineItem.Period.End)
+							.UtcDateTime,
+						dateCreated: invoice.Created,
+						paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
+						datePaid: invoice.StatusTransitions.PaidAt,
+						dateRefunded: null,
+						refundReason: null,
+						prorationDiscount: prorationLineItem != null ?
+							new Nullable<int>((int)prorationLineItem.Amount * -1) :
+							null
 					);
 				} catch (Exception ex) {
 					logger.LogError(ex, "Failed to create or update subscription period associated with Stripe invoice with id: {InvoiceId}.", invoice.Id);
@@ -405,6 +407,27 @@ namespace api.Controllers.Subscriptions {
 					);
 				}
 			}
+
+			// Send an initial subscription notification if this invoice was for a new subscription and payment was successful.
+			if (
+				userAccountId.HasValue &&
+				invoice.BillingReason == StripeInvoiceBillingReason.SubscriptionCreate &&
+				invoice.PaymentIntent.Status == StripePaymentIntentStatus.Succeeded
+			) {
+				try {
+					await notificationService.CreateInitialSubscriptionNotification(
+						userAccountId: userAccountId.Value
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to send initial subscription notification for Stripe invoice with id: {InvoiceId}.", invoice.Id);
+				}
+			}
+
+			// Return success result.
+			return (
+				IsSuccessful: true,
+				Period: subscriptionPeriod
+			);
 		}
 
 		private async Task<SubscriptionPaymentMethod> SetDefaultPaymentMethodAsync(string providerPaymentMethodId, string providerAccountId) {
@@ -504,7 +527,7 @@ namespace api.Controllers.Subscriptions {
 		}
 
 		/// <summary>Creates or updates accounts, subscriptions and periods from records supplied by an App Store notification or device receipt verification response.</summary>
-		private async Task SyncSubscriptionsFromReceiptAsync(IAppStoreUnifiedReceipt receipt) {
+		private async Task SyncSubscriptionsFromReceiptAsync(IAppStoreUnifiedReceipt receipt, long? userAccountId) {
 			if (receipt.LatestReceiptInfo == null || !receipt.LatestReceiptInfo.Any() || String.IsNullOrWhiteSpace(receipt.LatestReceipt)) {
 				return;
 			}
@@ -525,7 +548,7 @@ namespace api.Controllers.Subscriptions {
 					await db.CreateOrUpdateSubscriptionAccountAsync(
 						provider: SubscriptionProvider.Apple,
 						providerAccountId: originalTransaction.TransactionId,
-						userAccountId: User.GetUserAccountIdOrDefault(),
+						userAccountId: userAccountId,
 						dateCreated: originalPurchaseDate,
 						environment: GetAccountEnvironment(
 							receipt.Environment == "Sandbox" ?
@@ -595,6 +618,17 @@ namespace api.Controllers.Subscriptions {
 						providerPriceId: renewalInfo.AutoRenewProductId,
 						expirationIntent: renewalInfo.ExpirationIntent
 					);
+				}
+			}
+
+			// Send an initial subscription notification if there is only a single transaction in the receipt.
+			if (userAccountId.HasValue && receipt.LatestReceiptInfo.Length == 1) {
+				try {
+					await notificationService.CreateInitialSubscriptionNotification(
+						userAccountId: userAccountId.Value
+					);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to send initial subscription notification for Apple receipt.");
 				}
 			}
 		}
@@ -748,7 +782,7 @@ namespace api.Controllers.Subscriptions {
 			// sync to database as background task so we can return immediately
 			taskQueue.QueueBackgroundWorkItem(
 				async cancellationToken => {
-					await SyncSubscriptionsFromReceiptAsync(notification.UnifiedReceipt);
+					await SyncSubscriptionsFromReceiptAsync(notification.UnifiedReceipt, userAccountId: null);
 				}
 			);
 			// log notification
@@ -775,7 +809,10 @@ namespace api.Controllers.Subscriptions {
 			}
 
 			// sync to database
-			await SyncSubscriptionsFromReceiptAsync(response);
+			await SyncSubscriptionsFromReceiptAsync(
+				response,
+				userAccountId: User.GetUserAccountId()
+			);
 
 			// return current status
 			var latestTransaction = response.LatestReceiptInfo
@@ -872,7 +909,7 @@ namespace api.Controllers.Subscriptions {
 			) {
 				var receiptResponse = await VerifyAppStoreReceipt(status.LatestReceipt);
 				if (receiptResponse != null) {
-					await SyncSubscriptionsFromReceiptAsync(receiptResponse);
+					await SyncSubscriptionsFromReceiptAsync(receiptResponse, userAccountId: userAccountId);
 					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 						status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
 					}
@@ -985,7 +1022,7 @@ namespace api.Controllers.Subscriptions {
 			if (invoice == null) {
 				return Problem("Subscription not found.", statusCode: 500);
 			}
-			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice);
+			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice, userAccountId: userAccountId);
 			if (!invoiceProcessResult.IsSuccessful) {
 				return Problem("Failed to update payment status.", statusCode: 500);
 			}
@@ -1114,7 +1151,7 @@ namespace api.Controllers.Subscriptions {
 					return Problem("Failed to update subscription.", statusCode: 500);
 				}
 				// process the payment attempt
-				var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(updatedSubscription.LatestInvoice);
+				var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(updatedSubscription.LatestInvoice, userAccountId: userAccountId);
 				if (!invoiceProcessResult.IsSuccessful) {
 					return Problem("Failed to create new period.", statusCode: 500);
 				}
@@ -1275,7 +1312,7 @@ namespace api.Controllers.Subscriptions {
 						return Problem("Failed to pay invoice.", statusCode: 500);
 					}
 					// update the period payment status and return
-					var invoicePaymentProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice);
+					var invoicePaymentProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice, userAccountId: userAccount.Id);
 					if (!invoicePaymentProcessResult.IsSuccessful) {
 						return Problem("Failed to update payment status.", statusCode: 500);
 					}
@@ -1322,7 +1359,7 @@ namespace api.Controllers.Subscriptions {
 			}
 
 			// Create the subscription period.
-			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(stripeSubscription.LatestInvoice);
+			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(stripeSubscription.LatestInvoice, userAccountId: userAccount.Id);
 			if (!invoiceProcessResult.IsSuccessful) {
 				return Problem("Failed to create subscription period.", statusCode: 500);
 			}
@@ -1372,7 +1409,7 @@ namespace api.Controllers.Subscriptions {
 				return Problem("Failed to pay invoice.", statusCode: 500);
 			}
 			// process the payment and return
-			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice);
+			var invoiceProcessResult = await ProcessInvoicePaymentAttemptAsync(invoice, userAccountId: userAccountId);
 			if (!invoiceProcessResult.IsSuccessful) {
 				return Problem("Failed to update payment status.", statusCode: 500);
 			}
@@ -1416,7 +1453,7 @@ namespace api.Controllers.Subscriptions {
 								// then attempt payment and create the new period using the payment status
 								newInvoice = await PayInvoiceHandlingCardErrorsAsync(invoiceId: newInvoice.Id);
 								if (newInvoice != null) {
-									await ProcessInvoicePaymentAttemptAsync(newInvoice);
+									await ProcessInvoicePaymentAttemptAsync(newInvoice, userAccountId: null);
 								}
 							}
 							break;
@@ -1429,7 +1466,8 @@ namespace api.Controllers.Subscriptions {
 							var updatedInvoice = stripeEvent.Data.Object as Stripe.Invoice;
 							// The PaymentIntent is required to update the payment status and is not included with the webhook object so we need to fetch a new invoice.
 							await ProcessInvoicePaymentAttemptAsync(
-								await GetInvoiceWithPaymentIntentAsync(invoiceId: updatedInvoice.Id)
+								await GetInvoiceWithPaymentIntentAsync(invoiceId: updatedInvoice.Id),
+								userAccountId: null
 							);
 							break;
 						// If a charge is disputed or refunded we need to cancel the subscription and update the associated subscription period.

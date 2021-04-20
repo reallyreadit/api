@@ -1,6 +1,7 @@
 namespace api.DataAccess.Models {
 	public enum NotificationEventType {
 		Welcome,
+		InitialSubscription,
 		EmailConfirmation,
 		EmailConfirmationReminder,
 		PasswordReset,

@@ -596,6 +596,38 @@ namespace api.Notifications {
 				);
 			}
 		}
+		public async Task CreateInitialSubscriptionNotification(
+			long userAccountId
+		) {
+			NotificationEmailDispatch dispatch;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					dispatch = await db.CreateTransactionalNotification(
+						userAccountId: userAccountId,
+						eventType: NotificationEventType.InitialSubscription,
+						emailConfirmationId: null,
+						passwordResetRequestId: null
+					);
+				} catch (PostgresException ex) when (
+					ex.ConstraintName == "notification_event_duplicate_user_account_event_idx"
+				) {
+					// Ignore duplicate notification errors.
+					return;
+				}
+			}
+			await emailService.SendInitialSubscriptionNotification(
+				new EmailNotification<InitialSubscriptionEmailViewModel>(
+					userId: dispatch.UserAccountId,
+					to: new EmailMailbox(
+						name: dispatch.UserName,
+						address: dispatch.EmailAddress
+					),
+					subject: "Initial Subscription Subject",
+					openUrl: CreateEmailOpenUrl(dispatch),
+					content: new InitialSubscriptionEmailViewModel()
+				)
+			);
+		}
 		public async Task CreateLoopbackDigestNotifications(
 			NotificationEventFrequency frequency
 		) {
