@@ -400,6 +400,54 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<PageResult<Article>> GetArticlesByAuthorSlug(
+			this NpgsqlConnection conn,
+			string slug,
+			long? userAccountId,
+			int pageNumber,
+			int pageSize,
+			int? minLength,
+			int? maxLength
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "article_api.get_articles_by_author_slug",
+				param: new {
+					slug,
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
+		public static async Task<PageResult<Article>> GetArticlesBySourceSlug(
+			this NpgsqlConnection conn,
+			string slug,
+			long? userAccountId,
+			int pageNumber,
+			int pageSize,
+			int? minLength,
+			int? maxLength
+		) => PageResult<Article>.Create(
+			items: await conn.QueryAsync<ArticlePageResult>(
+				sql: "article_api.get_articles_by_source_slug",
+				param: new {
+					slug,
+					user_account_id = userAccountId,
+					page_number = pageNumber,
+					page_size = pageSize,
+					min_length = minLength,
+					max_length = maxLength
+				},
+				commandType: CommandType.StoredProcedure
+			),
+			pageNumber: pageNumber,
+			pageSize: pageSize
+		);
 		public static Page GetPage(this NpgsqlConnection conn, long pageId) => conn.QuerySingleOrDefault<Page>(
 			sql: "article_api.get_page",
 			param: new { page_id = pageId },
@@ -1149,54 +1197,6 @@ namespace api.DataAccess {
 				day_count = dayCount
 			},
 			commandType: CommandType.StoredProcedure
-		);
-		public static async Task<PageResult<Article>> GetArticlesByAuthorSlug(
-			this NpgsqlConnection conn,
-			string slug,
-			long? userAccountId,
-			int pageNumber,
-			int pageSize,
-			int? minLength,
-			int? maxLength
-		) => PageResult<Article>.Create(
-			items: await conn.QueryAsync<ArticlePageResult>(
-				sql: "community_reads.get_articles_by_author_slug",
-				param: new {
-					slug,
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize,
-					min_length = minLength,
-					max_length = maxLength
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
-		);
-		public static async Task<PageResult<Article>> GetArticlesBySourceSlug(
-			this NpgsqlConnection conn,
-			string slug,
-			long? userAccountId,
-			int pageNumber,
-			int pageSize,
-			int? minLength,
-			int? maxLength
-		) => PageResult<Article>.Create(
-			items: await conn.QueryAsync<ArticlePageResult>(
-				sql: "community_reads.get_articles_by_source_slug",
-				param: new {
-					slug,
-					user_account_id = userAccountId,
-					page_number = pageNumber,
-					page_size = pageSize,
-					min_length = minLength,
-					max_length = maxLength
-				},
-				commandType: CommandType.StoredProcedure
-			),
-			pageNumber: pageNumber,
-			pageSize: pageSize
 		);
 		public static async Task<PageResult<Article>> GetHotArticles(
 			this NpgsqlConnection conn,
