@@ -13,7 +13,7 @@ namespace api.DataAccess.Models {
 		public string Description { get; set; }
 		public DateTime? AotdTimestamp { get; set; }
 		public string Url { get; set; }
-		public string[] Authors { get; set; }
+		public string[] Authors { get; set; }	// backward compat. new clients use ArticleAuthors
 		public string[] Tags { get; set; }
 		public int WordCount { get; set; }
 		public int CommentCount { get; set; }
@@ -32,6 +32,7 @@ namespace api.DataAccess.Models {
 		public string FirstPoster { get; set; }
 		public ArticleFlair Flair { get; set; }
 		public int AotdContenderRank { get; set; }
+		public ArticleAuthor[] ArticleAuthors { get; set; }
 		public string ProofToken { get; set; }
 		public string GetFormattedByline(int maxAuthorCount = 3) {
 			var byline = Authors.ToListString();
