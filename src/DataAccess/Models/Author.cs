@@ -6,5 +6,6 @@ namespace api.DataAccess.Models {
 		public string TwitterHandle { get; set; }
 		public TwitterHandleAssignment TwitterHandleAssignment { get; set; }
 		public string Slug { get; set; }
+		public string EmailAddress { get; set; }
 	}
 }
