@@ -197,12 +197,21 @@ namespace api.Controllers.Social {
 				comments.Single(c => c.Id == comment.ParentCommentId).Children.Add(comment);
 			}
 			foreach (var comment in comments) {
-				comment.Children.Sort((a, b) => b.MaxDate.CompareTo(a.MaxDate));
+				comment.Children.Sort(
+					(a, b) => a.IsAuthor && !b.IsAuthor ?
+						-1 :
+						b.MaxDate.CompareTo(a.MaxDate)
+				);
 			}
 			return Json(
 				comments
 					.Where(c => c.ParentCommentId == null)
-					.OrderByDescending(c => c.MaxDate)
+					.OrderByDescending(
+						comment => comment.IsAuthor || comment.Children.Any(
+							child => child.IsAuthor
+						)
+					)
+					.ThenByDescending(c => c.MaxDate)
 			);
 		}
 		[HttpPost]
