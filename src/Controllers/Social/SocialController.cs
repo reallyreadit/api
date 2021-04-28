@@ -43,6 +43,9 @@ namespace api.Controllers.Social {
 				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 					var userArticle = await db.GetArticle(form.ArticleId, userAccountId);
 					if (userArticle.IsRead && commentingService.IsCommentTextValid(form.Text)) {
+						var articleAuthors = await db.GetAuthorsOfArticle(
+							articleId: form.ArticleId
+						);
 						var commentThread = new CommentThread(
 							comment: await commentingService.PostReply(
 								text: form.Text,
@@ -57,6 +60,9 @@ namespace api.Controllers.Social {
 									)
 								)
 								.GetBadge(),
+							isAuthor: articleAuthors.Any(
+								author => author.UserAccountId == userAccountId
+							),
 							obfuscationService: obfuscationService
 						);
 						if (
@@ -90,11 +96,17 @@ namespace api.Controllers.Social {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var comment = await db.GetComment(obfuscationService.DecodeSingle(form.CommentId).Value);
 				if (comment.UserAccountId == User.GetUserAccountId()) {
+					var articleAuthors = await db.GetAuthorsOfArticle(
+						articleId: comment.ArticleId
+					);
 					return Json(
 						new CommentThread(
-							await commentingService.CreateAddendum(comment.Id, form.Text),
-							(await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
-							obfuscationService
+							comment: await commentingService.CreateAddendum(comment.Id, form.Text),
+							badge: (await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
+							isAuthor: articleAuthors.Any(
+								author => author.UserAccountId == comment.UserAccountId
+							),
+							obfuscationService: obfuscationService
 						)
 					);
 				}
@@ -113,11 +125,17 @@ namespace api.Controllers.Social {
 					comment.UserAccountId == User.GetUserAccountId() &&
 					commentingService.CanReviseComment(comment)
 				) {
+					var articleAuthors = await db.GetAuthorsOfArticle(
+						articleId: comment.ArticleId
+					);
 					return Json(
 						new CommentThread(
-							await commentingService.ReviseComment(comment.Id, form.Text),
-							(await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
-							obfuscationService
+							comment: await commentingService.ReviseComment(comment.Id, form.Text),
+							badge: (await db.GetUserLeaderboardRankings(User.GetUserAccountId())).GetBadge(),
+							isAuthor: articleAuthors.Any(
+								author => author.UserAccountId == comment.UserAccountId
+							),
+							obfuscationService: obfuscationService
 						)
 					);
 				}
@@ -155,6 +173,9 @@ namespace api.Controllers.Social {
 						new[] { "Article not found." }
 					);
 				}
+				var articleAuthors = await db.GetAuthorsOfArticle(
+					articleId: article.Id
+				);
 				comments = (
 						await db.GetComments(
 							articleId: article.Id
@@ -164,6 +185,9 @@ namespace api.Controllers.Social {
 						comment => new CommentThread(
 							comment: comment,
 							badge: leaderboards.GetBadge(comment.UserAccount),
+							isAuthor: articleAuthors.Any(
+								author => author.UserAccountId == comment.UserAccountId
+							),
 							obfuscationService: obfuscationService
 						)
 					)
@@ -192,9 +216,10 @@ namespace api.Controllers.Social {
 				if (comment.UserAccountId == User.GetUserAccountId()) {
 					return Json(
 						new CommentThread(
-							await commentingService.DeleteComment(comment.Id),
-							LeaderboardBadge.None,
-							obfuscationService
+							comment: await commentingService.DeleteComment(comment.Id),
+							badge: LeaderboardBadge.None,
+							isAuthor: false,
+							obfuscationService: obfuscationService
 						)
 					);
 				}

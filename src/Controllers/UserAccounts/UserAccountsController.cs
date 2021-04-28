@@ -888,6 +888,9 @@ namespace api.Controllers.UserAccounts {
 			}
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var comment = await db.GetComment(commentId);
+				var articleAuthors = await db.GetAuthorsOfArticle(
+					articleId: comment.ArticleId
+				);
 				return Json(new CommentThread(
 					comment: comment,
 					badge: (
@@ -896,6 +899,9 @@ namespace api.Controllers.UserAccounts {
 							)
 						)
 						.GetBadge(),
+					isAuthor: articleAuthors.Any(
+						author => author.UserAccountId == comment.UserAccountId
+					),
 					obfuscationService: obfuscationService
 				));
 			}

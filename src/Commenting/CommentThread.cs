@@ -10,6 +10,7 @@ namespace api.Commenting {
         public CommentThread(
             Comment comment,
             LeaderboardBadge badge,
+			bool isAuthor,
             ObfuscationService obfuscationService
         ) {
             Id = obfuscationService.Encode(comment.Id);
@@ -37,6 +38,7 @@ namespace api.Commenting {
             );
             DateDeleted = comment.DateDeleted;
             Children = new List<CommentThread>();
+			IsAuthor = isAuthor;
         }
 		public string Id { get; set; }
 		public DateTime DateCreated { get; set; }
@@ -50,6 +52,7 @@ namespace api.Commenting {
 		public string ParentCommentId { get; set; }
         public DateTime? DateDeleted { get; set; }
         public List<CommentThread> Children { get; }
+		public bool IsAuthor { get; }
         public DateTime MaxDate => new DateTime(Math.Max(DateCreated.Ticks, Children.Any() ? Children.Max(c => c.MaxDate).Ticks : 0));
     }
 }
