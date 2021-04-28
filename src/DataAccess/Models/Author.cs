@@ -7,5 +7,6 @@ namespace api.DataAccess.Models {
 		public TwitterHandleAssignment TwitterHandleAssignment { get; set; }
 		public string Slug { get; set; }
 		public string EmailAddress { get; set; }
+		public long? UserAccountId { get; set; }
 	}
 }
