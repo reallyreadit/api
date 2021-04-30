@@ -17,6 +17,7 @@ using api.Notifications;
 using api.Encryption;
 using api.Routing;
 using api.Formatting;
+using api.Authorization;
 
 namespace api.Controllers.Articles {
 	public class ArticlesController : Controller {
@@ -332,6 +333,77 @@ namespace api.Controllers.Articles {
 					)
 				);
 			}
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		[HttpPost]
+		public async Task<IActionResult> AuthorAssignment(
+			[FromBody] AuthorAssignmentRequest request
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				// First find the article.
+				var article = await db.FindArticle(slug: request.ArticleSlug, userAccountId: null);
+				if (article == null) {
+					return Problem("Article not found.", statusCode: 404);
+				}
+				// Then create the author slug and look for an existing author.
+				var sanitizer = new StringSanitizer();
+				var authorSlug = sanitizer.GenerateSlug(request.AuthorName);
+				var author = await db.GetAuthor(slug: authorSlug);
+				if (author == null) {
+					// Create a new author.
+					try {
+						author = await db.CreateAuthorAsync(
+							name: sanitizer.SanitizeSingleLine(request.AuthorName),
+							slug: authorSlug
+						);
+					} catch (Exception ex) {
+						log.LogError(ex, "Failed to create new author during manual assignment.");
+						return Problem("Failed to create new author.", statusCode: 500);
+					}
+				}
+				// Finally assign the author to the article.
+				try {
+					await db.AssignAuthorToArticleAsync(
+						articleId: article.Id,
+						authorId: author.Id,
+						assignedByUserAccountId: User.GetUserAccountId()
+					);
+				} catch (Exception ex) {
+					log.LogError(ex, "Failed to manually assign author to article.");
+					return Problem("Failed to assign author to article.", statusCode: 500);
+				}
+			}
+			return Ok();
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		[HttpPost]
+		public async Task<IActionResult> AuthorUnassignment(
+			[FromBody] AuthorUnassignmentRequest request
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				// First find the article.
+				var article = await db.FindArticle(slug: request.ArticleSlug, userAccountId: null);
+				if (article == null) {
+					return Problem("Article not found.", statusCode: 404);
+				}
+				// Then find the author.
+				var author = await db.GetAuthor(slug: request.AuthorSlug);
+				if (author == null) {
+					return Problem("Author not found.", statusCode: 404);
+				}
+				// Finally unassign the author.
+				try {
+					await db.UnassignAuthorFromArticleAsync(
+						articleId: article.Id,
+						authorId: author.Id,
+						unassignedByUserAccountId: User.GetUserAccountId()
+					);
+				} catch (Exception ex) {
+					log.LogError(ex, "Failed to unassign author from article.");
+					return Problem("Failed to unassign author from article.", statusCode: 500);
+				}
+			}
+			return Ok();
 		}
 		[AllowAnonymous]
 		[HttpGet]
