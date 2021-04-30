@@ -363,11 +363,14 @@ namespace api.Controllers.Articles {
 				}
 				// Finally assign the author to the article.
 				try {
-					await db.AssignAuthorToArticleAsync(
+					var assignment = await db.AssignAuthorToArticleAsync(
 						articleId: article.Id,
 						authorId: author.Id,
 						assignedByUserAccountId: User.GetUserAccountId()
 					);
+					if (assignment == null) {
+						return Problem("Author already assigned to article.", statusCode: 500);
+					}
 				} catch (Exception ex) {
 					log.LogError(ex, "Failed to manually assign author to article.");
 					return Problem("Failed to assign author to article.", statusCode: 500);
@@ -393,11 +396,14 @@ namespace api.Controllers.Articles {
 				}
 				// Finally unassign the author.
 				try {
-					await db.UnassignAuthorFromArticleAsync(
+					var assignment = await db.UnassignAuthorFromArticleAsync(
 						articleId: article.Id,
 						authorId: author.Id,
 						unassignedByUserAccountId: User.GetUserAccountId()
 					);
+					if (assignment == null) {
+						return Problem("Author not found for article.", statusCode: 500);
+					}
 				} catch (Exception ex) {
 					log.LogError(ex, "Failed to unassign author from article.");
 					return Problem("Failed to unassign author from article.", statusCode: 500);
