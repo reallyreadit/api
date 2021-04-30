@@ -117,7 +117,7 @@ namespace api.Controllers.Articles {
 							Aotd = aotd,
 							AotdHasAlert = (
 								userAccountId.HasValue ?
-									(	
+									(
 										await db.GetUserAccountById(
 											userAccountId: userAccountId.Value
 										)
