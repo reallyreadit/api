@@ -305,6 +305,7 @@ namespace api {
 			// configure Npgsql
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<ArticleFlair>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthServiceProvider>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthorAssignmentMethod>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<DisplayTheme>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SourceRuleAction>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<UserAccountRole>();
