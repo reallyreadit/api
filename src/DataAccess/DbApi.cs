@@ -234,6 +234,20 @@ namespace api.DataAccess {
 		);
 		#endregion
 		#region article_api
+		public static async Task<ArticleAuthorAssignment> AssignAuthorToArticleAsync(
+			this NpgsqlConnection conn,
+			long articleId,
+			long authorId,
+			long assignedByUserAccountId
+		) => await conn.QuerySingleOrDefaultAsync<ArticleAuthorAssignment>(
+			sql: "article_api.assign_author_to_article",
+			param: new {
+				article_id = articleId,
+				author_id = authorId,
+				assigned_by_user_account_id = assignedByUserAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<Source> AssignTwitterHandleToSource(
 			this NpgsqlConnection conn,
 			long sourceId,
@@ -552,6 +566,20 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<ArticleAuthorAssignment> UnassignAuthorFromArticleAsync(
+			this NpgsqlConnection conn,
+			long articleId,
+			long authorId,
+			long unassignedByUserAccountId
+		) => await conn.QuerySingleOrDefaultAsync<ArticleAuthorAssignment>(
+			sql: "article_api.unassign_author_from_article",
+			param: new {
+				article_id = articleId,
+				author_id = authorId,
+				unassigned_by_user_account_id = unassignedByUserAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static void UnstarArticle(this NpgsqlConnection conn, long userAccountId, long articleId) => conn.Execute(
 			sql: "article_api.unstar_article",
 			param: new {
@@ -622,6 +650,18 @@ namespace api.DataAccess {
 				author_id = authorId,
 				twitter_handle = twitterHandle,
 				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<Author> CreateAuthorAsync(
+			this NpgsqlConnection conn,
+			string name,
+			string slug
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "authors.create_author",
+			param: new {
+				name,
+				slug
 			},
 			commandType: CommandType.StoredProcedure
 		);
