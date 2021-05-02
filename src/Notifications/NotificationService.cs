@@ -622,9 +622,13 @@ namespace api.Notifications {
 						name: dispatch.UserName,
 						address: dispatch.EmailAddress
 					),
-					subject: "Initial Subscription Subject",
+					subject: "Thank you for purchasing a Readup subscription!",
 					openUrl: CreateEmailOpenUrl(dispatch),
-					content: new InitialSubscriptionEmailViewModel()
+					content: new InitialSubscriptionEmailViewModel(
+						userName: dispatch.UserName,
+						billProfileUrl: routing.CreateProfileUrl("bill"),
+						jeffProfileUrl: routing.CreateProfileUrl("jeff")
+					)
 				)
 			);
 		}
