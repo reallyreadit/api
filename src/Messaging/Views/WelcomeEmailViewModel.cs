@@ -1,22 +1,18 @@
 using System;
-using System.Text.RegularExpressions;
 
 namespace api.Messaging.Views {
-	public class WelcomeEmailViewModel : ConfirmationEmailViewModel {
+	public class WelcomeEmailViewModel {
 		public WelcomeEmailViewModel(
 			Uri profileUrl,
-			Uri emailConfirmationUrl
-		) : base(
-			emailConfirmationUrl
+			Uri readManifestoUrl,
+			string userName
 		) {
 			ProfileUrl = profileUrl.ToString();
-			ProfileLinkText = Regex.Replace(
-				input: profileUrl.ToString(),
-				pattern: "^https?://",
-				replacement: String.Empty
-			);
+			ReadManifestoUrl = readManifestoUrl.ToString();
+			UserName = userName;
 		}
 		public string ProfileUrl { get; }
-		public string ProfileLinkText { get; }
+		public string ReadManifestoUrl { get; }
+		public string UserName { get; }
 	}
 }
