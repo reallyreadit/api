@@ -11,7 +11,7 @@ namespace api.Controllers.Shared {
 	}
 	public abstract class SubscriptionStatusClientModel {
 		public static SubscriptionStatusClientModel FromSubscriptionStatus(UserAccount user, SubscriptionStatus status) {
-			var isUserFreeForLife = user.DateCreated < new DateTime(2021, 6, 1, 4, 0, 0);
+			var isUserFreeForLife = user.DateCreated < new DateTime(2021, 5, 6, 4, 0, 0);
 			if (status == null) {
 				return new SubscriptionStatusNeverSubscribedClientModel(
 					isUserFreeForLife: isUserFreeForLife
