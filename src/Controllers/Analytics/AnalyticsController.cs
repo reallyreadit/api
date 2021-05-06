@@ -40,6 +40,14 @@ namespace api.Controllers.Analytics {
 				return Json(await db.GetArticleIssueReports(query.StartDate, query.EndDate));
 			}
 		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		public async Task<ActionResult<AuthorMetadataAssignmentQueueResponse>> AuthorMetadataAssignmentQueue() {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return new AuthorMetadataAssignmentQueueResponse(
+					articles: await db.GetArticlesRequiringAuthorAssignmentsAsync()
+				);
+			}
+		}
 		[AllowAnonymous]
 		[HttpPost]
 		public async Task<IActionResult> ClientErrorReport() {

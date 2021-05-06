@@ -42,6 +42,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<Article>> GetArticlesRequiringAuthorAssignmentsAsync(
+			this NpgsqlConnection conn
+		) => await conn.QueryAsync<Article>(
+			sql: "analytics.get_articles_requiring_author_assignments",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<ConversionsReportRow>> GetConversions(
 			this NpgsqlConnection conn,
 			DateTime startDate,
