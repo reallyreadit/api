@@ -195,7 +195,7 @@ namespace api.Authentication {
 				consumerSecret: authOptions.ConsumerSecret,
 				accessTokenSecret: accessToken?.OAuthTokenSecret
 			);
-			
+
 			// create the message
 			var message = new HttpRequestMessage(method, uri) {
 				Content = bodyContent
@@ -206,7 +206,7 @@ namespace api.Authentication {
 					", ",
 					PercentEncodeAndOrderKeyValuePairs(
 							oauthParameters
-								.Concat(standardOauthParameters)					
+								.Concat(standardOauthParameters)
 								.Concat(
 									new[] {
 										new KeyValuePair<string, string>("oauth_signature", oauthSignature)
