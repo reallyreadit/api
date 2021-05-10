@@ -132,26 +132,28 @@ namespace api.Controllers.Email {
 										receiptId => receiptId.HasValue
 									);
 								if (receiptId.HasValue) {
+									Notification notification;
+									Comment parent;
 									using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-										var notification = await db.GetNotification(receiptId.Value);
-										var parent = await db.GetComment(notification.CommentIds.Single());
-										var reply = await commentingService.PostReply(
-											text: mailContent,
-											articleId: parent.ArticleId,
-											parentCommentId: parent.Id,
-											userAccountId: notification.UserAccountId,
-											analytics: new ClientAnalytics(
-												type: ClientType.Mail,
-												version: new SemanticVersion(0, 0, 0)
-											)
-										);
-										await notificationService.ProcessEmailReply(
-											userAccountId: notification.UserAccountId,
-											receiptId: receiptId.Value,
-											replyId: reply.Id
-										);
-										return Ok();
+										notification = await db.GetNotification(receiptId.Value);
+										parent = await db.GetComment(notification.CommentIds.Single());
 									}
+									var reply = await commentingService.PostReply(
+										text: mailContent,
+										articleId: parent.ArticleId,
+										parentCommentId: parent.Id,
+										userAccountId: notification.UserAccountId,
+										analytics: new ClientAnalytics(
+											type: ClientType.Mail,
+											version: new SemanticVersion(0, 0, 0)
+										)
+									);
+									await notificationService.ProcessEmailReply(
+										userAccountId: notification.UserAccountId,
+										receiptId: receiptId.Value,
+										replyId: reply.Id
+									);
+									return Ok();
 								}
 							}
 							break;

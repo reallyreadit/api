@@ -47,14 +47,15 @@ namespace api.Notifications {
 			this.routing = routing;
 		}
 		private async Task ClearAlert(
-			NpgsqlConnection db,
 			long userAccountId,
 			long receiptId
 		) {
-			var receipt = await db.ClearAlert(receiptId);
+			NotificationReceipt receipt;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				receipt = await db.ClearAlert(receiptId);
+			}
 			if (receipt != null) {
 				await SendPushClearNotifications(
-					db: db,
 					userAccountId: userAccountId,
 					clearedReceiptIds: receiptId
 				);
@@ -138,19 +139,20 @@ namespace api.Notifications {
 			)
 		);
 		private async Task CreateOpenInteraction(
-			NpgsqlConnection db,
 			long receiptId
 		) {
-			try {
-				await db.CreateNotificationInteraction(
-					receiptId: receiptId,
-					channel: NotificationChannel.Email,
-					action: NotificationAction.Open
-				);
-			} catch (NpgsqlException ex) when (
-				String.Equals(ex.Data["ConstraintName"], "notification_interaction_unique_open")
-			) {
-				// swallow duplicate open exception
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					await db.CreateNotificationInteraction(
+						receiptId: receiptId,
+						channel: NotificationChannel.Email,
+						action: NotificationAction.Open
+					);
+				} catch (NpgsqlException ex) when (
+					String.Equals(ex.Data["ConstraintName"], "notification_interaction_unique_open")
+				) {
+					// swallow duplicate open exception
+				}
 			}
 		}
 		private Uri CreatePostEmailUrl(INotificationDispatch dispatch, long? commentId, long? silentPostId) {
@@ -187,22 +189,23 @@ namespace api.Notifications {
 			return new Uri(endpoints.WebServer.CreateUrl($"/mailLink/{token}"));
 		}
 		private async Task CreateViewInteraction(
-			NpgsqlConnection db,
 			Notification notification,
 			NotificationChannel channel,
 			string url
 		) {
-			try {
-				await db.CreateNotificationInteraction(
-					receiptId: notification.ReceiptId,
-					channel: channel,
-					action: NotificationAction.View,
-					url: url
-				);
-			} catch (NpgsqlException ex) when (
-				String.Equals(ex.Data["ConstraintName"], "notification_interaction_unique_view")
-			) {
-				// swallow duplicate view exception
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					await db.CreateNotificationInteraction(
+						receiptId: notification.ReceiptId,
+						channel: channel,
+						action: NotificationAction.View,
+						url: url
+					);
+				} catch (NpgsqlException ex) when (
+					String.Equals(ex.Data["ConstraintName"], "notification_interaction_unique_view")
+				) {
+					// swallow duplicate view exception
+				}
 			}
 			switch (notification.EventType) {
 				case NotificationEventType.Aotd:
@@ -212,7 +215,6 @@ namespace api.Notifications {
 				case NotificationEventType.Reply:
 					if (!notification.DateAlertCleared.HasValue) {
 						await ClearAlert(
-							db: db,
 							userAccountId: notification.UserAccountId,
 							receiptId: notification.ReceiptId
 						);
@@ -221,80 +223,84 @@ namespace api.Notifications {
 			}
 		}
 		private async Task<Uri> CreateViewInteraction(
-			NpgsqlConnection db,
 			Notification notification,
 			NotificationChannel channel,
 			EmailLinkResource resource,
 			long resourceId
 		) {
-			var url = await CreateViewUrl(db, resource, resourceId);
-			await CreateViewInteraction(db, notification, channel, url.ToString());
+			var url = await CreateViewUrl(resource, resourceId);
+			await CreateViewInteraction(notification, channel, url.ToString());
 			return url;
 		}
 		private async Task<Uri> CreateViewUrl(
-			NpgsqlConnection db,
 			EmailLinkResource resource,
 			long resourceId
 		) {
-			switch (resource) {
-				case EmailLinkResource.Article:
-				case EmailLinkResource.Comments:
-					var article = await db.GetArticle(resourceId);
-					if (resource == EmailLinkResource.Article) {
-						return routing.CreateArticleUrl(article.Slug);
-					} else {
-						return routing.CreateCommentsUrl(article.Slug);
-					}
-				case EmailLinkResource.Comment:
-					var comment = await db.GetComment(resourceId);
-					return routing.CreateCommentUrl(comment.ArticleSlug, comment.Id);
-				case EmailLinkResource.CommentPost:
-					var postComment = await db.GetComment(resourceId);
-					var commentPoster = await db.GetUserAccountById(postComment.UserAccountId);
-					return routing.CreatePostUrl(commentPoster.Name, postComment.Id, null);
-				case EmailLinkResource.SilentPost:
-					var silentPost = await db.GetSilentPost(resourceId);
-					var silentPoster = await db.GetUserAccountById(silentPost.UserAccountId);
-					return routing.CreatePostUrl(silentPoster.Name, null, silentPost.Id);
-				case EmailLinkResource.Follower:
-					var follower = await db.GetUserAccountById(
-						(await db.GetFollowing(resourceId)).FollowerUserAccountId
-					);
-					return routing.CreateProfileUrl(follower.Name);
-				case EmailLinkResource.FirstPoster:
-					var firstPoster = await db.GetUserAccountByName(
-						(await db.GetArticle(resourceId)).FirstPoster
-					);
-					return routing.CreateProfileUrl(firstPoster.Name);
-				default:
-					throw new ArgumentException($"Unexpected value for {nameof(resource)}");
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				switch (resource) {
+					case EmailLinkResource.Article:
+					case EmailLinkResource.Comments:
+						var article = await db.GetArticle(resourceId);
+						if (resource == EmailLinkResource.Article) {
+							return routing.CreateArticleUrl(article.Slug);
+						} else {
+							return routing.CreateCommentsUrl(article.Slug);
+						}
+					case EmailLinkResource.Comment:
+						var comment = await db.GetComment(resourceId);
+						return routing.CreateCommentUrl(comment.ArticleSlug, comment.Id);
+					case EmailLinkResource.CommentPost:
+						var postComment = await db.GetComment(resourceId);
+						var commentPoster = await db.GetUserAccountById(postComment.UserAccountId);
+						return routing.CreatePostUrl(commentPoster.Name, postComment.Id, null);
+					case EmailLinkResource.SilentPost:
+						var silentPost = await db.GetSilentPost(resourceId);
+						var silentPoster = await db.GetUserAccountById(silentPost.UserAccountId);
+						return routing.CreatePostUrl(silentPoster.Name, null, silentPost.Id);
+					case EmailLinkResource.Follower:
+						var follower = await db.GetUserAccountById(
+							(await db.GetFollowing(resourceId)).FollowerUserAccountId
+						);
+						return routing.CreateProfileUrl(follower.Name);
+					case EmailLinkResource.FirstPoster:
+						var firstPoster = await db.GetUserAccountByName(
+							(await db.GetArticle(resourceId)).FirstPoster
+						);
+						return routing.CreateProfileUrl(firstPoster.Name);
+					default:
+						throw new ArgumentException($"Unexpected value for {nameof(resource)}");
+				}
 			}
 		}
 		private async Task SendPushClearNotifications(
-			NpgsqlConnection db,
 			long userAccountId,
 			params long[] clearedReceiptIds
 		) {
-			var pushDevices = await db.GetRegisteredPushDevices(userAccountId);
-			if (pushDevices.Any()) {
-				var userAccount = await db.GetUserAccountById(userAccountId);
-				apnsService.Send(
-					new ApnsNotification(
-						payload: new ApnsPayload(
-							applePayload: new ApnsApplePayload(
-								badge: userAccount.GetTotalBadgeCount()
-							),
-							alertStatus: userAccount,
-							clearedNotificationIds: clearedReceiptIds
-								.Select(id => obfuscation.Encode(id))
-								.ToArray()
-						),
-						tokens: pushDevices
-							.Select(device => device.Token)
-							.ToArray()
-					)
-				);
+			IEnumerable<NotificationPushDevice> pushDevices;
+			UserAccount userAccount;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				pushDevices = await db.GetRegisteredPushDevices(userAccountId);
+				if (!pushDevices.Any()) {
+					return;
+				}
+				userAccount = await db.GetUserAccountById(userAccountId);
 			}
+			apnsService.Send(
+				new ApnsNotification(
+					payload: new ApnsPayload(
+						applePayload: new ApnsApplePayload(
+							badge: userAccount.GetTotalBadgeCount()
+						),
+						alertStatus: userAccount,
+						clearedNotificationIds: clearedReceiptIds
+							.Select(id => obfuscation.Encode(id))
+							.ToArray()
+					),
+					tokens: pushDevices
+						.Select(device => device.Token)
+						.ToArray()
+				)
+			);
 		}
 		public async Task ClearAlerts(
 			long userAccountId,
@@ -312,15 +318,14 @@ namespace api.Notifications {
 						clearedReceipts.AddRange(await db.ClearAllAlerts(type, userAccountId));
 					}
 				}
-				if (clearedReceipts.Any()) {
-					await SendPushClearNotifications(
-						db: db,
-						userAccountId: userAccountId,
-						clearedReceiptIds: clearedReceipts
-							.Select(receipt => receipt.Id)
-							.ToArray()
-					);
-				}
+			}
+			if (clearedReceipts.Any()) {
+				await SendPushClearNotifications(
+					userAccountId: userAccountId,
+					clearedReceiptIds: clearedReceipts
+						.Select(receipt => receipt.Id)
+						.ToArray()
+				);
 			}
 		}
 		public async Task CreateAotdDigestNotifications() {
@@ -1030,21 +1035,21 @@ namespace api.Notifications {
 					endpoints.WebServer.CreateUrl()
 				);
 			}
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				return (
-					token.ReceiptId != 0 ?
-						await CreateViewInteraction(
-							db: db,
-							notification: await db.GetNotification(token.ReceiptId),
-							channel: NotificationChannel.Email,
-							resource: token.Resource,
-							resourceId: token.ResourceId
-						) :
-						await CreateViewUrl(
-							db: db,
-							resource: token.Resource,
-							resourceId: token.ResourceId
-						)
+			if (token.ReceiptId != 0) {
+				Notification notification;
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					notification = await db.GetNotification(token.ReceiptId);
+				}
+				return await CreateViewInteraction(
+					notification: notification,
+					channel: NotificationChannel.Email,
+					resource: token.Resource,
+					resourceId: token.ResourceId
+				);
+			} else {
+				return await CreateViewUrl(
+					resource: token.Resource,
+					resourceId: token.ResourceId
 				);
 			}
 		}
@@ -1057,13 +1062,10 @@ namespace api.Notifications {
 					key: tokenizationOptions.EncryptionKey
 				)
 			);
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				if (receiptId != 0) {
-					await CreateOpenInteraction(
-						db: db,
-						receiptId: receiptId
-					);
-				}
+			if (receiptId != 0) {
+				await CreateOpenInteraction(
+					receiptId: receiptId
+				);
 			}
 		}
 		public async Task ProcessEmailReply(
@@ -1078,54 +1080,53 @@ namespace api.Notifications {
 					action: NotificationAction.Reply,
 					replyId: replyId
 				);
-				await ClearAlert(
-					db: db,
-					userAccountId: userAccountId,
-					receiptId: receiptId
-				);
 			}
+			await ClearAlert(
+				userAccountId: userAccountId,
+				receiptId: receiptId
+			);
 		}
 		public async Task<Uri> ProcessExtensionView(
 			long receiptId
 		) {
+			Notification notification;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				var notification = await db.GetNotification(receiptId);
-				EmailLinkResource resource;
-				long resourceId;
-				switch (notification.EventType) {
-					case NotificationEventType.Aotd:
-						resource = EmailLinkResource.Article;
-						resourceId = notification.ArticleIds.Single();
-						break;
-					case NotificationEventType.Reply:
-					case NotificationEventType.Loopback:
-						resource = EmailLinkResource.Comment;
-						resourceId = notification.CommentIds.Single();
-						break;
-					case NotificationEventType.Post:
-						if (notification.CommentIds.Any()) {
-							resource = EmailLinkResource.CommentPost;
-							resourceId = notification.CommentIds.Single();
-						} else {
-							resource = EmailLinkResource.SilentPost;
-							resourceId = notification.SilentPostIds.Single();
-						}
-						break;
-					case NotificationEventType.Follower:
-						resource = EmailLinkResource.Follower;
-						resourceId = notification.FollowingIds.Single();
-						break;
-					default:
-						throw new InvalidOperationException($"Unexpected value for {nameof(notification.EventType)}");
-				}
-				return await CreateViewInteraction(
-					db: db,
-					notification: notification,
-					channel: NotificationChannel.Extension,
-					resource: resource,
-					resourceId: resourceId
-				);
+				notification = await db.GetNotification(receiptId);
 			}
+			EmailLinkResource resource;
+			long resourceId;
+			switch (notification.EventType) {
+				case NotificationEventType.Aotd:
+					resource = EmailLinkResource.Article;
+					resourceId = notification.ArticleIds.Single();
+					break;
+				case NotificationEventType.Reply:
+				case NotificationEventType.Loopback:
+					resource = EmailLinkResource.Comment;
+					resourceId = notification.CommentIds.Single();
+					break;
+				case NotificationEventType.Post:
+					if (notification.CommentIds.Any()) {
+						resource = EmailLinkResource.CommentPost;
+						resourceId = notification.CommentIds.Single();
+					} else {
+						resource = EmailLinkResource.SilentPost;
+						resourceId = notification.SilentPostIds.Single();
+					}
+					break;
+				case NotificationEventType.Follower:
+					resource = EmailLinkResource.Follower;
+					resourceId = notification.FollowingIds.Single();
+					break;
+				default:
+					throw new InvalidOperationException($"Unexpected value for {nameof(notification.EventType)}");
+			}
+			return await CreateViewInteraction(
+				notification: notification,
+				channel: NotificationChannel.Extension,
+				resource: resource,
+				resourceId: resourceId
+			);
 		}
 		public async Task ProcessPushReply(
 			long userAccountId,
@@ -1139,26 +1140,25 @@ namespace api.Notifications {
 					action: NotificationAction.Reply,
 					replyId: replyId
 				);
-				await ClearAlert(
-					db: db,
-					userAccountId: userAccountId,
-					receiptId: receiptId
-				);
 			}
+			await ClearAlert(
+				userAccountId: userAccountId,
+				receiptId: receiptId
+			);
 		}
 		public async Task ProcessPushView(
 			long receiptId,
 			string url
 		) {
+			Notification notification;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				var notification = await db.GetNotification(receiptId);
-				await CreateViewInteraction(
-					db: db,
-					notification: notification,
-					channel: NotificationChannel.Push,
-					url: url
-				);
+				notification = await db.GetNotification(receiptId);
 			}
+			await CreateViewInteraction(
+				notification: notification,
+				channel: NotificationChannel.Push,
+				url: url
+			);
 		}
 		public async Task RegisterPushDevice(
 			long userAccountId,

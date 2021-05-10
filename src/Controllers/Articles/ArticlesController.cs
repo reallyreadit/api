@@ -35,15 +35,16 @@ namespace api.Controllers.Articles {
 			[FromForm] AotdForm form
 		) {
 			if (form.ApiKey == authOptions.Value.ApiKey) {
+				Article article;
 				using (
 					var db = new NpgsqlConnection(
 						connectionString: dbOpts.ConnectionString
 					)
 				) {
-					var article = await db.SetAotd();
-					await notifications.CreateAotdNotifications(article);
-					return Ok();
+					article = await db.SetAotd();
 				}
+				await notifications.CreateAotdNotifications(article);
+				return Ok();
 			}
 			return BadRequest();
 		}

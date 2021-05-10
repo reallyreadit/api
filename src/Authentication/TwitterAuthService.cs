@@ -51,56 +51,64 @@ namespace api.Authentication {
 		private async Task<string> AcquireBotTweetTargets(
 			long articleId
 		) {
+			Source source;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				// retrieve the source
-				var source = await db.GetSourceOfArticle(articleId);
-				// search for twitter handle if we haven't already
-				if (source.TwitterHandleAssignment == TwitterHandleAssignment.None) {
-					var searchResults = await SearchTwitterUsers(source.Name);
+				source = await db.GetSourceOfArticle(articleId);
+			}
+			// search for twitter handle if we haven't already
+			if (source.TwitterHandleAssignment == TwitterHandleAssignment.None) {
+				var searchResults = await SearchTwitterUsers(source.Name);
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 					source = await db.AssignTwitterHandleToSource(
 						sourceId: source.Id,
 						twitterHandle: searchResults.FirstOrDefault()?.ScreenName,
 						twitterHandleAssignment: TwitterHandleAssignment.NameSearch
 					);
 				}
-				// retrieve the authors
-				var authors = (await db.GetAuthorsOfArticle(articleId)).ToArray();
-				// search for twitter handles if there's a reasonable number of authors
-				if (authors.Length <= 3) {
-					for (var i = 0; i < authors.Length; i++) {
-						var author = authors[i];
-						if (author.TwitterHandleAssignment != TwitterHandleAssignment.None) {
-							continue;
-						}
-						var searchResults = await SearchTwitterUsers(author.Name + ' ' + source.Name);
-						var searchMethod = TwitterHandleAssignment.NameAndCompanySearch;
-						if (!searchResults.Any()) {
-							searchResults = await SearchTwitterUsers(author.Name);
-							searchMethod = TwitterHandleAssignment.NameSearch;
-						}
+			}
+			// retrieve the authors
+			Author[] authors;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				authors = (await db.GetAuthorsOfArticle(articleId)).ToArray();
+			}
+			// search for twitter handles if there's a reasonable number of authors
+			if (authors.Length <= 3) {
+				for (var i = 0; i < authors.Length; i++) {
+					var author = authors[i];
+					if (author.TwitterHandleAssignment != TwitterHandleAssignment.None) {
+						continue;
+					}
+					var searchResults = await SearchTwitterUsers(author.Name + ' ' + source.Name);
+					var searchMethod = TwitterHandleAssignment.NameAndCompanySearch;
+					if (!searchResults.Any()) {
+						searchResults = await SearchTwitterUsers(author.Name);
+						searchMethod = TwitterHandleAssignment.NameSearch;
+					}
+					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 						authors[i] = await db.AssignTwitterHandleToAuthor(
 							authorId: author.Id,
 							twitterHandle: searchResults.FirstOrDefault()?.ScreenName,
 							twitterHandleAssignment: searchMethod
 						);
 					}
-				} else {
-					authors = new Author[0];
 				}
-				return String.Join(
-					' ',
-					authors
-						.Select(
-							author => author.TwitterHandle
-						)
-						.Where(
-							twitterHandle => !String.IsNullOrWhiteSpace(twitterHandle)
-						)
-						.Select(
-							twitterHandle => '@' + twitterHandle
-						)
-				);
+			} else {
+				authors = new Author[0];
 			}
+			return String.Join(
+				' ',
+				authors
+					.Select(
+						author => author.TwitterHandle
+					)
+					.Where(
+						twitterHandle => !String.IsNullOrWhiteSpace(twitterHandle)
+					)
+					.Select(
+						twitterHandle => '@' + twitterHandle
+					)
+			);
 		}
 		private string CreateAlphanumericNonce(int byteCount) {
 			var bytes = new byte[byteCount];

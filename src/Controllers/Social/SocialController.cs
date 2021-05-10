@@ -38,54 +38,64 @@ namespace api.Controllers.Social {
 			[FromServices] ObfuscationService obfuscationService,
 			[FromServices] ReadingVerificationService verificationService
 		) {
-			if (!String.IsNullOrWhiteSpace(form.Text)) {
-				var userAccountId = this.User.GetUserAccountId();
-				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-					var userArticle = await db.GetArticle(form.ArticleId, userAccountId);
-					if (userArticle.IsRead && commentingService.IsCommentTextValid(form.Text)) {
-						var articleAuthors = await db.GetAuthorsOfArticle(
-							articleId: form.ArticleId
-						);
-						var commentThread = new CommentThread(
-							comment: await commentingService.PostReply(
-								text: form.Text,
-								articleId: form.ArticleId,
-								parentCommentId: obfuscationService.DecodeSingle(form.ParentCommentId).Value,
-								userAccountId: userAccountId,
-								analytics: this.GetClientAnalytics()
-							),
-							badge: (
-									await db.GetUserLeaderboardRankings(
-										userAccountId: userAccountId
-									)
-								)
-								.GetBadge(),
-							isAuthor: articleAuthors.Any(
-								author => author.UserAccountId == userAccountId
-							),
-							obfuscationService: obfuscationService
-						);
-						if (
-							this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
-								{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
-								{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
-								{ ClientType.IosApp, new SemanticVersion("3.1.1") },
-								{ ClientType.WebEmbed, new SemanticVersion("1.0.0") }
-							})
-						) {
-							return Json(new {
-								Article = verificationService.AssignProofToken(
-									article: await db.GetArticle(form.ArticleId, userAccountId),
-									userAccountId: userAccountId
-								),
-								Comment = commentThread
-							});
-						}
-						return Json(commentThread);
-					}
+			if (String.IsNullOrWhiteSpace(form.Text)) {
+				return BadRequest();
+			}
+			var userAccountId = this.User.GetUserAccountId();
+			// First verify that the article has been read and that the comment text is valid.
+			Article article;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				article = await db.GetArticle(form.ArticleId, userAccountId);
+				if (!article.IsRead || !commentingService.IsCommentTextValid(form.Text)) {
+					return BadRequest();
 				}
 			}
-			return BadRequest();
+			// Then post the reply.
+			var reply = await commentingService.PostReply(
+				text: form.Text,
+				articleId: form.ArticleId,
+				parentCommentId: obfuscationService.DecodeSingle(form.ParentCommentId).Value,
+				userAccountId: userAccountId,
+				analytics: this.GetClientAnalytics()
+			);
+			// Get the leaderboard rankings and update the article afterwards in case this reply changed either.
+			IEnumerable<Author> articleAuthors;
+			UserLeaderboardRankings userLeaderboardRankings;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				articleAuthors = await db.GetAuthorsOfArticle(
+					articleId: form.ArticleId
+				);
+				userLeaderboardRankings = await db.GetUserLeaderboardRankings(
+					userAccountId: userAccountId
+				);
+				article = await db.GetArticle(form.ArticleId, userAccountId);
+			}
+			// Create the client model and return.
+			var commentThread = new CommentThread(
+				comment: reply,
+				badge: userLeaderboardRankings.GetBadge(),
+				isAuthor: articleAuthors.Any(
+					author => author.UserAccountId == userAccountId
+				),
+				obfuscationService: obfuscationService
+			);
+			if (
+				this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
+					{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
+					{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
+					{ ClientType.IosApp, new SemanticVersion("3.1.1") },
+					{ ClientType.WebEmbed, new SemanticVersion("1.0.0") }
+				})
+			) {
+				return Json(new {
+					Article = verificationService.AssignProofToken(
+						article: article,
+						userAccountId: userAccountId
+					),
+					Comment = commentThread
+				});
+			}
+			return Json(commentThread);
 		}
 		[HttpPost]
 		public async Task<IActionResult> CommentAddendum(
@@ -240,16 +250,16 @@ namespace api.Controllers.Social {
 			[FromServices] NotificationService notificationService,
 			[FromBody] UserNameForm form
 		) {
+			Following following;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				await notificationService.CreateFollowerNotification(
-					following: await db.CreateFollowing(
-						followerUserId: User.GetUserAccountId(),
-						followeeUserName: form.UserName,
-						analytics: this.GetClientAnalytics()
-					)
+				following = await db.CreateFollowing(
+					followerUserId: User.GetUserAccountId(),
+					followeeUserName: form.UserName,
+					analytics: this.GetClientAnalytics()
 				);
-				return Ok();
 			}
+			await notificationService.CreateFollowerNotification(following);
+			return Ok();
 		}
 		[HttpGet]
 		public async Task<JsonResult> Followees() {
@@ -432,87 +442,91 @@ namespace api.Controllers.Social {
 		) {
 			var userAccountId = User.GetUserAccountId();
 			var analytics = this.GetClientAnalytics();
+			Article article;
 			Comment comment;
 			SilentPost silentPost;
 			UserAccount user;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var article = await db.GetArticle(
+				article = await db.GetArticle(
 					articleId: form.ArticleId,
 					userAccountId: userAccountId
 				);
-				if (article.IsRead) {
-					try {
-						user = await db.GetUserAccountById(userAccountId);
-						if (commentingService.IsCommentTextValid(form.CommentText)) {
-							comment = await commentingService.PostComment(
-								text: form.CommentText,
-								articleId: form.ArticleId,
-								user: user,
-								tweet: form.Tweet,
-								analytics: analytics
-							);
-							silentPost = null;
-						} else {
-							silentPost = await commentingService.PostSilentPost(
-								article: article,
-								user: user,
-								tweet: form.Tweet,
-								analytics: analytics
-							);
-							comment = null;
-						}
-					} catch (Exception ex) {
-						logger.LogError(ex, "Failed to create new post.");
-						return BadRequest();
-					}
-					if (form.RatingScore.HasValue) {
-						await db.RateArticle(
-							articleId: form.ArticleId,
-							userAccountId: userAccountId,
-							score: form.RatingScore.Value
-						);
-					}
-					article = await db.GetArticle(
-						articleId: form.ArticleId,
-						userAccountId: userAccountId
-					);
-					var badge = (
-							await db.GetUserLeaderboardRankings(
-								userAccountId: userAccountId
-							)
-						)
-						.GetBadge();
-					return Json(
-						data: (
-							comment != null ?
-								new Post(
-									article: article,
-									date: comment.DateCreated,
-									userName: comment.UserAccount,
-									badge: badge,
-									comment: new PostComment(
-										comment: comment,
-										obfuscationService: obfuscationService
-									),
-									silentPostId: null,
-									dateDeleted: comment.DateDeleted,
-									hasAlert: false
-								) :
-								new Post(
-									article: article,
-									date: silentPost.DateCreated,
-									userName: user.Name,
-									badge: badge,
-									comment: null,
-									silentPostId: obfuscationService.Encode(silentPost.Id),
-									dateDeleted: null,
-									hasAlert: false
-								)
-						)
-					);
+				if (!article.IsRead) {
+					return BadRequest();
 				}
+				user = await db.GetUserAccountById(userAccountId);
+			}
+			try {
+				if (commentingService.IsCommentTextValid(form.CommentText)) {
+					comment = await commentingService.PostComment(
+						text: form.CommentText,
+						articleId: form.ArticleId,
+						user: user,
+						tweet: form.Tweet,
+						analytics: analytics
+					);
+					silentPost = null;
+				} else {
+					silentPost = await commentingService.PostSilentPost(
+						article: article,
+						user: user,
+						tweet: form.Tweet,
+						analytics: analytics
+					);
+					comment = null;
+				}
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to create new post.");
 				return BadRequest();
 			}
+			LeaderboardBadge badge;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				if (form.RatingScore.HasValue) {
+					await db.RateArticle(
+						articleId: form.ArticleId,
+						userAccountId: userAccountId,
+						score: form.RatingScore.Value
+					);
+				}
+				article = await db.GetArticle(
+					articleId: form.ArticleId,
+					userAccountId: userAccountId
+				);
+				badge = (
+						await db.GetUserLeaderboardRankings(
+							userAccountId: userAccountId
+						)
+					)
+					.GetBadge();
+			}
+			return Json(
+				data: (
+					comment != null ?
+						new Post(
+							article: article,
+							date: comment.DateCreated,
+							userName: comment.UserAccount,
+							badge: badge,
+							comment: new PostComment(
+								comment: comment,
+								obfuscationService: obfuscationService
+							),
+							silentPostId: null,
+							dateDeleted: comment.DateDeleted,
+							hasAlert: false
+						) :
+						new Post(
+							article: article,
+							date: silentPost.DateCreated,
+							userName: user.Name,
+							badge: badge,
+							comment: null,
+							silentPostId: obfuscationService.Encode(silentPost.Id),
+							dateDeleted: null,
+							hasAlert: false
+						)
+				)
+			);
 		}
 		[AllowAnonymous]
 		[HttpGet]

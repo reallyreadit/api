@@ -97,14 +97,17 @@ namespace api.Controllers.UserAccounts {
 			if (!IsPasswordValid(form.Password)) {
 				return BadRequest();
 			}
+			var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
+			UserAccount userAccount;
+			DisplayPreference displayPreference;
+			SubscriptionStatus subscriptionStatus;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
 				if (captchaResponse != null) {
 					db.CreateCaptchaResponse("createUserAccount", captchaResponse);
 				}
 				try {
 					var salt = GenerateSalt();
-					var userAccount = await db.CreateUserAccount(
+					userAccount = await db.CreateUserAccount(
 						name: form.Name,
 						email: form.Email,
 						passwordHash: HashPassword(form.Password, salt),
@@ -116,19 +119,17 @@ namespace api.Controllers.UserAccounts {
 							form: form.Analytics
 						)
 					);
-					await notificationService.CreateWelcomeNotification(userAccount.Id);
-					await authenticationService.SignIn(userAccount, form.PushDevice);
-					return Json(
-						new WebAppUserProfileClientModel(
-							await db.GetDisplayPreference(userAccount.Id),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
-							userAccount
-						)
-					);
+					displayPreference = await db.GetDisplayPreference(userAccount.Id);
+					subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
 				}
 			}
+			await notificationService.CreateWelcomeNotification(userAccount.Id);
+			await authenticationService.SignIn(userAccount, form.PushDevice);
+			return Json(
+				new WebAppUserProfileClientModel(displayPreference, subscriptionStatus, userAccount)
+			);
       }
 		private long ParseAuthServiceToken(string rawValue) => (
 			Int64.Parse(
@@ -156,6 +157,9 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] NotificationService notificationService,
 			[FromBody] AuthServiceAccountForm form
 		) {
+			UserAccount userAccount;
+			DisplayPreference displayPreference;
+			SubscriptionStatus subscriptionStatus;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var authentication = await db.GetAuthServiceAuthenticationById(
 					ParseAuthServiceToken(form.Token)
@@ -166,7 +170,6 @@ namespace api.Controllers.UserAccounts {
 				}
 				var authServiceAccount = await db.GetAuthServiceAccountByIdentityId(authentication.IdentityId);
 				try {
-					UserAccount userAccount;
 					var timeZoneId = GetTimeZoneIdFromName(db.GetTimeZones(), form.TimeZoneName);
 					if (
 						!String.IsNullOrWhiteSpace(authServiceAccount.IdentitySignUpAnalytics)
@@ -203,19 +206,17 @@ namespace api.Controllers.UserAccounts {
 					if (authServiceAccount.Provider == AuthServiceProvider.Twitter) {
 						userAccount.HasLinkedTwitterAccount = true;
 					}
-					await notificationService.CreateWelcomeNotification(userAccount.Id);
-					await authenticationService.SignIn(userAccount, form.PushDevice);
-					return Json(
-						new WebAppUserProfileClientModel(
-							await db.GetDisplayPreference(userAccount.Id),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
-							userAccount
-						)
-					);
+					displayPreference = await db.GetDisplayPreference(userAccount.Id);
+					subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
 				}
 			}
+			await notificationService.CreateWelcomeNotification(userAccount.Id);
+			await authenticationService.SignIn(userAccount, form.PushDevice);
+			return Json(
+				new WebAppUserProfileClientModel(displayPreference, subscriptionStatus, userAccount)
+			);
       }
 		// deprecated
 		[AllowAnonymous]
@@ -249,8 +250,8 @@ namespace api.Controllers.UserAccounts {
 				if (IsEmailConfirmationRateExceeded(db.GetLatestUnconfirmedEmailConfirmation(this.User.GetUserAccountId()))) {
 					return BadRequest(new[] { "ResendLimitExceeded" });
 				}
-				await notificationService.CreateEmailConfirmationNotification(this.User.GetUserAccountId());
 			}
+			await notificationService.CreateEmailConfirmationNotification(this.User.GetUserAccountId());
 			return Ok();
 		}
 		[HttpPost]
@@ -389,8 +390,9 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] NotificationService notificationService,
 			[FromServices] CaptchaService captchaService
 		) {
+			var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
+			PasswordResetRequest request;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
 				if (captchaResponse != null) {
 					db.CreateCaptchaResponse("requestPasswordReset", captchaResponse);
 				}
@@ -402,31 +404,32 @@ namespace api.Controllers.UserAccounts {
 				if (IsPasswordResetRequestValid(latestRequest)) {
 					return BadRequest(new[] { "RequestLimitExceeded" });
 				}
-				var request = await db.CreatePasswordResetRequest(
+				request = await db.CreatePasswordResetRequest(
 					userAccount.Id,
 					!String.IsNullOrWhiteSpace(form.AuthServiceToken) ?
 						new Nullable<Int64>(ParseAuthServiceToken(form.AuthServiceToken)) :
 						null
 				);
-				await notificationService.CreatePasswordResetNotification(request);
 			}
+			await notificationService.CreatePasswordResetNotification(request);
 			return Ok();
 		}
 		[HttpPost]
 		public async Task<IActionResult> PasswordCreationEmailDispatch(
 			[FromServices] NotificationService notificationService
 		) {
+			PasswordResetRequest request;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var latestRequest = db.GetLatestPasswordResetRequest(User.GetUserAccountId());
 				if (IsPasswordResetRequestValid(latestRequest)) {
 					return BadRequest(new[] { "RequestLimitExceeded" });
 				}
-				var request = await db.CreatePasswordResetRequest(
+				request = await db.CreatePasswordResetRequest(
 					userAccountId: User.GetUserAccountId(),
 					authServiceAuthenticationId: null
 				);
-				await notificationService.CreatePasswordResetNotification(request);
 			}
+			await notificationService.CreatePasswordResetNotification(request);
 			return Ok();
 		}
 		[HttpGet]

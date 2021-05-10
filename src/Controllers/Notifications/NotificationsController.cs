@@ -163,32 +163,36 @@ namespace api.Controllers.Notifications {
 			[FromBody] PushReplyForm form
 		) {
 			var userAccountId = User.GetUserAccountId();
+			Notification notification;
+			Comment parent;
+			Article article;
 			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-				var notification = await db.GetNotification(receiptId: obfuscation.DecodeSingle(form.ReceiptId).Value);
-				if (notification.UserAccountId == userAccountId) {
-					var parent = await db.GetComment(notification.CommentIds.Single());
-					var article = await db.GetArticle(
-						articleId: parent.ArticleId,
-						userAccountId: userAccountId
-					);
-					if (article.IsRead) {
-						var reply = await commentingService.PostReply(
-							text: form.Text,
-							articleId: parent.ArticleId,
-							parentCommentId: parent.Id,
-							userAccountId: notification.UserAccountId,
-							analytics: new ClientAnalytics(
-								type: ClientType.IosNotification,
-								version: new SemanticVersion(0, 0, 0)
-							)
-						);
-						await notificationService.ProcessPushReply(
-							userAccountId: notification.UserAccountId,
-							receiptId: notification.ReceiptId,
-							replyId: reply.Id
-						);
-					}
+				notification = await db.GetNotification(receiptId: obfuscation.DecodeSingle(form.ReceiptId).Value);
+				if (notification.UserAccountId != userAccountId) {
+					return Ok();
 				}
+				parent = await db.GetComment(notification.CommentIds.Single());
+				article = await db.GetArticle(
+					articleId: parent.ArticleId,
+					userAccountId: userAccountId
+				);
+			}
+			if (article.IsRead) {
+				var reply = await commentingService.PostReply(
+					text: form.Text,
+					articleId: parent.ArticleId,
+					parentCommentId: parent.Id,
+					userAccountId: notification.UserAccountId,
+					analytics: new ClientAnalytics(
+						type: ClientType.IosNotification,
+						version: new SemanticVersion(0, 0, 0)
+					)
+				);
+				await notificationService.ProcessPushReply(
+					userAccountId: notification.UserAccountId,
+					receiptId: notification.ReceiptId,
+					replyId: reply.Id
+				);
 			}
 			return Ok();
 		}
