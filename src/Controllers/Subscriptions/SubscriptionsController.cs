@@ -852,6 +852,29 @@ namespace api.Controllers.Subscriptions {
 			return Ok();
 		}
 
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<AuthorsEarningsReportResponse> AuthorsEarningsReport(
+			[FromServices] IMemoryCache memoryCache
+		) {
+			var lineItems = await memoryCache.GetOrCreateAsync<IEnumerable<AuthorEarningsReportLineItem>>(
+				"AuthorEarningsReport",
+				async entry => {
+					entry.SetAbsoluteExpiration(
+						TimeSpan.FromMinutes(1)
+					);
+					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+						return await db.RunAuthorsEarningsReportAsync();
+					}
+				}
+			);
+			return new AuthorsEarningsReportResponse(
+				lineItems.Select(
+					lineItem => new AuthorEarningsReportLineItemClientModel(lineItem)
+				)
+			);
+		}
+
 		[HttpGet]
 		public async Task<SubscriptionDistributionSummaryResponse> DistributionSummary() {
 			var userAccountId = User.GetUserAccountId();

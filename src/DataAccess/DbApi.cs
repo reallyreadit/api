@@ -2093,6 +2093,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<AuthorEarningsReportLineItem>> RunAuthorsEarningsReportAsync(
+			this NpgsqlConnection connection
+		) => await connection.QueryAsync<AuthorEarningsReportLineItem>(
+			sql: "subscriptions.run_authors_earnings_report",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionDistributionReport> RunDistributionReportForSubscriptionPeriodCalculationAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
