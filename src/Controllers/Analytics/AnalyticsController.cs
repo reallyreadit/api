@@ -11,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using api.Analytics;
 using System.IO;
 using api.Authentication;
+using System.Collections.Generic;
 
 namespace api.Controllers.Analytics {
 	public class AnalyticsController: Controller {
@@ -108,6 +109,16 @@ namespace api.Controllers.Analytics {
 				);
 			}
 			return Ok();
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		public async Task<RevenueReportResponse> RevenueReport(
+			[FromQuery] DateRangeQuery query
+		) {
+			IEnumerable<RevenueReportLineItem> lineItems;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				lineItems = await db.GetRevenueReportAsync(query.StartDate, query.EndDate);
+			}
+			return new RevenueReportResponse(lineItems);
 		}
 		[AllowAnonymous]
 		[HttpPost]

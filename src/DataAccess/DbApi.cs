@@ -72,6 +72,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<RevenueReportLineItem>> GetRevenueReportAsync(
+			this NpgsqlConnection conn,
+			DateTime startDate,
+			DateTime endDate
+		) => await conn.QueryAsync<RevenueReportLineItem>(
+			sql: "analytics.get_revenue_report",
+			param: new {
+				start_date = startDate,
+				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<SignupsReportRow>> GetSignups(
 			this NpgsqlConnection conn,
 			DateTime startDate,
