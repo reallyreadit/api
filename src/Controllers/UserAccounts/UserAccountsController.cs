@@ -328,7 +328,7 @@ namespace api.Controllers.UserAccounts {
 			IEnumerable<SubscriptionAccount> subscriptionAccounts;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				userAccount = await db.GetUserAccountById(this.User.GetUserAccountId());
-				if (userAccount.Email == binder.Email) {
+				if (userAccount.Email == binder.Email || userAccount.DateDeleted.HasValue) {
 					return BadRequest();
 				}
 				isEmailAddressConfirmed = db.IsEmailAddressConfirmed(userAccount.Id, binder.Email);
@@ -614,6 +614,12 @@ namespace api.Controllers.UserAccounts {
 					userAccountId: Int64.Parse(StringEncryption.Decrypt(binder.Token, tokenOpts.EncryptionKey))
 				);
 				if (preference != null) {
+					var userAccount = await db.GetUserAccountById(
+						userAccountId: preference.UserAccountId
+					);
+					if (userAccount.DateDeleted.HasValue) {
+						return Problem("This account has been deleted.", statusCode: 400);
+					}
 					await db.SetNotificationPreference(
 						userAccountId: preference.UserAccountId,
 						options: binder.GetOptions()
@@ -768,10 +774,16 @@ namespace api.Controllers.UserAccounts {
 			}
 		}
 		[HttpPost]
-		public async Task<JsonResult> NotificationPreference(
+		public async Task<IActionResult> NotificationPreference(
 			[FromBody] NotificationPreference form
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				var userAccount = await db.GetUserAccountById(
+					userAccountId: User.GetUserAccountId()
+				);
+				if (userAccount.DateDeleted.HasValue) {
+					return Problem("This account has been deleted.", statusCode: 400);
+				}
 				return Json(
 					data: new NotificationPreference(
 						options: await db.SetNotificationPreference(
