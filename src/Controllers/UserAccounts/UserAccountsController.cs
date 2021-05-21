@@ -510,48 +510,6 @@ namespace api.Controllers.UserAccounts {
 			return Ok();
 		}
 		// deprecated
-		[HttpPost]
-		public async Task<IActionResult> UpdateNotificationPreferences(
-			[FromBody] UpdateNotificationPreferencesBinder binder
-		) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var preference = await db.GetNotificationPreference(
-					userAccountId: User.GetUserAccountId()
-				);
-				preference.ReplyViaEmail = binder.ReceiveEmailNotifications;
-				preference.ReplyViaExtension = binder.ReceiveDesktopNotifications;
-				preference = await db.SetNotificationPreference(
-					userAccountId: preference.UserAccountId,
-					options: preference
-				);
-				var user = await db.GetUserAccountById(
-					userAccountId: preference.UserAccountId
-				);
-				return Json(user);
-			}
-		}
-		// deprecated
-		[HttpPost]
-		public async Task<IActionResult> UpdateContactPreferences(
-			[FromBody] UpdateContactPreferencesBinder binder
-		) {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var preference = await db.GetNotificationPreference(
-					userAccountId: User.GetUserAccountId()
-				);
-				preference.CompanyUpdateViaEmail = binder.ReceiveWebsiteUpdates;
-				preference.AotdDigestViaEmail = binder.ReceiveSuggestedReadings ? NotificationEventFrequency.Weekly : NotificationEventFrequency.Never;
-				preference = await db.SetNotificationPreference(
-					userAccountId: preference.UserAccountId,
-					options: preference
-				);
-				var user = await db.GetUserAccountById(
-					userAccountId: preference.UserAccountId
-				);
-				return Json(user);
-			}
-		}
-		// deprecated
 		[HttpGet]
 		public IActionResult CheckNewReplyNotification() {
 			return Json(
