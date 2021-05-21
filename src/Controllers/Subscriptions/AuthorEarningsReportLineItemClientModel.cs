@@ -10,13 +10,11 @@ namespace api.Controllers.Subscriptions {
 			UserAccountName = lineItem.UserAccountName;
 			MinutesRead = lineItem.MinutesRead;
 			AmountEarned = lineItem.AmountEarned;
-			AmountPaid = lineItem.AmountPaid;
 		}
 		public string AuthorName { get; }
 		public string AuthorSlug { get; }
 		public string UserAccountName { get; }
 		public int MinutesRead { get; }
 		public int AmountEarned { get; }
-		public int AmountPaid { get; }
 	}
 }
