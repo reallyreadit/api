@@ -800,6 +800,49 @@ namespace api.Controllers.UserAccounts {
 				return Json(userAccount);
 			}
 		}
+		[HttpPost]
+		public async Task<IActionResult> Deletion(
+			[FromServices] AuthenticationService authenticationService,
+			[FromBody] SignOutForm request
+		) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				// Verify that the account hasn't already been deleted.
+				var userAccount = await db.GetUserAccountById(
+					userAccountId: User.GetUserAccountId()
+				);
+				if (userAccount.DateDeleted.HasValue) {
+					return Problem("This account has already been deleted.", statusCode: 400);
+				}
+				// Verify that the account doesn't have an active subscription set to auto-renew.
+				var subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(
+					userAccountId: User.GetUserAccountId()
+				);
+				var subscriptionState = subscriptionStatus?.GetCurrentState(
+					utcNow: DateTime.UtcNow
+				);
+				if (
+					subscriptionState == SubscriptionState.Active &&
+					subscriptionStatus.IsAutoRenewEnabled()
+				) {
+					return Problem("The subscription must be cancelled before the account can be deleted.", statusCode: 400);
+				}
+				// Attempt to delete the account.
+				try {
+					await db.DeleteUserAccountAsync(
+						userAccountId: User.GetUserAccountId()
+					);
+				} catch (Exception ex) {
+					log.LogError(ex, "Failed to delete user account with id: {UserAccountId}.", User.GetUserAccountId());
+					return Problem("An error occurred while deleting the account.", statusCode: 500);
+				}
+			}
+			// Sign out the account.
+			await authenticationService.SignOut(
+				pushDeviceInstallationId: request.InstallationId
+			);
+			// Return empty result.
+			return Ok();
+		}
 
 		// new versions
 		[AllowAnonymous]

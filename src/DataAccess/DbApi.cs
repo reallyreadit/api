@@ -2380,6 +2380,16 @@ namespace api.DataAccess {
 				throw ex;
 			}
 		}
+		public static async Task<UserAccount> DeleteUserAccountAsync(
+			this NpgsqlConnection conn,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<UserAccount>(
+			sql: "user_account_api.delete_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<AuthServiceAccount> DisassociateAuthServiceAccount(
 			this NpgsqlConnection conn,
 			long identityId
