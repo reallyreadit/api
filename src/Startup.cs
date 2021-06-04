@@ -280,6 +280,20 @@ namespace api {
 			// configure cookie authentication & authorization
 			app.UseAuthentication();
 			app.UseAuthorization();
+			app.Use(
+				(context, next) => {
+					// this header is added to allow the hosting web server to log the id of an authenticated user
+					if (context.User.Identity.IsAuthenticated) {
+						context.Response.Headers.Add(
+							"X-Readup-User-Id",
+							context.User
+								.GetUserAccountId()
+								.ToString()
+						);
+					}
+					return next();
+				}
+			);
 			// configure mvc
 			app.UseEndpoints(
 				endpoints => {
