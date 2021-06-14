@@ -12,7 +12,9 @@ namespace api.Controllers.UserAccounts {
 			string timeZoneDisplayName,
 			IEnumerable<AuthServiceAccountAssociation> authServiceAccounts,
 			SubscriptionStatusClientModel subscriptionStatus,
-			SubscriptionPaymentMethodClientModel subscriptionPaymentMethod
+			SubscriptionPaymentMethodClientModel subscriptionPaymentMethod,
+			AuthorProfileClientModel authorProfile,
+			PayoutAccountClientModel payoutAccount
 		) {
 			DisplayPreference = displayPreference;
 			UserCount = userCount;
@@ -21,6 +23,8 @@ namespace api.Controllers.UserAccounts {
 			AuthServiceAccounts = authServiceAccounts;
 			SubscriptionStatus = subscriptionStatus;
 			SubscriptionPaymentMethod = subscriptionPaymentMethod;
+			AuthorProfile = authorProfile;
+			PayoutAccount = payoutAccount;
 		}
 		public DisplayPreference DisplayPreference { get; }
 		public int UserCount { get; }
@@ -29,5 +33,7 @@ namespace api.Controllers.UserAccounts {
 		public IEnumerable<AuthServiceAccountAssociation> AuthServiceAccounts { get; }
 		public object SubscriptionStatus { get; }
 		public SubscriptionPaymentMethodClientModel SubscriptionPaymentMethod { get; }
+		public AuthorProfileClientModel AuthorProfile { get; }
+		public PayoutAccountClientModel PayoutAccount { get; }
 	}
 }

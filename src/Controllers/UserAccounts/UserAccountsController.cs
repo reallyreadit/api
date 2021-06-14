@@ -23,6 +23,7 @@ using api.Routing;
 using Microsoft.Extensions.Logging;
 using api.Controllers.Shared;
 using api.Cookies;
+using api.Messaging;
 
 namespace api.Controllers.UserAccounts {
 	public class UserAccountsController : Controller {
@@ -689,6 +690,33 @@ namespace api.Controllers.UserAccounts {
 					userAccountId: User.GetUserAccountId()
 				);
 				var subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id);
+				AuthorProfileClientModel authorProfileClientModel;
+				PayoutAccountClientModel payoutAccountClientModel;
+				var linkedAuthor = await db.GetAuthorByUserAccountName(userAccountName: user.Name);
+				if (linkedAuthor != null) {
+					var distributionReport = await db.RunAuthorDistributionReportForSubscriptionPeriodDistributionsAsync(
+						authorId: linkedAuthor.Id
+					);
+					authorProfileClientModel = new AuthorProfileClientModel(
+						name: linkedAuthor.Name,
+						slug: linkedAuthor.Slug,
+						totalEarnings: distributionReport.Amount,
+						userName: user.Name
+					);
+					var payoutAccount = await db.GetPayoutAccountForUserAccountAsync(
+						userAccountId: user.Id
+					);
+					if (payoutAccount != null) {
+						payoutAccountClientModel = new PayoutAccountClientModel(
+							payoutsEnabled: payoutAccount.DatePayoutsEnabled.HasValue
+						);
+					} else {
+						payoutAccountClientModel = null;
+					}
+				} else {
+					authorProfileClientModel = null;
+					payoutAccountClientModel = null;
+				}
 				return new SettingsResponse(
 					displayPreference: await db.GetDisplayPreference(user.Id),
 					userCount: await db.GetUserCount(),
@@ -727,7 +755,9 @@ namespace api.Controllers.UserAccounts {
 								)
 							) :
 							null
-					)
+					),
+					authorProfile: authorProfileClientModel,
+					payoutAccount: payoutAccountClientModel
 				);
 			}
 		}
@@ -841,6 +871,42 @@ namespace api.Controllers.UserAccounts {
 				pushDeviceInstallationId: request.InstallationId
 			);
 			// Return empty result.
+			return Ok();
+		}
+		[HttpPost]
+		public async Task<IActionResult> AuthorEmailVerificationRequest(
+			[FromServices] EmailService emailService,
+			[FromBody] AuthorEmailVerificationRequest request
+		) {
+			if (
+				String.IsNullOrWhiteSpace(request.Email) ||
+				String.IsNullOrWhiteSpace(request.Name)
+			) {
+				return Problem("Email and Name fields are both required.", statusCode: 400);
+			}
+			UserAccount user;
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				user = await db.GetUserAccountById(
+					userAccountId: User.GetUserAccountId()
+				);
+			}
+			await emailService.Send(
+				new EmailMessage(
+					from: new EmailMailbox("Writer Email Verification Bot", "support@readup.com"),
+					replyTo: null,
+					to: new EmailMailbox("Bill Loundy", "bill@readup.com"),
+					subject: "Writer Email Verification Request",
+					body: String.Join(
+						"<br />",
+						$"Request Date: {DateTime.UtcNow.ToString("s")}",
+						$"Readup username: {user.Name}",
+						$"Readup email: {user.Email} ({(user.IsEmailConfirmed ? "confirmed" : "not confirmed")})",
+						$"Request name: {request.Name}",
+						$"Request email: {request.Email}",
+						$"Request IP: {Request.HttpContext.Connection.RemoteIpAddress.ToString()}"
+					)
+				)
+			);
 			return Ok();
 		}
 

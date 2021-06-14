@@ -1935,6 +1935,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<PayoutAccount> CreatePayoutAccountAsync(
+			this NpgsqlConnection connection,
+			string id,
+			long userAccountId
+		) => await connection.QuerySingleOrDefaultAsync<PayoutAccount>(
+			sql: "subscriptions.create_payout_account",
+			param: new {
+				id,
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionPaymentMethod> CreateSubscriptionPaymentMethodAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
@@ -2014,6 +2026,26 @@ namespace api.DataAccess {
 			param: new {
 				provider = ConvertEnumToString(provider),
 				provider_account_id = providerAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PayoutAccount> GetPayoutAccountAsync(
+			this NpgsqlConnection connection,
+			string id
+		) => await connection.QuerySingleOrDefaultAsync<PayoutAccount>(
+			sql: "subscriptions.get_payout_account",
+			param: new {
+				id
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PayoutAccount> GetPayoutAccountForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QuerySingleOrDefaultAsync<PayoutAccount>(
+			sql: "subscriptions.get_payout_account_for_user_account",
+			param: new {
+				user_account_id = userAccountId
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -2118,6 +2150,20 @@ namespace api.DataAccess {
 			sql: "subscriptions.run_distribution_report_for_period_distributions",
 			param: new {
 				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PayoutAccount> UpdatePayoutAccountAsync(
+			this NpgsqlConnection connection,
+			string id,
+			DateTime? dateDetailsSubmitted,
+			DateTime? datePayoutsEnabled
+		) => await connection.QuerySingleOrDefaultAsync<PayoutAccount>(
+			sql: "subscriptions.update_payout_account",
+			param: new {
+				id,
+				date_details_submitted = dateDetailsSubmitted,
+				date_payouts_enabled = datePayoutsEnabled
 			},
 			commandType: CommandType.StoredProcedure
 		);

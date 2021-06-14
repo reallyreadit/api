@@ -6,13 +6,16 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using api.Analytics;
 using api.Authentication;
 using api.BackgroundProcessing;
 using api.Configuration;
 using api.Controllers.Shared;
 using api.DataAccess;
 using api.DataAccess.Models;
+using api.Encryption;
 using api.Notifications;
+using api.Routing;
 using api.Subscriptions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -62,6 +65,35 @@ namespace api.Controllers.Subscriptions {
 				}
 			}
 			return null;
+		}
+
+		private async Task<Stripe.AccountLink> CreatePayoutAccountOnboardingLink(string payoutAccountId, string mode, ServiceEndpointsOptions endpointsOptions, TokenizationOptions tokenizationOptions) {
+			var linkService = new Stripe.AccountLinkService();
+			var query = new [] {
+				new KeyValuePair<string, string>(
+					"token",
+					UrlSafeBase64.Encode(
+						StringEncryption.Encrypt(payoutAccountId, tokenizationOptions.EncryptionKey)
+					)
+				),
+				new KeyValuePair<string, string>(
+					"mode",
+					mode
+				)
+			};
+			try {
+				return await linkService.CreateAsync(
+					new Stripe.AccountLinkCreateOptions {
+						Account = payoutAccountId,
+						RefreshUrl = endpointsOptions.ApiServer.CreateUrl("/Subscriptions/PayoutAccountOnboardingLinkRefresh", query),
+						ReturnUrl = endpointsOptions.ApiServer.CreateUrl("/Subscriptions/PayoutAccountOnboardingCompletion", query),
+						Type = "account_onboarding"
+					}
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to create onboarding link for Stripe Connect account with id: {Id}.", payoutAccountId);
+				return null;
+			}
 		}
 
 		/// <summary>Attempts to create a StripePaymentResponse from the PaymentIntent.</summary>
@@ -657,6 +689,46 @@ namespace api.Controllers.Subscriptions {
 			}
 		}
 
+		private async Task<PayoutAccount> UpdatePayoutAccountFromStripeAsync(PayoutAccount payoutAccount) {
+			// Check if the account is eligable for updates.
+			if (
+				payoutAccount.DateDetailsSubmitted.HasValue &&
+				payoutAccount.DatePayoutsEnabled.HasValue
+			) {
+				return payoutAccount;
+			}
+			// Check with Stripe to get the latest status.
+			Stripe.Account stripeAccount;
+			try {
+				stripeAccount = await new Stripe.AccountService()
+					.GetAsync(
+						id: payoutAccount.Id
+					);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to retrieve Stripe Connect account with id: {Id}.", payoutAccount.Id);
+				return null;
+			}
+			// Update our records if anything has changed.
+			if (
+				!payoutAccount.DateDetailsSubmitted.HasValue && stripeAccount.DetailsSubmitted ||
+				!payoutAccount.DatePayoutsEnabled.HasValue && stripeAccount.PayoutsEnabled
+			) {
+				var now = DateTime.UtcNow;
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					payoutAccount = await db.UpdatePayoutAccountAsync(
+						id: payoutAccount.Id,
+						dateDetailsSubmitted: stripeAccount.DetailsSubmitted ?
+							new Nullable<DateTime>(now) :
+							null,
+						datePayoutsEnabled: stripeAccount.PayoutsEnabled ?
+							new Nullable<DateTime>(now) :
+							null
+					);
+				}
+			}
+			return payoutAccount;
+		}
+
 		/// <summary>Attempts to update a Stripe subscription.</summary>
 		/// <remarks>If any errors occur they will be logged and the return value will be null.</remarks>
 		/// <returns>An updated Subscription or null.</returns>
@@ -940,6 +1012,236 @@ namespace api.Controllers.Subscriptions {
 			}
 			return new SubscriptionStatusResponse(
 				SubscriptionStatusClientModel.FromSubscriptionStatus(user, status)
+			);
+		}
+
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<RedirectResult> PayoutAccountOnboardingCompletion(
+			[FromServices] IOptions<ServiceEndpointsOptions> endpointsOptions,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
+			[FromQuery] PayoutAccountOnboardingLinkState state
+		) {
+			// Update the payout account.
+			PayoutAccount payoutAccount;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				payoutAccount = await db.GetPayoutAccountAsync(
+					id: StringEncryption.Decrypt(
+						text: UrlSafeBase64.Decode(state.Token),
+						key: tokenizationOptions.Value.EncryptionKey
+					)
+				);
+			}
+			payoutAccount = await UpdatePayoutAccountFromStripeAsync(payoutAccount);
+			// Redirect based on mode.
+			if (state.Mode == "App") {
+				return Redirect(
+					endpointsOptions.Value.StaticContentServer.CreateUrl("/app/stripe-onboarding-handler/v1/index.html")
+				);
+			}
+			return Redirect(
+				endpointsOptions.Value.WebServer.CreateUrl("/settings")
+			);
+		}
+
+		[AllowAnonymous]
+		[HttpGet]
+		public async Task<RedirectResult> PayoutAccountOnboardingLinkRefresh(
+			[FromServices] IOptions<ServiceEndpointsOptions> endpointsOptions,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
+			[FromQuery] PayoutAccountOnboardingLinkState state
+		) {
+			var link = await CreatePayoutAccountOnboardingLink(
+				payoutAccountId: StringEncryption.Decrypt(
+					text: UrlSafeBase64.Decode(state.Token),
+					key: tokenizationOptions.Value.EncryptionKey
+				),
+				mode: state.Mode,
+				endpointsOptions: endpointsOptions.Value,
+				tokenizationOptions: tokenizationOptions.Value
+			);
+			if (link == null) {
+				return Redirect(
+					endpointsOptions.Value.WebServer.CreateUrl(
+						path: null,
+						query: new [] {
+							new KeyValuePair<string, string>("message", "StripeOnboardingFailed")
+						}
+					)
+				);
+			}
+			return Redirect(link.Url);
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<PayoutAccountLoginLinkRequestResponse>> PayoutAccountLoginLinkRequest() {
+			PayoutAccount payoutAccount;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				payoutAccount = await db.GetPayoutAccountForUserAccountAsync(
+					userAccountId: User.GetUserAccountId()
+				);
+			}
+			if (payoutAccount == null) {
+				return Problem("Payout account not found.", statusCode: 400);
+			}
+			var linkService = new Stripe.LoginLinkService();
+			Stripe.LoginLink link;
+			try {
+				link = await linkService.CreateAsync(
+					parentId: payoutAccount.Id
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to create Stripe login link for Connect account with id: {Id}.", payoutAccount.Id);
+				return Problem("Failed to create login link.", statusCode: 500);
+			}
+			return new PayoutAccountLoginLinkRequestResponse(
+				loginUrl: link.Url
+			);
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<PayoutAccountOnboardingLinkRequestResponse>> PayoutAccountOnboardingLinkRequest(
+			[FromServices] IOptions<ServiceEndpointsOptions> endpointsOptions,
+			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
+			[FromServices] RoutingService routingService
+		) {
+			UserAccount user;
+			Author linkedAuthor;
+			PayoutAccount payoutAccount;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				user = await db.GetUserAccountById(
+					userAccountId: User.GetUserAccountId()
+				);
+				linkedAuthor = await db.GetAuthorByUserAccountName(
+					userAccountName: user.Name
+				);
+				// Make sure the user has a verified account.
+				if (linkedAuthor == null) {
+					return Problem("Writer account must be verified.", statusCode: 400);
+				}
+				payoutAccount = await db.GetPayoutAccountForUserAccountAsync(
+					userAccountId: user.Id
+				);
+			}
+			var accountService = new Stripe.AccountService();
+			Stripe.Account stripeAccount;
+			// Check the status of the current payout account.
+			if (payoutAccount != null) {
+				if (!payoutAccount.DatePayoutsEnabled.HasValue) {
+					// Check with Stripe to get the latest status.
+					payoutAccount = await UpdatePayoutAccountFromStripeAsync(payoutAccount);
+					if (payoutAccount == null) {
+						return Problem("Error looking up existing account.", statusCode: 500);
+					}
+				}
+				// Return the account if onboarding has already been completed.
+				if (payoutAccount.DatePayoutsEnabled.HasValue) {
+					return new PayoutAccountOnboardingLinkRequestCompletedResponse(
+						new PayoutAccountClientModel(
+							payoutsEnabled: true
+						)
+					);
+				}
+			} else {
+				// Create a new Stripe account.
+				var accountOptions = new Stripe.AccountCreateOptions {
+					Type = "express",
+					Email = user.Email,
+					BusinessType = "individual",
+					BusinessProfile = new Stripe.AccountBusinessProfileOptions {
+						Url = routingService
+							.CreateProfileUrl(user.Name)
+							.ToString()
+					},
+					Metadata = new Dictionary<string, string>() {
+						{
+							"readup-user-account-id",
+							user.Id.ToString()
+						},
+						{
+							"readup-user-account-name",
+							user.Name
+						}
+					}
+				};
+				var authorNameParts = linkedAuthor.Name.Split(' ');
+				if (authorNameParts.Length == 2) {
+					accountOptions.Individual = new Stripe.AccountIndividualOptions {
+						FirstName = authorNameParts.First(),
+						LastName = authorNameParts.Last()
+					};
+				}
+				try {
+					stripeAccount = await accountService.CreateAsync(accountOptions);
+				} catch (Exception ex) {
+					logger.LogError(ex, "Failed to create Stripe Connect account for user with id: {Id}.", user.Id);
+					return Problem("Error creating Stripe account.", statusCode: 500);
+				}
+				try {
+					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+						payoutAccount = await db.CreatePayoutAccountAsync(
+							id: stripeAccount.Id,
+							userAccountId: user.Id
+						);
+					}
+				} catch (Exception ex) {
+					if ((ex as PostgresException)?.ConstraintName == "payout_account_user_account_id_key") {
+						try {
+							await accountService.DeleteAsync(
+								id: stripeAccount.Id
+							);
+						} catch (Exception deleteEx) {
+							logger.LogError(deleteEx, "Failed to delete duplicate Stripe Connect account with id: {Id}.", stripeAccount.Id);
+						}
+					} else {
+						logger.LogError(ex, "Failed to create payout account for Stripe Connect account with id: {Id}.", stripeAccount.Id);
+					}
+					return Problem("Failed to create payout account.", statusCode: 500);
+				}
+			}
+			// Create the onboarding link.
+			var analytics = this.GetClientAnalytics();
+			if (analytics?.Mode == null) {
+				return Problem("Invalid client type header.", statusCode: 400);
+			}
+			var link = await CreatePayoutAccountOnboardingLink(
+				payoutAccountId: payoutAccount.Id,
+				mode: analytics.Mode,
+				endpointsOptions: endpointsOptions.Value,
+				tokenizationOptions: tokenizationOptions.Value
+			);
+			if (link == null) {
+				return Problem("Error creating onboarding link.", statusCode: 500);
+			}
+			return new PayoutAccountOnboardingLinkRequestReadyResponse(
+				onboardingUrl: link.Url
+			);
+		}
+
+		[HttpPost]
+		public async Task<ActionResult<PayoutAccountResponse>> PayoutAccountUpdateRequest() {
+			PayoutAccount payoutAccount;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				payoutAccount = await db.GetPayoutAccountForUserAccountAsync(
+					userAccountId: User.GetUserAccountId()
+				);
+			}
+			if (payoutAccount == null) {
+				return new PayoutAccountResponse(
+					payoutAccount: null
+				);
+			}
+			if (!payoutAccount.DatePayoutsEnabled.HasValue) {
+				// Check with Stripe to get the latest status.
+				payoutAccount = await UpdatePayoutAccountFromStripeAsync(payoutAccount);
+				if (payoutAccount == null) {
+					return Problem("Error looking up existing account.", statusCode: 500);
+				}
+			}
+			return new PayoutAccountResponse(
+				new PayoutAccountClientModel(
+					payoutsEnabled: payoutAccount.DatePayoutsEnabled.HasValue
+				)
 			);
 		}
 
