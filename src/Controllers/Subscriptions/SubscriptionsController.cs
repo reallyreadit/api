@@ -1211,7 +1211,7 @@ namespace api.Controllers.Subscriptions {
 								body: String.Join(
 									"<br />",
 									$"Writer name: {linkedAuthor.Name}",
-									$"Readup username: {user.Name}",
+									$"Readup reader name: {user.Name}",
 									$"Readup email: {user.Email} ({(user.IsEmailConfirmed ? "confirmed" : "not confirmed")})"
 								)
 							)

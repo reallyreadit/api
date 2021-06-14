@@ -899,7 +899,7 @@ namespace api.Controllers.UserAccounts {
 					body: String.Join(
 						"<br />",
 						$"Request Date: {DateTime.UtcNow.ToString("s")}",
-						$"Readup username: {user.Name}",
+						$"Readup reader name: {user.Name}",
 						$"Readup email: {user.Email} ({(user.IsEmailConfirmed ? "confirmed" : "not confirmed")})",
 						$"Request name: {request.Name}",
 						$"Request email: {request.Email}",
