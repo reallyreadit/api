@@ -14,6 +14,7 @@ using api.Controllers.Shared;
 using api.DataAccess;
 using api.DataAccess.Models;
 using api.Encryption;
+using api.Messaging;
 using api.Notifications;
 using api.Routing;
 using api.Subscriptions;
@@ -1103,7 +1104,8 @@ namespace api.Controllers.Subscriptions {
 		public async Task<ActionResult<PayoutAccountOnboardingLinkRequestResponse>> PayoutAccountOnboardingLinkRequest(
 			[FromServices] IOptions<ServiceEndpointsOptions> endpointsOptions,
 			[FromServices] IOptions<TokenizationOptions> tokenizationOptions,
-			[FromServices] RoutingService routingService
+			[FromServices] RoutingService routingService,
+			[FromServices] EmailService emailService
 		) {
 			UserAccount user;
 			Author linkedAuthor;
@@ -1198,6 +1200,24 @@ namespace api.Controllers.Subscriptions {
 					}
 					return Problem("Failed to create payout account.", statusCode: 500);
 				}
+				taskQueue.QueueBackgroundWorkItem(
+					async cancellationToken => {
+						await emailService.Send(
+							new EmailMessage(
+								from: new EmailMailbox("Payout Account Bot", "support@readup.com"),
+								replyTo: null,
+								to: new EmailMailbox("Bill Loundy", "bill@readup.com"),
+								subject: "New Payout Account Created",
+								body: String.Join(
+									"<br />",
+									$"Writer name: {linkedAuthor.Name}",
+									$"Readup username: {user.Name}",
+									$"Readup email: {user.Email} ({(user.IsEmailConfirmed ? "confirmed" : "not confirmed")})"
+								)
+							)
+						);
+					}
+				);
 			}
 			// Create the onboarding link.
 			var analytics = this.GetClientAnalytics();
