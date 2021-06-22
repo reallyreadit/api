@@ -22,7 +22,7 @@ namespace api.Subscriptions {
 
 		/// <summary>A unique identifier for the app download transaction.</summary>
 		[JsonPropertyName("download_id")]
-		public long DownloadId { get; set; }
+		public long? DownloadId { get; set; }
 
 		/// <summary>The time the receipt expires for apps purchased through the Volume Purchase Program, in a date-time format similar to the ISO 8601.</summary>
 		[JsonPropertyName("expiration_date")]
