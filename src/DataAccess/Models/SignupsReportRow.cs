@@ -13,9 +13,8 @@ namespace api.DataAccess.Models {
 		public string InitialPath { get; set; }
 		public string CurrentPath { get; set; }
 		public string Action { get; set; }
-		public int OrientationShareCount { get; set; }
 		public int ArticleViewCount { get; set; }
 		public int ArticleReadCount { get; set; }
-		public int PostTweetCount { get; set; }
+		public DateTime? DateSubscribed { get; set; }
 	}
 }
