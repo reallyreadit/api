@@ -1292,25 +1292,27 @@ namespace api.Controllers.Subscriptions {
 			[FromServices] IMemoryCache memoryCache,
 			[FromQuery] RevenueReportRequest request
 		) {
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				SubscriptionAllocationCalculation allocationCalculation;
-				if (User.Identity.IsAuthenticated && !request.UseCache) {
+			SubscriptionAllocationCalculation allocationCalculation;
+			if (User.Identity.IsAuthenticated && !request.UseCache) {
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 					allocationCalculation = await db.CalculateAllocationForAllSubscriptionPeriodsAsync();
-				} else {
-					allocationCalculation = await memoryCache.GetOrCreateAsync<SubscriptionAllocationCalculation>(
-						"RevenueReport",
-						async entry => {
-							entry.SetAbsoluteExpiration(
-								TimeSpan.FromMinutes(1)
-							);
+				}
+			} else {
+				allocationCalculation = await memoryCache.GetOrCreateAsync<SubscriptionAllocationCalculation>(
+					"RevenueReport",
+					async entry => {
+						entry.SetAbsoluteExpiration(
+							TimeSpan.FromMinutes(1)
+						);
+						using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 							return await db.CalculateAllocationForAllSubscriptionPeriodsAsync();
 						}
-					);
-				}
-				return new RevenueReportResponse(
-					new RevenueReportClientModel(allocationCalculation)
+					}
 				);
 			}
+			return new RevenueReportResponse(
+				new RevenueReportClientModel(allocationCalculation)
+			);
 		}
 
 		[HttpGet]
