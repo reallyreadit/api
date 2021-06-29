@@ -19,5 +19,7 @@ namespace api.DataAccess.Models {
 		public int PostTweetBrowserCount { get; set; }
 		public int ExtensionInstallationCount { get; set; }
 		public int ExtensionRemovalCount { get; set; }
+		public int SubscriptionsActiveCount { get; set; }
+		public int SubscriptionLapseCount { get; set; }
 	}
 }
