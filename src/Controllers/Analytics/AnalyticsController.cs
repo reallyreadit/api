@@ -115,10 +115,12 @@ namespace api.Controllers.Analytics {
 			[FromQuery] DateRangeQuery query
 		) {
 			IEnumerable<RevenueReportLineItem> lineItems;
+			IEnumerable<MonthlyRecurringRevenueReportLineItem> monthlyRecurringRevenueLineItems;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				lineItems = await db.GetRevenueReportAsync(query.StartDate, query.EndDate);
+				monthlyRecurringRevenueLineItems = await db.GetMonthlyRecurringRevenueReportAsync(query.StartDate, query.EndDate);
 			}
-			return new RevenueReportResponse(lineItems);
+			return new RevenueReportResponse(lineItems, monthlyRecurringRevenueLineItems);
 		}
 		[AllowAnonymous]
 		[HttpPost]
