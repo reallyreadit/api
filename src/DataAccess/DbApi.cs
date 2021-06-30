@@ -2175,6 +2175,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<PayoutTotalsReport> RunPayoutTotalsReportAsync(
+			this NpgsqlConnection connection
+		) => await connection.QuerySingleOrDefaultAsync<PayoutTotalsReport>(
+			sql: "subscriptions.run_payout_totals_report",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<PayoutAccount> UpdatePayoutAccountAsync(
 			this NpgsqlConnection connection,
 			string id,
