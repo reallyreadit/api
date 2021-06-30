@@ -550,7 +550,8 @@ namespace api.Controllers.Social {
 						name: linkedAuthor.Name,
 						slug: linkedAuthor.Slug,
 						totalEarnings: distributionReport.Amount,
-						userName: profile.UserName
+						userName: profile.UserName,
+						donationRecipient: null
 					);
 				} else {
 					authorProfile = null;

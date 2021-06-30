@@ -701,7 +701,8 @@ namespace api.Controllers.UserAccounts {
 						name: linkedAuthor.Name,
 						slug: linkedAuthor.Slug,
 						totalEarnings: distributionReport.Amount,
-						userName: user.Name
+						userName: user.Name,
+						donationRecipient: null
 					);
 					var payoutAccount = await db.GetPayoutAccountForUserAccountAsync(
 						userAccountId: user.Id

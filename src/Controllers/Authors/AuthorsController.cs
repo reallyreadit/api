@@ -2,6 +2,7 @@ using System.Threading.Tasks;
 using api.Configuration;
 using api.Controllers.Shared;
 using api.DataAccess;
+using api.DataAccess.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
@@ -35,6 +36,12 @@ namespace api.Controllers.AuthorsController {
 				var linkedUserAccount = await db.GetUserAccountByAuthorSlug(
 					authorSlug: author.Slug
 				);
+				DonationRecipient donationRecipient;
+				if (linkedUserAccount == null) {
+					donationRecipient = await db.GetDonationRecipientForAuthorAsync(authorId: author.Id);
+				} else {
+					donationRecipient = null;
+				}
 				var distributionReport = await db.RunAuthorDistributionReportForSubscriptionPeriodDistributionsAsync(
 					authorId: author.Id
 				);
@@ -43,7 +50,8 @@ namespace api.Controllers.AuthorsController {
 						name: author.Name,
 						slug: author.Slug,
 						totalEarnings: distributionReport.Amount,
-						userName: linkedUserAccount?.Name
+						userName: linkedUserAccount?.Name,
+						donationRecipient: donationRecipient
 					)
 				);
 			}
