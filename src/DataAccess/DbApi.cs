@@ -2041,6 +2041,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<DonationRecipient> GetDonationRecipientForAuthorAsync(
+			this NpgsqlConnection connection,
+			long authorId
+		) => await connection.QuerySingleOrDefaultAsync<DonationRecipient>(
+			sql: "subscriptions.get_donation_recipient_for_author",
+			param: new {
+				author_id = authorId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<PayoutAccount> GetPayoutAccountAsync(
 			this NpgsqlConnection connection,
 			string id
