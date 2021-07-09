@@ -146,5 +146,11 @@ namespace api.Controllers.Analytics {
 				return Json(await db.GetSignups(query.StartDate, query.EndDate));
 			}
 		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		public async Task<JsonResult> WeeklyUserActivityReport([FromQuery] DateRangeQuery query) {
+			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
+				return Json(await db.GetWeeklyUserActivityAsync(query.StartDate, query.EndDate));
+			}
+		}
 	}
 }

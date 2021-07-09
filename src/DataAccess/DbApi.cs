@@ -108,6 +108,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<WeeklyUserActivityReport>> GetWeeklyUserActivityAsync(
+			this NpgsqlConnection conn,
+			DateTime startDate,
+			DateTime endDate
+		) => await conn.QueryAsync<WeeklyUserActivityReport>(
+			sql: "analytics.get_weekly_user_activity",
+			param: new {
+				start_date = startDate,
+				end_date = endDate
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Task LogArticleIssueReport(
 			this NpgsqlConnection conn,
 			long articleId,
