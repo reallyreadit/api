@@ -6,13 +6,14 @@ namespace api.Controllers.Shared {
 			string name,
 			string slug,
 			int totalEarnings,
+			int totalPayouts,
 			string userName,
 			DonationRecipient donationRecipient
 		) {
 			Name = name;
 			Slug = slug;
 			TotalEarnings = totalEarnings;
-			TotalPayouts = 0;
+			TotalPayouts = totalPayouts;
 			UserName = userName;
 			if (donationRecipient != null) {
 				DonationRecipient = new DonationRecipientClientModel(donationRecipient);

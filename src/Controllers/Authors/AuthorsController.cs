@@ -50,6 +50,7 @@ namespace api.Controllers.AuthorsController {
 						name: author.Name,
 						slug: author.Slug,
 						totalEarnings: distributionReport.Amount,
+						totalPayouts: 0,
 						userName: linkedUserAccount?.Name,
 						donationRecipient: donationRecipient
 					)

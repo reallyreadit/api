@@ -697,23 +697,30 @@ namespace api.Controllers.UserAccounts {
 					var distributionReport = await db.RunAuthorDistributionReportForSubscriptionPeriodDistributionsAsync(
 						authorId: linkedAuthor.Id
 					);
-					authorProfileClientModel = new AuthorProfileClientModel(
-						name: linkedAuthor.Name,
-						slug: linkedAuthor.Slug,
-						totalEarnings: distributionReport.Amount,
-						userName: user.Name,
-						donationRecipient: null
-					);
 					var payoutAccount = await db.GetPayoutAccountForUserAccountAsync(
 						userAccountId: user.Id
 					);
+					int totalPayouts;
 					if (payoutAccount != null) {
 						payoutAccountClientModel = new PayoutAccountClientModel(
 							payoutsEnabled: payoutAccount.DatePayoutsEnabled.HasValue
 						);
+						var payoutReport = await db.RunPayoutTotalsReportForUserAccountAsync(
+							userAccountId: user.Id
+						);
+						totalPayouts = payoutReport.TotalAuthorPayouts;
 					} else {
 						payoutAccountClientModel = null;
+						totalPayouts = 0;
 					}
+					authorProfileClientModel = new AuthorProfileClientModel(
+						name: linkedAuthor.Name,
+						slug: linkedAuthor.Slug,
+						totalEarnings: distributionReport.Amount,
+						totalPayouts: totalPayouts,
+						userName: user.Name,
+						donationRecipient: null
+					);
 				} else {
 					authorProfileClientModel = null;
 					payoutAccountClientModel = null;

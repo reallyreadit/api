@@ -1851,6 +1851,22 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<AuthorPayout> CreateAuthorPayoutAsync(
+			this NpgsqlConnection connection,
+			string id,
+			DateTime dateCreated,
+			string payoutAccountId,
+			int amount
+		) => await connection.QuerySingleOrDefaultAsync<AuthorPayout>(
+			sql: "subscriptions.create_author_payout",
+			param: new {
+				id,
+				date_created = dateCreated,
+				payout_account_id = payoutAccountId,
+				amount
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionPriceLevel> CreateCustomSubscriptionPriceLevelAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
@@ -2191,6 +2207,16 @@ namespace api.DataAccess {
 			this NpgsqlConnection connection
 		) => await connection.QuerySingleOrDefaultAsync<PayoutTotalsReport>(
 			sql: "subscriptions.run_payout_totals_report",
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<PayoutTotalsReport> RunPayoutTotalsReportForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QuerySingleOrDefaultAsync<PayoutTotalsReport>(
+			sql: "subscriptions.run_payout_totals_report_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<PayoutAccount> UpdatePayoutAccountAsync(
