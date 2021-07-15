@@ -3,6 +3,7 @@ namespace api.DataAccess.Models {
 		public long AuthorId { get; set; }
 		public string AuthorName { get; set; }
 		public string AuthorSlug { get; set; }
+		public AuthorContactStatus AuthorContactStatus { get; set; }
 		public long? UserAccountId { get; set; }
 		public string UserAccountName { get; set; }
 		public long? DonationRecipientId { get; set; }
