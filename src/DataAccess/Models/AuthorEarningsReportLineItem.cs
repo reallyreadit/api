@@ -9,6 +9,7 @@ namespace api.DataAccess.Models {
 		public long? DonationRecipientId { get; set; }
 		public string DonationRecipientName { get; set; }
 		public int MinutesRead { get; set; }
+		public long TopArticleId { get; set; }
 		public int AmountEarned { get; set; }
 		public int AmountPaid { get; set; }
 	}
