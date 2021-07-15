@@ -928,23 +928,41 @@ namespace api.Controllers.Subscriptions {
 		[AllowAnonymous]
 		[HttpGet]
 		public async Task<AuthorsEarningsReportResponse> AuthorsEarningsReport(
-			[FromServices] IMemoryCache memoryCache
+			[FromServices] IMemoryCache memoryCache,
+			[FromQuery] AuthorsEarningsReportRequest request
 		) {
-			var lineItems = await memoryCache.GetOrCreateAsync<IEnumerable<AuthorEarningsReportLineItem>>(
-				"AuthorEarningsReport",
+			return await memoryCache.GetOrCreateAsync<AuthorsEarningsReportResponse>(
+				"AuthorsEarningsReportResponse",
 				async entry => {
 					entry.SetAbsoluteExpiration(
 						TimeSpan.FromMinutes(1)
 					);
 					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-						return await db.RunAuthorsEarningsReportAsync();
+						var lineItems = await db.RunAuthorsEarningsReportAsync(
+							minAmountEarned: request.MinAmountEarned,
+							maxAmountEarned: request.MaxAmountEarned
+						);
+						var articles = await db.GetArticlesAsync(
+							articleIds: lineItems
+								.Select(
+									item => item.TopArticleId
+								)
+								.Distinct()
+								.ToArray(),
+							userAccountId: User.GetUserAccountIdOrDefault()
+						);
+						return new AuthorsEarningsReportResponse(
+							lineItems.Select(
+								lineItem => new AuthorEarningsReportLineItemClientModel(
+									lineItem: lineItem,
+									topArticle: articles.Single(
+										article => article.Id == lineItem.TopArticleId
+									)
+								)
+							)
+						);
 					}
 				}
-			);
-			return new AuthorsEarningsReportResponse(
-				lineItems.Select(
-					lineItem => new AuthorEarningsReportLineItemClientModel(lineItem)
-				)
 			);
 		}
 

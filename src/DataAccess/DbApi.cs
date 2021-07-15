@@ -398,6 +398,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<Article>> GetArticlesAsync(
+			this NpgsqlConnection conn,
+			long[] articleIds,
+			long? userAccountId = null
+		) => await conn.QueryAsync<Article>(
+			sql: "article_api.get_articles",
+			param: new {
+				article_ids = articleIds,
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<Article> GetArticleForProvisionalUser(
 			this NpgsqlConnection conn,
 			long articleId,
@@ -2168,9 +2180,15 @@ namespace api.DataAccess {
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<IEnumerable<AuthorEarningsReportLineItem>> RunAuthorsEarningsReportAsync(
-			this NpgsqlConnection connection
+			this NpgsqlConnection connection,
+			int minAmountEarned,
+			int maxAmountEarned
 		) => await connection.QueryAsync<AuthorEarningsReportLineItem>(
 			sql: "subscriptions.run_authors_earnings_report",
+			param: new {
+				min_amount_earned = minAmountEarned,
+				max_amount_earned = maxAmountEarned
+			},
 			commandType: CommandType.StoredProcedure
 		);
 		public static async Task<SubscriptionDistributionReport> RunDistributionReportForSubscriptionPeriodCalculationAsync(
