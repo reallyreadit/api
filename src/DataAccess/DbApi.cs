@@ -15,20 +15,6 @@ using api.Authentication;
 
 namespace api.DataAccess {
     public static class DbApi {
-		private static string ConvertEnumToString(Enum value) => (
-			value != null ?
-				Regex.Replace(
-					input: value.ToString(),
-					pattern: "([a-z])?([A-Z])",
-					evaluator: match => (
-							match.Groups[1].Success ?
-								match.Groups[1].Value + "_" :
-								String.Empty
-						) +
-						match.Groups[2].Value.ToLower()
-				) :
-				null
-		);
 		#region analytics
 		public static async Task<IEnumerable<ArticleIssuesReportRow>> GetArticleIssueReports(
 			this NpgsqlConnection conn,
@@ -132,7 +118,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				user_account_id = userAccountId,
 				issue,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -144,7 +130,7 @@ namespace api.DataAccess {
 			sql: "analytics.log_client_error_report",
 			param: new {
 				content,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -225,7 +211,7 @@ namespace api.DataAccess {
 				import_play_count = importPlayCount,
 				import_skipped = importSkipped,
 				import_duration = importDuration,
-				notifications_result = ConvertEnumToString(notificationsResult),
+				notifications_result = PostgresSerialization.SerializeEnum(notificationsResult),
 				notifications_skipped = notificationsSkipped,
 				notifications_duration = notificationsDuration,
 				share_result_id = shareResultId,
@@ -247,7 +233,7 @@ namespace api.DataAccess {
 			sql: "analytics.log_share_result",
 			param: new {
 				id,
-				client_type = ConvertEnumToString(clientType),
+				client_type = PostgresSerialization.SerializeEnum(clientType),
 				user_account_id = userAccountId,
 				action,
 				activity_type = activityType,
@@ -300,7 +286,7 @@ namespace api.DataAccess {
 			param: new {
 				source_id = sourceId,
 				twitter_handle = twitterHandle,
-				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
+				twitter_handle_assignment = PostgresSerialization.SerializeEnum(twitterHandleAssignment)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -353,7 +339,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				provisional_user_account_id = provisionalUserAccountId,
 				readable_word_count = readableWordCount,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -374,7 +360,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				user_account_id = userAccountId,
 				readable_word_count = readableWordCount,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -651,7 +637,7 @@ namespace api.DataAccess {
 				provisional_user_account_id = provisionalUserAccountId,
 				article_id = articleId,
 				read_state = readState,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -665,7 +651,7 @@ namespace api.DataAccess {
 			param: new {
 				user_article_id = userArticleId,
 				read_state = readState,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -691,7 +677,7 @@ namespace api.DataAccess {
 			param: new {
 				author_id = authorId,
 				twitter_handle = twitterHandle,
-				twitter_handle_assignment = ConvertEnumToString(twitterHandleAssignment)
+				twitter_handle_assignment = PostgresSerialization.SerializeEnum(twitterHandleAssignment)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -757,7 +743,7 @@ namespace api.DataAccess {
 		) => await conn.QueryAsync<NotificationReceipt>(
 			sql: "notifications.clear_all_alerts",
 			param: new {
-				type = ConvertEnumToString(type),
+				type = PostgresSerialization.SerializeEnum(type),
 				user_account_id = userAccountId
 			},
 			commandType: CommandType.StoredProcedure
@@ -826,9 +812,9 @@ namespace api.DataAccess {
 			sql: "notifications.create_email_notification",
 			param: new {
 				notification_type = notificationType,
-				mail = PostgresJsonSerialization.Serialize(mail),
-				bounce = PostgresJsonSerialization.Serialize(bounce),
-				complaint = PostgresJsonSerialization.Serialize(complaint)
+				mail = PostgresSerialization.SerializeJson(mail),
+				bounce = PostgresSerialization.SerializeJson(bounce),
+				complaint = PostgresSerialization.SerializeJson(complaint)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -839,7 +825,7 @@ namespace api.DataAccess {
 				await conn.QueryAsync<NotificationFollowerDigestDispatch>(
 					sql: "notifications.create_follower_digest_notifications",
 					param: new {
-						frequency = ConvertEnumToString(frequency)
+						frequency = PostgresSerialization.SerializeEnum(frequency)
 					},
 					commandType: CommandType.StoredProcedure
 				)
@@ -896,8 +882,8 @@ namespace api.DataAccess {
 			sql: "notifications.create_interaction",
 			param: new {
 				receipt_id = receiptId,
-				channel = ConvertEnumToString(channel),
-				action = ConvertEnumToString(action),
+				channel = PostgresSerialization.SerializeEnum(channel),
+				action = PostgresSerialization.SerializeEnum(action),
 				url,
 				reply_id = replyId
 			},
@@ -910,7 +896,7 @@ namespace api.DataAccess {
 				await conn.QueryAsync<NotificationCommentDigestDispatch>(
 					sql: "notifications.create_loopback_digest_notifications",
 					param: new {
-						frequency = ConvertEnumToString(frequency)
+						frequency = PostgresSerialization.SerializeEnum(frequency)
 					},
 					commandType: CommandType.StoredProcedure
 				)
@@ -967,7 +953,7 @@ namespace api.DataAccess {
 				await conn.QueryAsync<NotificationPostDigestDispatch>(
 					sql: "notifications.create_post_digest_notifications",
 					param: new {
-						frequency = ConvertEnumToString(frequency)
+						frequency = PostgresSerialization.SerializeEnum(frequency)
 					},
 					commandType: CommandType.StoredProcedure
 				)
@@ -1041,7 +1027,7 @@ namespace api.DataAccess {
 				await conn.QueryAsync<NotificationCommentDigestDispatch>(
 					sql: "notifications.create_reply_digest_notifications",
 					param: new {
-						frequency = ConvertEnumToString(frequency)
+						frequency = PostgresSerialization.SerializeEnum(frequency)
 					},
 					commandType: CommandType.StoredProcedure
 				)
@@ -1102,7 +1088,7 @@ namespace api.DataAccess {
 				sql: "notifications.create_transactional_notification",
 				param: new {
 					user_account_id = userAccountId,
-					event_type = ConvertEnumToString(eventType),
+					event_type = PostgresSerialization.SerializeEnum(eventType),
 					email_confirmation_id = emailConfirmationId,
 					password_reset_request_id = passwordResetRequestId
 				},
@@ -1199,23 +1185,23 @@ namespace api.DataAccess {
 				aotd_via_email = options.AotdViaEmail,
 				aotd_via_extension = options.AotdViaExtension,
 				aotd_via_push = options.AotdViaPush,
-				aotd_digest_via_email = ConvertEnumToString(options.AotdDigestViaEmail),
+				aotd_digest_via_email = PostgresSerialization.SerializeEnum(options.AotdDigestViaEmail),
 				reply_via_email = options.ReplyViaEmail,
 				reply_via_extension = options.ReplyViaExtension,
 				reply_via_push = options.ReplyViaPush,
-				reply_digest_via_email = ConvertEnumToString(options.ReplyDigestViaEmail),
+				reply_digest_via_email = PostgresSerialization.SerializeEnum(options.ReplyDigestViaEmail),
 				loopback_via_email = options.LoopbackViaEmail,
 				loopback_via_extension = options.LoopbackViaExtension,
 				loopback_via_push = options.LoopbackViaPush,
-				loopback_digest_via_email = ConvertEnumToString(options.LoopbackDigestViaEmail),
+				loopback_digest_via_email = PostgresSerialization.SerializeEnum(options.LoopbackDigestViaEmail),
 				post_via_email = options.PostViaEmail,
 				post_via_extension = options.PostViaExtension,
 				post_via_push = options.PostViaPush,
-				post_digest_via_email = ConvertEnumToString(options.PostDigestViaEmail),
+				post_digest_via_email = PostgresSerialization.SerializeEnum(options.PostDigestViaEmail),
 				follower_via_email = options.FollowerViaEmail,
 				follower_via_extension = options.FollowerViaExtension,
 				follower_via_push = options.FollowerViaPush,
-				follower_digest_via_email = ConvertEnumToString(options.FollowerDigestViaEmail)
+				follower_digest_via_email = PostgresSerialization.SerializeEnum(options.FollowerDigestViaEmail)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1227,7 +1213,7 @@ namespace api.DataAccess {
 			sql: "notifications.unregister_push_device_by_installation_id",
 			param: new {
 				installation_id = installationId,
-				reason = ConvertEnumToString(reason)
+				reason = PostgresSerialization.SerializeEnum(reason)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1239,7 +1225,7 @@ namespace api.DataAccess {
 			sql: "notifications.unregister_push_device_by_token",
 			param: new {
 				token,
-				reason = ConvertEnumToString(reason)
+				reason = PostgresSerialization.SerializeEnum(reason)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1422,7 +1408,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				parent_comment_id = parentCommentId,
 				user_account_id = userAccountId,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1448,7 +1434,7 @@ namespace api.DataAccess {
 			param: new {
 				follower_user_id = followerUserId,
 				followee_user_name = followeeUserName,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1462,7 +1448,7 @@ namespace api.DataAccess {
 			param: new {
 				user_account_id = userAccountId,
 				article_id = articleId,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1678,7 +1664,7 @@ namespace api.DataAccess {
 			param: new {
 				follower_user_id = followerUserId,
 				followee_user_name = followeeUserName,
-				analytics = PostgresJsonSerialization.Serialize(new { Client = analytics })
+				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1827,7 +1813,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
 			sql: "subscriptions.assign_default_payment_method",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_account_id = providerAccountId,
 				provider_payment_method_id = providerPaymentMethodId
 			},
@@ -1846,7 +1832,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleAsync<SubscriptionDistributionCalculation>(
 			sql: "subscriptions.calculate_distribution_for_period",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_period_id = providerPeriodId
 			},
 			commandType: CommandType.StoredProcedure
@@ -1876,7 +1862,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPriceLevel>(
 			sql: "subscriptions.create_custom_price_level",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_price_id = providerPriceId,
 				date_created = dateCreated,
 				amount
@@ -1890,7 +1876,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriodDistribution>(
 			sql: "subscriptions.create_distribution_for_period",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_period_id = providerPeriodId
 			},
 			commandType: CommandType.StoredProcedure
@@ -1915,11 +1901,11 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionAccount>(
 			sql: "subscriptions.create_or_update_subscription_account",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_account_id = providerAccountId,
 				user_account_id = userAccountId,
 				date_created = dateCreated,
-				environment = ConvertEnumToString(environment)
+				environment = PostgresSerialization.SerializeEnum(environment)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -1933,7 +1919,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<Subscription>(
 			sql: "subscriptions.create_or_update_subscription",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_subscription_id = providerSubscriptionId,
 				provider_account_id = providerAccountId,
 				date_created = dateCreated,
@@ -1959,7 +1945,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
 			sql: "subscriptions.create_or_update_subscription_period",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_period_id = providerPeriodId,
 				provider_subscription_id = providerSubscriptionId,
 				provider_price_id = providerPriceId,
@@ -1967,7 +1953,7 @@ namespace api.DataAccess {
 				begin_date = beginDate,
 				end_date = endDate,
 				date_created = dateCreated,
-				payment_status = ConvertEnumToString(paymentStatus),
+				payment_status = PostgresSerialization.SerializeEnum(paymentStatus),
 				date_paid = datePaid,
 				date_refunded = dateRefunded,
 				refund_reason = refundReason,
@@ -2002,12 +1988,12 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
 			sql: "subscriptions.create_payment_method",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_payment_method_id = providerPaymentMethodId,
 				provider_account_id = providerAccountId,
 				date_created = dateCreated,
-				wallet = ConvertEnumToString(wallet),
-				brand = ConvertEnumToString(brand),
+				wallet = PostgresSerialization.SerializeEnum(wallet),
+				brand = PostgresSerialization.SerializeEnum(brand),
 				last_four_digits = lastFourDigits,
 				country,
 				expiration_month = expirationMonth,
@@ -2026,7 +2012,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionRenewalStatusChange>(
 			sql: "subscriptions.create_subscription_renewal_status_change",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_subscription_id = providerSubscriptionId,
 				date_created = dateCreated,
 				auto_renew_enabled = autoRenewEnabled,
@@ -2052,7 +2038,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPriceLevel>(
 			sql: "subscriptions.get_custom_price_level_for_provider",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				amount
 			},
 			commandType: CommandType.StoredProcedure
@@ -2064,7 +2050,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
 			sql: "subscriptions.get_default_payment_method_for_subscription_account",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_account_id = providerAccountId
 			},
 			commandType: CommandType.StoredProcedure
@@ -2105,7 +2091,7 @@ namespace api.DataAccess {
 		) => await connection.QueryAsync<SubscriptionPriceLevel>(
 			sql: "subscriptions.get_standard_price_levels_for_provider",
 			param: new {
-				provider = ConvertEnumToString(provider)
+				provider = PostgresSerialization.SerializeEnum(provider)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -2116,7 +2102,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
 			sql: "subscriptions.get_payment_method",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_payment_method_id = providerPaymentMethodId
 			},
 			commandType: CommandType.StoredProcedure
@@ -2128,7 +2114,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPeriod>(
 			sql: "subscriptions.get_subscription_period",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_period_id = providerPeriodId
 			},
 			commandType: CommandType.StoredProcedure
@@ -2150,7 +2136,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionStatus>(
 			sql: "subscriptions.get_subscription_status_for_subscription_account",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_account_id = providerAccountId
 			},
 			commandType: CommandType.StoredProcedure
@@ -2188,7 +2174,7 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleAsync<SubscriptionDistributionReport>(
 			sql: "subscriptions.run_distribution_report_for_period_calculation",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_period_id = providerPeriodId
 			},
 			commandType: CommandType.StoredProcedure
@@ -2243,9 +2229,9 @@ namespace api.DataAccess {
 		) => await connection.QuerySingleOrDefaultAsync<SubscriptionPaymentMethod>(
 			sql: "subscriptions.update_payment_method",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_payment_method_id = providerPaymentMethodId,
-				event_source = ConvertEnumToString(eventSource),
+				event_source = PostgresSerialization.SerializeEnum(eventSource),
 				expiration_month = expirationMonth,
 				expiration_year = expirationYear
 			},
@@ -2266,7 +2252,7 @@ namespace api.DataAccess {
 				identity_id = identityId,
 				authentication_id = authenticationId,
 				user_account_id = userAccountId,
-				association_method = ConvertEnumToString(associationMethod)
+				association_method = PostgresSerialization.SerializeEnum(associationMethod)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -2338,15 +2324,15 @@ namespace api.DataAccess {
 		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
 			sql: "user_account_api.create_auth_service_identity",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_user_id = providerUserId,
 				provider_user_email_address = providerUserEmailAddress,
 				is_email_address_private = isEmailAddressPrivate,
 				provider_user_name = providerUserName,
 				provider_user_handle = providerUserHandle,
-				real_user_rating = ConvertEnumToString(realUserRating),
+				real_user_rating = PostgresSerialization.SerializeEnum(realUserRating),
 				sign_up_analytics = signUpAnalytics != null ?
-					PostgresJsonSerialization.Serialize(signUpAnalytics) :
+					PostgresSerialization.SerializeJson(signUpAnalytics) :
 					null
 			},
 			commandType: CommandType.StoredProcedure
@@ -2390,11 +2376,11 @@ namespace api.DataAccess {
 		) => await conn.QuerySingleOrDefaultAsync<AuthServiceRequestToken>(
 			sql: "user_account_api.create_auth_service_request_token",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				token_value = tokenValue,
 				token_secret = tokenSecret,
 				sign_up_analytics = signUpAnalytics != null ?
-					PostgresJsonSerialization.Serialize(signUpAnalytics) :
+					PostgresSerialization.SerializeJson(signUpAnalytics) :
 					null
 			},
 			commandType: CommandType.StoredProcedure
@@ -2435,7 +2421,7 @@ namespace api.DataAccess {
 		) => await conn.QuerySingleOrDefaultAsync<ProvisionalUserAccount>(
 			sql: "user_account_api.create_provisional_user_account",
 			param: new {
-				analytics = PostgresJsonSerialization.Serialize(analytics)
+				analytics = PostgresSerialization.SerializeJson(analytics)
 			},
 			commandType: CommandType.StoredProcedure
 		);
@@ -2456,7 +2442,7 @@ namespace api.DataAccess {
 			passwordSalt,
 			timeZoneId,
 			theme,
-			PostgresJsonSerialization.Serialize(analytics)
+			PostgresSerialization.SerializeJson(analytics)
 		);
 		public static async Task<UserAccount> CreateUserAccount(
 			this NpgsqlConnection conn,
@@ -2477,7 +2463,7 @@ namespace api.DataAccess {
 						password_hash = passwordHash,
 						password_salt = passwordSalt,
 						time_zone_id = timeZoneId,
-						theme = ConvertEnumToString(theme),
+						theme = PostgresSerialization.SerializeEnum(theme),
 						analytics
 					},
 					commandType: CommandType.StoredProcedure
@@ -2529,7 +2515,7 @@ namespace api.DataAccess {
 		) => await conn.QuerySingleOrDefaultAsync<AuthServiceAccount>(
 			sql: "user_account_api.get_auth_service_account_by_provider_user_id",
 			param: new {
-				provider = ConvertEnumToString(provider),
+				provider = PostgresSerialization.SerializeEnum(provider),
 				provider_user_id = providerUserId
 			},
 			commandType: CommandType.StoredProcedure
@@ -2672,7 +2658,7 @@ namespace api.DataAccess {
 			sql: "user_account_api.set_display_preference",
 			param: new {
 				user_account_id = userAccountId,
-				theme = ConvertEnumToString(theme),
+				theme = PostgresSerialization.SerializeEnum(theme),
 				text_size = textSize,
 				hide_links = hideLinks
 			},

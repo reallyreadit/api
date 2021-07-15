@@ -754,7 +754,7 @@ namespace api.Authentication {
 			// attempt to parse sign up analytics from request token if parameter is null
 			if (signUpAnalytics == null && requestToken.SignUpAnalytics != null) {
 				try {
-					signUpAnalytics = PostgresJsonSerialization.Deserialize<UserAccountCreationAnalytics>(requestToken.SignUpAnalytics);
+					signUpAnalytics = PostgresSerialization.DeserializeJson<UserAccountCreationAnalytics>(requestToken.SignUpAnalytics);
 				} catch (Exception exception) {
 					logger.LogError(exception, "Failed to deserialize sign up analytics from Twitter request token");
 				}
