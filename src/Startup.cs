@@ -337,6 +337,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SubscriptionProvider>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<TwitterHandleAssignment>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<ArticleAuthor>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<AuthorContactStatusAssignment>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<AuthorMetadata>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();

@@ -679,6 +679,16 @@ namespace api.DataAccess {
 		#endregion
 
 		#region authors
+		public static async Task<Author> AssignContactStatusToAuthorsAsync(
+			this NpgsqlConnection conn,
+			AuthorContactStatusAssignment[] assignments
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "authors.assign_contact_status_to_authors(",
+			param: new {
+				assignments
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<Author> AssignTwitterHandleToAuthor(
 			this NpgsqlConnection conn,
 			long authorId,
