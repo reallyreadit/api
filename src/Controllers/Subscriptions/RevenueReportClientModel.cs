@@ -6,14 +6,12 @@ namespace api.Controllers.Subscriptions {
 	public class RevenueReportClientModel {
 		public RevenueReportClientModel(
 			SubscriptionAllocationCalculation calculation,
-			IEnumerable<AuthorEarningsReportLineItem> earningsReport,
+			AuthorEarningsTotalsReport earningsReport,
 			PayoutTotalsReport payoutTotalsReport
 		) {
 			TotalRevenue = calculation.AuthorAmount + calculation.PlatformAmount + calculation.ProviderAmount;
 			AuthorAllocation = calculation.AuthorAmount;
-			AuthorEarnings = earningsReport.Sum(
-				item => item.AmountEarned
-			);
+			AuthorEarnings = earningsReport.TotalAuthorEarnings;
 			TotalPayouts = payoutTotalsReport.TotalAuthorPayouts + payoutTotalsReport.TotalDonationPayouts;
 		}
 		public int TotalRevenue { get; }

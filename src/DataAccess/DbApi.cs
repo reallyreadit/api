@@ -2161,6 +2161,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<AuthorEarningsTotalsReport> RunAuthorEarningsTotalsReportAsync(
+			this NpgsqlConnection connection
+		) => await connection.QuerySingleOrDefaultAsync<AuthorEarningsTotalsReport>(
+			sql: "subscriptions.run_author_earnings_totals_report",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<IEnumerable<AuthorEarningsReportLineItem>> RunAuthorsEarningsReportAsync(
 			this NpgsqlConnection connection
 		) => await connection.QueryAsync<AuthorEarningsReportLineItem>(

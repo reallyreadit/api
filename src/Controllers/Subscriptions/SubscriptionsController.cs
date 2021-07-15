@@ -1293,12 +1293,12 @@ namespace api.Controllers.Subscriptions {
 			[FromQuery] RevenueReportRequest request
 		) {
 			SubscriptionAllocationCalculation allocationCalculation;
-			IEnumerable<AuthorEarningsReportLineItem> earningsReport;
+			AuthorEarningsTotalsReport earningsReport;
 			PayoutTotalsReport payoutTotalsReport;
 			if (User.Identity.IsAuthenticated && !request.UseCache) {
 				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 					allocationCalculation = await db.CalculateAllocationForAllSubscriptionPeriodsAsync();
-					earningsReport = await db.RunAuthorsEarningsReportAsync();
+					earningsReport = await db.RunAuthorEarningsTotalsReportAsync();
 					payoutTotalsReport = await db.RunPayoutTotalsReportAsync();
 				}
 			} else {
@@ -1313,14 +1313,14 @@ namespace api.Controllers.Subscriptions {
 						}
 					}
 				);
-				earningsReport = await memoryCache.GetOrCreateAsync<IEnumerable<AuthorEarningsReportLineItem>>(
-					"AuthorEarningsReport",
+				earningsReport = await memoryCache.GetOrCreateAsync<AuthorEarningsTotalsReport>(
+					"AuthorEarningsTotalsReport",
 					async entry => {
 						entry.SetAbsoluteExpiration(
 							TimeSpan.FromMinutes(1)
 						);
 						using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-							return await db.RunAuthorsEarningsReportAsync();
+							return await db.RunAuthorEarningsTotalsReportAsync();
 						}
 					}
 				);
