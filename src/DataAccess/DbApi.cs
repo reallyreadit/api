@@ -679,11 +679,11 @@ namespace api.DataAccess {
 		#endregion
 
 		#region authors
-		public static async Task<Author> AssignContactStatusToAuthorsAsync(
+		public static async Task<IEnumerable<long>> AssignContactStatusToAuthorsAsync(
 			this NpgsqlConnection conn,
 			AuthorContactStatusAssignment[] assignments
-		) => await conn.QuerySingleOrDefaultAsync<Author>(
-			sql: "authors.assign_contact_status_to_authors(",
+		) => await conn.QueryAsync<long>(
+			sql: "authors.assign_contact_status_to_authors",
 			param: new {
 				assignments
 			},
