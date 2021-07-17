@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using api.Configuration;
 using api.Controllers.Shared;
@@ -19,6 +21,32 @@ namespace api.Controllers.AuthorsController {
 		) {
 			this.databaseOptions = databaseOptions.Value;
 			this.log = log;
+		}
+		[AllowAnonymous]
+		[HttpPost]
+		public async Task<ActionResult<ContactStatusResponse>> ContactStatus(
+			[FromServices] IOptions<AuthenticationOptions> authOptions,
+			[FromBody] ContactStatusRequest request
+		) {
+			if (request.ApiKey != authOptions.Value.ApiKey) {
+				return BadRequest();
+			}
+			IEnumerable<long> updatedAuthorIds;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				updatedAuthorIds = await db.AssignContactStatusToAuthorsAsync(
+					request.Assignments
+						.Select(
+							assignment => new AuthorContactStatusAssignment(
+								slug: assignment.Slug,
+								contactStatus: assignment.Status
+							)
+						)
+						.ToArray()
+				);
+			}
+			return new ContactStatusResponse(
+				updatedRecordCount: updatedAuthorIds.Count()
+			);
 		}
 		[AllowAnonymous]
 		[HttpGet]

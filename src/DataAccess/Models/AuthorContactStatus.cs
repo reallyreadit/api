@@ -1,6 +1,6 @@
 namespace api.DataAccess.Models {
 	public enum AuthorContactStatus {
-		None,
-		Attempted
+		None = 0,
+		Attempted = 1
 	}
 }
