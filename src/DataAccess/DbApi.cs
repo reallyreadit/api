@@ -1789,6 +1789,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<AuthorEarningsRanking>> GetAuthorLeaderboard(
+			this NpgsqlConnection conn,
+			int minAmountEarned,
+			int maxAmountEarned
+		) => await conn.QueryAsync<AuthorEarningsRanking>(
+			sql: "stats.get_top_author_leaderboard",
+			param: new {
+				min_amount_earned = minAmountEarned,
+				max_amount_earned = maxAmountEarned
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<int> GetUserCount(
 			this NpgsqlConnection conn
 		) => await conn.QuerySingleOrDefaultAsync<int>(

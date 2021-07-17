@@ -938,12 +938,12 @@ namespace api.Controllers.Subscriptions {
 						TimeSpan.FromMinutes(1)
 					);
 					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-						var lineItems = await db.RunAuthorsEarningsReportAsync(
+						var rankings = await db.GetAuthorLeaderboard(
 							minAmountEarned: request.MinAmountEarned,
 							maxAmountEarned: request.MaxAmountEarned
 						);
 						var articles = await db.GetArticlesAsync(
-							articleIds: lineItems
+							articleIds: rankings
 								.Select(
 									item => item.TopArticleId
 								)
@@ -952,9 +952,9 @@ namespace api.Controllers.Subscriptions {
 							userAccountId: User.GetUserAccountIdOrDefault()
 						);
 						return new AuthorsEarningsReportResponse(
-							lineItems.Select(
+							rankings.Select(
 								lineItem => new AuthorEarningsReportLineItemClientModel(
-									lineItem: lineItem,
+									ranking: lineItem,
 									topArticle: articles.Single(
 										article => article.Id == lineItem.TopArticleId
 									)

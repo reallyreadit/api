@@ -3,22 +3,22 @@ using api.DataAccess.Models;
 namespace api.Controllers.Subscriptions {
 	public class AuthorEarningsReportLineItemClientModel {
 		public AuthorEarningsReportLineItemClientModel(
-			AuthorEarningsReportLineItem lineItem,
+			AuthorEarningsRanking ranking,
 			Article topArticle
 		) {
-			AuthorName = lineItem.AuthorName;
-			AuthorSlug = lineItem.AuthorSlug;
-			UserAccountName = lineItem.UserAccountName;
-			DonationRecipientName = lineItem.DonationRecipientName;
-			MinutesRead = lineItem.MinutesRead;
-			AmountEarned = lineItem.AmountEarned;
-			if (lineItem.DonationRecipientId.HasValue) {
+			AuthorName = ranking.AuthorName;
+			AuthorSlug = ranking.AuthorSlug;
+			UserAccountName = ranking.UserAccountName;
+			DonationRecipientName = ranking.DonationRecipientName;
+			MinutesRead = ranking.MinutesRead;
+			AmountEarned = ranking.AmountEarned;
+			if (ranking.DonationRecipientId.HasValue) {
 				Status = AuthorEarningsReportLineItemStatus.DonationPaidOut;
-			} else if (lineItem.AmountPaid > 0) {
+			} else if (ranking.AmountPaid > 0) {
 				Status = AuthorEarningsReportLineItemStatus.AuthorPaidOut;
-			} else if (lineItem.AuthorContactStatus == AuthorContactStatus.Attempted) {
+			} else if (ranking.AuthorContactStatus == AuthorContactStatus.Attempted) {
 				Status = AuthorEarningsReportLineItemStatus.Contacted;
-			} else if (lineItem.AmountEarned >= 1000) {
+			} else if (ranking.AmountEarned >= 1000) {
 				Status = AuthorEarningsReportLineItemStatus.NotYetContacted;
 			} else {
 				Status = AuthorEarningsReportLineItemStatus.ApproachingMinimum;
