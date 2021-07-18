@@ -932,7 +932,7 @@ namespace api.Controllers.Subscriptions {
 			[FromQuery] AuthorsEarningsReportRequest request
 		) {
 			return await memoryCache.GetOrCreateAsync<AuthorsEarningsReportResponse>(
-				"AuthorsEarningsReportResponse",
+				$"AuthorsEarningsReportResponse_{request.MinAmountEarned}_{request.MaxAmountEarned}",
 				async entry => {
 					entry.SetAbsoluteExpiration(
 						TimeSpan.FromMinutes(1)
