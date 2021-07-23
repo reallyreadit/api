@@ -74,6 +74,10 @@ namespace api.Controllers.Extension {
 				{
 					"https://waitbutwhy.com",
 					"Tim Urban"
+				},
+				{
+					"https://seths.blog",
+					"Seth Godin"
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
