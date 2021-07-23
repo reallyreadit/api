@@ -358,17 +358,18 @@ namespace api.Controllers.Extension {
 				if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
 					sourceUri = new Uri(pageUri.GetComponents(UriComponents.SchemeAndServer, UriFormat.Unescaped));
 				}
-				var source = db.FindSource(sourceUri.Host);
+				var sourceHost = Regex.Replace(sourceUri.Host, @"^www\.", String.Empty);
+				var source = db.FindSource(sourceHost);
 				if (source == null) {
 					// create source
 					string
-						sourceName = Decode(binder.Article.Source.Name) ?? Regex.Replace(sourceUri.Host, @"^www\.", String.Empty),
+						sourceName = Decode(binder.Article.Source.Name) ?? sourceHost,
 						sourceSlug = CreateSlug(sourceName);
 					try {
 						source = db.CreateSource(
 							name: sourceName,
 							url: sourceUri.ToString(),
-							hostname: sourceUri.Host,
+							hostname: sourceHost,
 							slug: sourceSlug
 						);
 					} catch (NpgsqlException ex) when (
