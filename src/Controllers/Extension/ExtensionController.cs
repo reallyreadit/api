@@ -34,59 +34,59 @@ namespace api.Controllers.Extension {
 			this.dbOpts = dbOpts.Value;
 			this.logger = logger;
 		}
-		private static void AssignMissingAuthors(PageInfoBinder binder) {
-			if (binder.Article.Authors.Any()) {
-				return;
+		private static PageInfoBinder.ArticleBinder.AuthorBinder[] AssignMissingAuthors(PageInfoBinder.ArticleBinder.AuthorBinder[] authors, string sourceHost) {
+			if (authors.Any()) {
+				return authors;
 			}
 			var assignments = new Dictionary<string, string>() {
 				{
-					"https://aaronzlewis.com",
+					"aaronzlewis.com",
 					"Aaron Z. Lewis"
 				},
 				{
-					"https://alexarohn.com",
+					"alexarohn.com",
 					"Alexa Rohn"
 				},
 				{
-					"https://www.attentionactivist.com/",
+					"attentionactivist.com",
 					"Jay Vidyarthi"
 				},
 				{
-					"https://blog.viktomas.com",
+					"blog.viktomas.com",
 					"Tomas Vik"
 				},
 				{
-					"https://www.contrapoints.com",
+					"contrapoints.com",
 					"Natalie Wynn"
 				},
 				{
-					"https://franklywrite.com",
+					"franklywrite.com",
 					"Cynthia Franks"
 				},
 				{
-					"https://www.kevin-indig.com",
+					"kevin-indig.com",
 					"Kevin Indig"
 				},
 				{
-					"https://stratechery.com",
+					"stratechery.com",
 					"Ben Thompson"
 				},
 				{
-					"https://waitbutwhy.com",
+					"waitbutwhy.com",
 					"Tim Urban"
 				},
 				{
-					"https://seths.blog",
+					"seths.blog",
 					"Seth Godin"
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
-				key => binder.Url.StartsWith(key)
+				key => key == sourceHost
 			);
 			if (matchingKey == null) {
-				return;
+				return authors;
 			}
-			binder.Article.Authors = new PageInfoBinder.ArticleBinder.AuthorBinder[] {
+			return new PageInfoBinder.ArticleBinder.AuthorBinder[] {
 				new PageInfoBinder.ArticleBinder.AuthorBinder() {
 					Name = assignments[matchingKey]
 				}
@@ -351,8 +351,6 @@ namespace api.Controllers.Extension {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
-				// fix authors
-				AssignMissingAuthors(binder);
 				// resolve the source first so we can search for duplicate articles by slug
 				Uri pageUri = new Uri(binder.Url), sourceUri;
 				if (!Uri.TryCreate(binder.Article.Source.Url, UriKind.Absolute, out sourceUri)) {
@@ -497,7 +495,9 @@ namespace api.Controllers.Extension {
 							dateModified: ParseArticleDate(binder.Article.DateModified),
 							section: PrepareArticleSection(Decode(binder.Article.Section)),
 							description: Decode(binder.Article.Description),
-							authors: PrepareAuthors(binder.Article.Authors),
+							authors: PrepareAuthors(
+								AssignMissingAuthors(binder.Article.Authors, sourceHost)
+							),
 							tags: PrepareTags(binder.Article.Tags)
 						);
 					} catch (NpgsqlException ex) when (
