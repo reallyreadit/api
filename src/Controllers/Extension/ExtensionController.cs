@@ -351,13 +351,6 @@ namespace api.Controllers.Extension {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
-				// fix urls
-				if (binder.Url.StartsWith("http://alexarohn.com")) {
-					binder.Url = Regex.Replace(binder.Url, "^http", "https");
-				}
-				if (binder.Url.StartsWith("http://nautil.us")) {
-					binder.Url = Regex.Replace(binder.Url, "^http", "https");
-				}
 				// fix authors
 				AssignMissingAuthors(binder);
 				// resolve the source first so we can search for duplicate articles by slug
