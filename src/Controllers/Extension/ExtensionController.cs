@@ -78,6 +78,46 @@ namespace api.Controllers.Extension {
 				{
 					"seths.blog",
 					"Seth Godin"
+				},
+				{
+					"paulgraham.com",
+					"Paul Graham"
+				},
+				{
+					"raptitude.com",
+					"David Cain"
+				},
+				{
+					"manassaloi.com",
+					"Manas J. Saloi"
+				},
+				{
+					"calnewport.com",
+					"Cal Newport"
+				},
+				{
+					"jamesclear.com",
+					"James Clear"
+				},
+				{
+					"dreamtimehealings.com",
+					"Helen Knight"
+				},
+				{
+					"nav.al",
+					"Naval Ravikant"
+				},
+				{
+					"craigmod.com",
+					"Craig Mod"
+				},
+				{
+					"dougantin.com",
+					"Doug Antin"
+				},
+				{
+					"lisarichardsonbylines.com",
+					"Lisa Richardson"
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
