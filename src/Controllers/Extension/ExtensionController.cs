@@ -352,6 +352,29 @@ namespace api.Controllers.Extension {
 			text = WebUtility.UrlDecode(text);
 			return text;
 		}
+		private IActionResult DuplicateSourceError(Uri sourceUri, string sourceName, string sourceSlug) {
+			if (
+				this.ClientVersionIsGreaterThanOrEqualTo(
+					new Dictionary<ClientType, SemanticVersion>() {
+							{ ClientType.IosExtension, new SemanticVersion(0, 0, 0) },
+							{ ClientType.WebExtension, new SemanticVersion(3, 0, 0) }
+					}
+				)
+			) {
+				logger.LogError(
+					"Duplicate source. Name: {Name} Url: {Url} Hostname: {Hostname} Slug: {Slug}",
+					sourceName,
+					sourceUri.ToString(),
+					sourceUri.Host,
+					sourceSlug
+				);
+			}
+			return BadRequest(
+				new[] {
+					"DuplicateSource"
+				}
+			);
+		}
 		[HttpGet]
 		public IActionResult FindSource(string hostname) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
@@ -410,34 +433,36 @@ namespace api.Controllers.Extension {
 							hostname: sourceHost,
 							slug: sourceSlug
 						);
-					} catch (NpgsqlException ex) when (
-						ex.Data.Contains("ConstraintName") &&
-						(
-							String.Equals(ex.Data["ConstraintName"], "source_hostname_key") ||
-							String.Equals(ex.Data["ConstraintName"], "source_slug_key")
-						)
+					} catch (PostgresException ex) when (
+						ex.ConstraintName == "source_hostname_key" ||
+						ex.ConstraintName == "source_slug_key"
 					) {
-						if (
-							this.ClientVersionIsGreaterThanOrEqualTo(
-								new Dictionary<ClientType, SemanticVersion>() {
-										{ ClientType.IosExtension, new SemanticVersion(0, 0, 0) },
-										{ ClientType.WebExtension, new SemanticVersion(3, 0, 0) }
-								}
-							)
-						) {
-							logger.LogError(
-								"Duplicate source. Name: {Name} Url: {Url} Hostname: {Hostname} Slug: {Slug}",
-								sourceName,
-								sourceUri.ToString(),
-								sourceUri.Host,
-								sourceSlug
+						if (ex.ConstraintName == "source_slug_key") {
+							sourceSlug = CreateSlug(sourceHost);
+							try {
+								source = db.CreateSource(
+									name: sourceName,
+									url: sourceUri.ToString(),
+									hostname: sourceHost,
+									slug: sourceSlug
+								);
+							} catch (PostgresException retryEx) when (
+								retryEx.ConstraintName == "source_hostname_key" ||
+								retryEx.ConstraintName == "source_slug_key"
+							) {
+								return DuplicateSourceError(
+									sourceUri: sourceUri,
+									sourceName: sourceName,
+									sourceSlug: sourceSlug
+								);
+							}
+						} else {
+							return DuplicateSourceError(
+								sourceUri: sourceUri,
+								sourceName: sourceName,
+								sourceSlug: sourceSlug
 							);
 						}
-						return BadRequest(
-							new[] {
-								"DuplicateSource"
-							}
-						);
 					}
 				}
 				// create the slug
