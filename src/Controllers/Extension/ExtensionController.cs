@@ -118,6 +118,10 @@ namespace api.Controllers.Extension {
 				{
 					"lisarichardsonbylines.com",
 					"Lisa Richardson"
+				},
+				{
+					"perell.com",
+					"David Perell"
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
