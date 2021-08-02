@@ -45,7 +45,7 @@ namespace api.Controllers.Social {
 			// First verify that the article has been read and that the comment text is valid.
 			Article article;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				article = await db.GetArticle(form.ArticleId, userAccountId);
+				article = await db.GetArticleById(form.ArticleId, userAccountId);
 				if (!article.IsRead || !commentingService.IsCommentTextValid(form.Text)) {
 					return BadRequest();
 				}
@@ -68,7 +68,7 @@ namespace api.Controllers.Social {
 				userLeaderboardRankings = await db.GetUserLeaderboardRankings(
 					userAccountId: userAccountId
 				);
-				article = await db.GetArticle(form.ArticleId, userAccountId);
+				article = await db.GetArticleById(form.ArticleId, userAccountId);
 			}
 			// Create the client model and return.
 			var commentThread = new CommentThread(
@@ -176,7 +176,7 @@ namespace api.Controllers.Social {
 						);
 					}
 				);
-				var article = await db.FindArticle(query.Slug, userAccountId);
+				var article = await db.GetArticleBySlug(query.Slug, userAccountId);
 				if (article == null) {
 					logger.LogError("Article lookup failed. Slug: {Slug}", query.Slug);
 					return BadRequest(
@@ -286,12 +286,30 @@ namespace api.Controllers.Social {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = User.GetUserAccountId();
-				var postPageResult = await db.GetPostsFromFollowees(
-					userId: userAccountId,
-					pageNumber: query.PageNumber,
-					pageSize: 40,
-					minLength: query.MinLength,
-					maxLength: query.MaxLength
+				var postPageResult = await PageResult<api.DataAccess.Models.Post>.CreateAsync(
+					await db.GetPostsFromFollowees(
+						userId: userAccountId,
+						pageNumber: query.PageNumber,
+						pageSize: 40,
+						minLength: query.MinLength,
+						maxLength: query.MaxLength
+					),
+					async references => await db.GetPostsAsync(
+						postReferences: references.ToArray(),
+						userAccountId: userAccountId,
+						alertEventTypes: new [] {
+							NotificationEventType.Post
+						}
+					)
+				);
+				var articles = await db.GetArticlesAsync(
+					postPageResult.Items
+						.Select(
+							post => post.ArticleId
+						)
+						.Distinct()
+						.ToArray(),
+					userAccountId: userAccountId
 				);
 				var leaderboards = await db.GetLeaderboards(
 					userAccountId: userAccountId,
@@ -301,26 +319,28 @@ namespace api.Controllers.Social {
 					data: PageResult<Post>.Create(
 						source: postPageResult,
 						map: results => results.Select(
-							multimap => new Post(
-								article: multimap.Article,
-								date: multimap.Post.PostDateCreated,
-								userName: multimap.Post.UserName,
-								badge: leaderboards.GetBadge(multimap.Post.UserName),
+							post => new Post(
+								article: articles.Single(
+									article => article.Id == post.ArticleId
+								),
+								date: post.DateCreated,
+								userName: post.UserName,
+								badge: leaderboards.GetBadge(post.UserName),
 								comment: (
-									multimap.Post.CommentId.HasValue ?
+									post.CommentId.HasValue ?
 										new PostComment(
-											post: multimap.Post,
+											post: post,
 											obfuscationService: obfuscationService
 										) :
 										null
 								),
 								silentPostId: (
-									multimap.Post.SilentPostId.HasValue ?
-										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+									post.SilentPostId.HasValue ?
+										obfuscationService.Encode(post.SilentPostId.Value) :
 										null
 								),
-								dateDeleted: multimap.Post.DateDeleted,
-								hasAlert: multimap.Post.HasAlert
+								dateDeleted: post.DateDeleted,
+								hasAlert: post.HasAlert
 							)
 						)
 					)
@@ -348,10 +368,29 @@ namespace api.Controllers.Social {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = User.GetUserAccountId();
-				var postPageResult = await db.GetPostsFromInbox(
-					userId: userAccountId,
-					pageNumber: query.PageNumber,
-					pageSize: 40
+				var postPageResult = await PageResult<api.DataAccess.Models.Post>.CreateAsync(
+					await db.GetPostsFromInbox(
+						userId: userAccountId,
+						pageNumber: query.PageNumber,
+						pageSize: 40
+					),
+					async references => await db.GetPostsAsync(
+						postReferences: references.ToArray(),
+						userAccountId: userAccountId,
+						alertEventTypes: new [] {
+							NotificationEventType.Reply,
+							NotificationEventType.Loopback
+						}
+					)
+				);
+				var articles = await db.GetArticlesAsync(
+					postPageResult.Items
+						.Select(
+							post => post.ArticleId
+						)
+						.Distinct()
+						.ToArray(),
+					userAccountId: userAccountId
 				);
 				var leaderboards = await db.GetLeaderboards(
 					userAccountId: userAccountId,
@@ -361,26 +400,28 @@ namespace api.Controllers.Social {
 					data: PageResult<Post>.Create(
 						source: postPageResult,
 						map: results => results.Select(
-							multimap => new Post(
-								article: multimap.Article,
-								date: multimap.Post.PostDateCreated,
-								userName: multimap.Post.UserName,
-								badge: leaderboards.GetBadge(multimap.Post.UserName),
+							post => new Post(
+								article: articles.Single(
+									article => article.Id == post.ArticleId
+								),
+								date: post.DateCreated,
+								userName: post.UserName,
+								badge: leaderboards.GetBadge(post.UserName),
 								comment: (
-									multimap.Post.CommentId.HasValue ?
+									post.CommentId.HasValue ?
 										new PostComment(
-											post: multimap.Post,
+											post: post,
 											obfuscationService: obfuscationService
 										) :
 										null
 								),
 								silentPostId: (
-									multimap.Post.SilentPostId.HasValue ?
-										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+									post.SilentPostId.HasValue ?
+										obfuscationService.Encode(post.SilentPostId.Value) :
 										null
 								),
-								dateDeleted: multimap.Post.DateDeleted,
-								hasAlert: multimap.Post.HasAlert
+								dateDeleted: post.DateDeleted,
+								hasAlert: post.HasAlert
 							)
 						)
 					)
@@ -394,10 +435,29 @@ namespace api.Controllers.Social {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = User.GetUserAccountId();
-				var postPageResult = await db.GetNotificationPosts(
-					userId: userAccountId,
-					pageNumber: query.PageNumber,
-					pageSize: 40
+				var postPageResult = await PageResult<api.DataAccess.Models.Post>.CreateAsync(
+					await db.GetNotificationPosts(
+						userId: userAccountId,
+						pageNumber: query.PageNumber,
+						pageSize: 40
+					),
+					async references => await db.GetPostsAsync(
+						postReferences: references.ToArray(),
+						userAccountId: userAccountId,
+						alertEventTypes: new [] {
+							NotificationEventType.Post,
+							NotificationEventType.Loopback
+						}
+					)
+				);
+				var articles = await db.GetArticlesAsync(
+					postPageResult.Items
+						.Select(
+							post => post.ArticleId
+						)
+						.Distinct()
+						.ToArray(),
+					userAccountId: userAccountId
 				);
 				var leaderboards = await db.GetLeaderboards(
 					userAccountId: userAccountId,
@@ -407,26 +467,28 @@ namespace api.Controllers.Social {
 					data: PageResult<Post>.Create(
 						source: postPageResult,
 						map: results => results.Select(
-							multimap => new Post(
-								article: multimap.Article,
-								date: multimap.Post.PostDateCreated,
-								userName: multimap.Post.UserName,
-								badge: leaderboards.GetBadge(multimap.Post.UserName),
+							post => new Post(
+								article: articles.Single(
+									article => article.Id == post.ArticleId
+								),
+								date: post.DateCreated,
+								userName: post.UserName,
+								badge: leaderboards.GetBadge(post.UserName),
 								comment: (
-									multimap.Post.CommentId.HasValue ?
+									post.CommentId.HasValue ?
 										new PostComment(
-											post: multimap.Post,
+											post: post,
 											obfuscationService: obfuscationService
 										) :
 										null
 								),
 								silentPostId: (
-									multimap.Post.SilentPostId.HasValue ?
-										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+									post.SilentPostId.HasValue ?
+										obfuscationService.Encode(post.SilentPostId.Value) :
 										null
 								),
-								dateDeleted: multimap.Post.DateDeleted,
-								hasAlert: multimap.Post.HasAlert
+								dateDeleted: post.DateDeleted,
+								hasAlert: post.HasAlert
 							)
 						)
 					)
@@ -447,7 +509,7 @@ namespace api.Controllers.Social {
 			SilentPost silentPost;
 			UserAccount user;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				article = await db.GetArticle(
+				article = await db.GetArticleById(
 					articleId: form.ArticleId,
 					userAccountId: userAccountId
 				);
@@ -488,7 +550,7 @@ namespace api.Controllers.Social {
 						score: form.RatingScore.Value
 					);
 				}
-				article = await db.GetArticle(
+				article = await db.GetArticleById(
 					articleId: form.ArticleId,
 					userAccountId: userAccountId
 				);
@@ -580,10 +642,28 @@ namespace api.Controllers.Social {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = User.GetUserAccountId();
-				var postPageResult = await db.GetReplyPosts(
-					userId: userAccountId,
-					pageNumber: query.PageNumber,
-					pageSize: 40
+				var postPageResult = await PageResult<api.DataAccess.Models.Post>.CreateAsync(
+					await db.GetReplyPosts(
+						userId: userAccountId,
+						pageNumber: query.PageNumber,
+						pageSize: 40
+					),
+					async references => await db.GetPostsAsync(
+						postReferences: references.ToArray(),
+						userAccountId: userAccountId,
+						alertEventTypes: new [] {
+							NotificationEventType.Reply
+						}
+					)
+				);
+				var articles = await db.GetArticlesAsync(
+					postPageResult.Items
+						.Select(
+							post => post.ArticleId
+						)
+						.Distinct()
+						.ToArray(),
+					userAccountId: userAccountId
 				);
 				var leaderboards = await db.GetLeaderboards(
 					userAccountId: userAccountId,
@@ -593,26 +673,28 @@ namespace api.Controllers.Social {
 					data: PageResult<Post>.Create(
 						source: postPageResult,
 						map: results => results.Select(
-							multimap => new Post(
-								article: multimap.Article,
-								date: multimap.Post.PostDateCreated,
-								userName: multimap.Post.UserName,
-								badge: leaderboards.GetBadge(multimap.Post.UserName),
+							post => new Post(
+								article: articles.Single(
+									article => article.Id == post.ArticleId
+								),
+								date: post.DateCreated,
+								userName: post.UserName,
+								badge: leaderboards.GetBadge(post.UserName),
 								comment: (
-									multimap.Post.CommentId.HasValue ?
+									post.CommentId.HasValue ?
 										new PostComment(
-											post: multimap.Post,
+											post,
 											obfuscationService: obfuscationService
 										) :
 										null
 								),
 								silentPostId: (
-									multimap.Post.SilentPostId.HasValue ?
-										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+									post.SilentPostId.HasValue ?
+										obfuscationService.Encode(post.SilentPostId.Value) :
 										null
 								),
-								dateDeleted: multimap.Post.DateDeleted,
-								hasAlert: multimap.Post.HasAlert
+								dateDeleted: post.DateDeleted,
+								hasAlert: post.HasAlert
 							)
 						)
 					)
@@ -639,11 +721,26 @@ namespace api.Controllers.Social {
 			[FromQuery] UserPostsQuery query
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var postPageResult = await db.GetPostsFromUser(
-					viewerUserId: User.GetUserAccountIdOrDefault(),
-					subjectUserName: query.UserName,
-					pageNumber: query.PageNumber,
-					pageSize: query.PageSize
+				var postPageResult = await PageResult<api.DataAccess.Models.Post>.CreateAsync(
+					await db.GetPostsFromUser(
+						subjectUserName: query.UserName,
+						pageNumber: query.PageNumber,
+						pageSize: query.PageSize
+					),
+					async references => await db.GetPostsAsync(
+						postReferences: references.ToArray(),
+						userAccountId: User.GetUserAccountIdOrDefault(),
+						alertEventTypes: new NotificationEventType[0]
+					)
+				);
+				var articles = await db.GetArticlesAsync(
+					postPageResult.Items
+						.Select(
+							post => post.ArticleId
+						)
+						.Distinct()
+						.ToArray(),
+					userAccountId: User.GetUserAccountIdOrDefault()
 				);
 				var selectedUserBadge = (
 						await db.GetUserLeaderboardRankings(
@@ -657,26 +754,28 @@ namespace api.Controllers.Social {
 					data: PageResult<Post>.Create(
 						source: postPageResult,
 						map: results => results.Select(
-							multimap => new Post(
-								article: multimap.Article,
-								date: multimap.Post.PostDateCreated,
-								userName: multimap.Post.UserName,
-								hasAlert: multimap.Post.HasAlert,
+							post => new Post(
+								article: articles.Single(
+									article => article.Id == post.ArticleId
+								),
+								date: post.DateCreated,
+								userName: post.UserName,
+								hasAlert: post.HasAlert,
 								badge: selectedUserBadge,
 								comment: (
-									multimap.Post.CommentId.HasValue ?
+									post.CommentId.HasValue ?
 										new PostComment(
-											post: multimap.Post,
+											post: post,
 											obfuscationService: obfuscationService
 										) :
 										null
 								),
 								silentPostId: (
-									multimap.Post.SilentPostId.HasValue ?
-										obfuscationService.Encode(multimap.Post.SilentPostId.Value) :
+									post.SilentPostId.HasValue ?
+										obfuscationService.Encode(post.SilentPostId.Value) :
 										null
 								),
-								dateDeleted: multimap.Post.DateDeleted
+								dateDeleted: post.DateDeleted
 							)
 						)
 					)

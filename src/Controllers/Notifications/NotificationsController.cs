@@ -172,7 +172,7 @@ namespace api.Controllers.Notifications {
 					return Ok();
 				}
 				parent = await db.GetComment(notification.CommentIds.Single());
-				article = await db.GetArticle(
+				article = await db.GetArticleById(
 					articleId: parent.ArticleId,
 					userAccountId: userAccountId
 				);

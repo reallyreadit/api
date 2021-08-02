@@ -33,6 +33,7 @@ namespace api.DataAccess.Models {
 		public ArticleFlair Flair { get; set; }
 		public int AotdContenderRank { get; set; }
 		public ArticleAuthor[] ArticleAuthors { get; set; }
+		public string ImageUrl { get; set; }
 		public string ProofToken { get; set; }
 		public string GetFormattedByline(int maxAuthorCount = 3) {
 			var byline = Authors.ToListString();

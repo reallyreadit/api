@@ -240,7 +240,7 @@ namespace api.Notifications {
 				switch (resource) {
 					case EmailLinkResource.Article:
 					case EmailLinkResource.Comments:
-						var article = await db.GetArticle(resourceId);
+						var article = await db.GetArticleById(resourceId, userAccountId: null);
 						if (resource == EmailLinkResource.Article) {
 							return routing.CreateArticleUrl(article.Slug);
 						} else {
@@ -264,7 +264,7 @@ namespace api.Notifications {
 						return routing.CreateProfileUrl(follower.Name);
 					case EmailLinkResource.FirstPoster:
 						var firstPoster = await db.GetUserAccountByName(
-							(await db.GetArticle(resourceId)).FirstPoster
+							(await db.GetArticleById(resourceId, userAccountId: null)).FirstPoster
 						);
 						return routing.CreateProfileUrl(firstPoster.Name);
 					default:
@@ -333,7 +333,9 @@ namespace api.Notifications {
 			IEnumerable<Article> articles;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				dispatches = await db.CreateAotdDigestNotifications();
-				articles = await db.GetAotds(7);
+				articles = await db.GetArticlesAsync(
+					articleIds: (await db.GetAotds(7)).ToArray()
+				);
 			}
 			if (dispatches.Any()) {
 				await emailService.SendAotdDigestNotifications(
@@ -440,7 +442,7 @@ namespace api.Notifications {
 			IEnumerable<NotificationEmailDispatch> dispatches;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				foreach (var match in linkMatches) {
-					var article = await db.FindArticle(match.Groups[2].Value.Split(':')?[1], null);
+					var article = await db.GetArticleBySlug(match.Groups[2].Value.Split(':')?[1], null);
 					if (article == null) {
 						throw new ArgumentException("Invalid article slug");
 					}

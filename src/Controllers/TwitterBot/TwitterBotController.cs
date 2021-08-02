@@ -26,7 +26,10 @@ namespace api.Controllers.TwitterBot {
 			}
 			Article aotd;
 			using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-				aotd = (await db.GetAotds(dayCount: 1)).Single();
+				aotd = await db.GetArticleById(
+					articleId: (await db.GetAotds(dayCount: 1)).Single(),
+					userAccountId: null
+				);
 			}
 			var tweetText = await twitterAuth.GetAotdTweetText(aotd);
 			await emailService.Send(

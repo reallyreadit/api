@@ -41,7 +41,8 @@ namespace api.Controllers.Articles {
 						connectionString: dbOpts.ConnectionString
 					)
 				) {
-					article = await db.SetAotd();
+					var aotdId = await db.SetAotd();
+					article = await db.GetArticleById(articleId: aotdId, userAccountId: null);
 				}
 				await notifications.CreateAotdNotifications(article);
 				return Ok();
@@ -70,11 +71,10 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountIdOrDefault();
-				PageResult<Article> articles;
+				PageResult<long> articleIds;
 				switch (sort) {
 					case CommunityReadSort.Hot:
-						articles = await db.GetHotArticles(
-							userAccountId: userAccountId,
+						articleIds = await db.GetHotArticles(
 							pageNumber: pageNumber,
 							pageSize: pageSize,
 							minLength: minLength,
@@ -82,8 +82,7 @@ namespace api.Controllers.Articles {
 						);
 						break;
 					case CommunityReadSort.Top:
-						articles = await db.GetTopArticles(
-							userAccountId: userAccountId,
+						articleIds = await db.GetTopArticles(
 							pageNumber: pageNumber,
 							pageSize: pageSize,
 							minLength: minLength,
@@ -91,8 +90,7 @@ namespace api.Controllers.Articles {
 						);
 						break;
 					case CommunityReadSort.New:
-						articles = await db.GetNewAotdContenders(
-							userAccountId: userAccountId,
+						articleIds = await db.GetNewAotdContenders(
 							pageNumber: pageNumber,
 							pageSize: pageSize,
 							minLength: minLength,
@@ -102,7 +100,17 @@ namespace api.Controllers.Articles {
 					default:
 						throw new ArgumentException($"Unexpected value for {nameof(sort)}");
 				}
-				var aotd = (await db.GetAotds(1, userAccountId)).Single();
+				var articles = await PageResult<Article>.CreateAsync(
+					articleIds,
+					async articleIds => await db.GetArticlesAsync(
+						articleIds: articleIds.ToArray(),
+						userAccountId: userAccountId
+					)
+				);
+				var aotd = await db.GetArticleById(
+					articleId: (await db.GetAotds(1)).Single(),
+					userAccountId: userAccountId
+				);
 				var userReadCount = (
 					userAccountId.HasValue ?
 						await db.GetUserReadCount(userAccountId: userAccountId.Value) :
@@ -145,7 +153,7 @@ namespace api.Controllers.Articles {
 			}
 		}
 		[HttpGet]
-		public IActionResult ListStarred(
+		public async Task<IActionResult> ListStarred(
 			[FromServices] ReadingVerificationService verificationService,
 			int pageNumber,
 			int? minLength = null,
@@ -154,15 +162,21 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
-					PageResult<Article>.Create(
-						db.GetStarredArticles(
+					await PageResult<Article>.CreateAsync(
+						await db.GetStarredArticles(
 							userAccountId: userAccountId,
 							pageNumber: pageNumber,
 							pageSize: 40,
 							minLength: minLength,
 							maxLength: maxLength
 						),
-						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+						async articleIds => (
+								await db.GetArticlesAsync(
+									articleIds: articleIds.ToArray(),
+									userAccountId: userAccountId
+								)
+							)
+							.Select(article => verificationService.AssignProofToken(article, userAccountId))
 					)
 				);
 			}
@@ -177,7 +191,7 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
-					PageResult<Article>.Create(
+					await PageResult<Article>.CreateAsync(
 						await db.GetArticleHistory(
 							userAccountId: userAccountId,
 							pageNumber: pageNumber,
@@ -185,7 +199,13 @@ namespace api.Controllers.Articles {
 							minLength: minLength,
 							maxLength: maxLength
 						),
-						articles => articles.Select(article => verificationService.AssignProofToken(article, userAccountId))
+						async articleIds => (
+								await db.GetArticlesAsync(
+									articleIds: articleIds.ToArray(),
+									userAccountId: userAccountId
+								)
+							)
+							.Select(article => verificationService.AssignProofToken(article, userAccountId))
 					)
 				);
 			}
@@ -198,7 +218,7 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var userAccountId = this.User.GetUserAccountIdOrDefault();
-				var article = await db.FindArticle(slug, userAccountId);
+				var article = await db.GetArticleBySlug(slug, userAccountId);
 				if (article == null) {
 					log.LogError("Article lookup failed. Slug: {Slug}", slug);
 					return BadRequest(
@@ -224,7 +244,7 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.StarArticle(userAccountId, binder.ArticleId);
 				return Json(verificationService.AssignProofToken(
-					article: await db.GetArticle(binder.ArticleId, userAccountId),
+					article: await db.GetArticleById(binder.ArticleId, userAccountId),
 					userAccountId: userAccountId
 				));
 			}
@@ -238,7 +258,7 @@ namespace api.Controllers.Articles {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				db.UnstarArticle(userAccountId, binder.ArticleId);
 				return Json(verificationService.AssignProofToken(
-					article: await db.GetArticle(binder.ArticleId, userAccountId),
+					article: await db.GetArticleById(binder.ArticleId, userAccountId),
 					userAccountId: userAccountId
 				));
 			}
@@ -256,11 +276,11 @@ namespace api.Controllers.Articles {
 				if (this.User.Identity.IsAuthenticated) {
 					var userAccountId = this.User.GetUserAccountId();
 					article = verificationService.AssignProofToken(
-						await db.GetArticle(tokenData.ArticleId, userAccountId),
+						await db.GetArticleById(tokenData.ArticleId, userAccountId),
 						userAccountId
 					);
 				} else {
-					article = await db.GetArticle(tokenData.ArticleId, null);
+					article = await db.GetArticleById(tokenData.ArticleId, null);
 				}
 				return Json(new {
 					Article = article,
@@ -289,7 +309,7 @@ namespace api.Controllers.Articles {
 				) {
 					return Json(new {
 						Article = verificationService.AssignProofToken(
-							article: await db.GetArticle(form.ArticleId, userAccountId),
+							article: await db.GetArticleById(form.ArticleId, userAccountId),
 							userAccountId: userAccountId
 						),
 						Rating = rating
@@ -307,12 +327,17 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(
-					await db.GetAotdHistory(
-						userAccountId: this.User.GetUserAccountIdOrDefault(),
-						pageNumber: query.PageNumber,
-						pageSize: 40,
-						minLength: query.MinLength,
-						maxLength: query.MaxLength
+					await PageResult<Article>.CreateAsync(
+						await db.GetAotdHistory(
+							pageNumber: query.PageNumber,
+							pageSize: 40,
+							minLength: query.MinLength,
+							maxLength: query.MaxLength
+						),
+						async articleIds => await db.GetArticlesAsync(
+							articleIds: articleIds.ToArray(),
+							userAccountId: this.User.GetUserAccountIdOrDefault()
+						)
 					)
 				);
 			}
@@ -324,13 +349,18 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(
-					await db.GetArticlesByAuthorSlug(
-						slug: query.Slug,
-						userAccountId: this.User.GetUserAccountIdOrDefault(),
-						pageNumber: query.PageNumber,
-						pageSize: query.PageSize,
-						minLength: query.MinLength,
-						maxLength: query.MaxLength
+					await PageResult<Article>.CreateAsync(
+						await db.GetArticlesByAuthorSlug(
+							slug: query.Slug,
+							pageNumber: query.PageNumber,
+							pageSize: query.PageSize,
+							minLength: query.MinLength,
+							maxLength: query.MaxLength
+						),
+						async articleIds => await db.GetArticlesAsync(
+							articleIds: articleIds.ToArray(),
+							userAccountId: this.User.GetUserAccountIdOrDefault()
+						)
 					)
 				);
 			}
@@ -342,7 +372,7 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				// First find the article.
-				var article = await db.FindArticle(slug: request.ArticleSlug, userAccountId: null);
+				var article = await db.GetArticleBySlug(slug: request.ArticleSlug, userAccountId: null);
 				if (article == null) {
 					return Problem("Article not found.", statusCode: 404);
 				}
@@ -386,7 +416,7 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				// First find the article.
-				var article = await db.FindArticle(slug: request.ArticleSlug, userAccountId: null);
+				var article = await db.GetArticleBySlug(slug: request.ArticleSlug, userAccountId: null);
 				if (article == null) {
 					return Problem("Article not found.", statusCode: 404);
 				}
@@ -419,13 +449,18 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(
-					await db.GetArticlesBySourceSlug(
-						slug: query.Slug,
-						userAccountId: this.User.GetUserAccountIdOrDefault(),
-						pageNumber: query.PageNumber,
-						pageSize: query.PageSize,
-						minLength: query.MinLength,
-						maxLength: query.MaxLength
+					await PageResult<Article>.CreateAsync(
+						await db.GetArticlesBySourceSlug(
+							slug: query.Slug,
+							pageNumber: query.PageNumber,
+							pageSize: query.PageSize,
+							minLength: query.MinLength,
+							maxLength: query.MaxLength
+						),
+						async articleIds => await db.GetArticlesAsync(
+							articleIds: articleIds.ToArray(),
+							userAccountId: this.User.GetUserAccountIdOrDefault()
+						)
 					)
 				);
 			}
@@ -436,15 +471,20 @@ namespace api.Controllers.Articles {
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return Json(
-					await db.SearchArticles(
-						userAccountId: User.GetUserAccountId(),
-						pageNumber: 1,
-						pageSize: 40,
-						sourceSlugs: query.Sources,
-						authorSlugs: query.Authors,
-						tagSlugs: query.Tags,
-						minLength: query.MinLength,
-						maxLength: query.MaxLength
+					await PageResult<Article>.CreateAsync(
+						await db.SearchArticles(
+							pageNumber: 1,
+							pageSize: 40,
+							sourceSlugs: query.Sources,
+							authorSlugs: query.Authors,
+							tagSlugs: query.Tags,
+							minLength: query.MinLength,
+							maxLength: query.MaxLength
+						),
+						async articleIds => await db.GetArticlesAsync(
+							articleIds: articleIds.ToArray(),
+							userAccountId: User.GetUserAccountId()
+						)
 					)
 				);
 			}
@@ -511,7 +551,7 @@ namespace api.Controllers.Articles {
 			[FromQuery] TwitterCardMetadataRequest request
 		) {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var article = await db.FindArticle(request.Slug, null);
+				var article = await db.GetArticleBySlug(request.Slug, null);
 				if (article == null) {
 					log.LogError("Article lookup failed. Slug: {Slug}", request.Slug);
 					return BadRequest(

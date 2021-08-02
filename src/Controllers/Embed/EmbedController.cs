@@ -88,7 +88,7 @@ namespace api.Controllers.Embed {
 					}
 					return Json(
 						new InitializationActivationResponse(
-							article: await db.GetArticle(
+							article: await db.GetArticleById(
 								articleId: page.ArticleId,
 								userAccountId: userAccountId
 							),
@@ -159,7 +159,7 @@ namespace api.Controllers.Embed {
 					);
 					return Json(
 						new ReadProgressResponse(
-							await db.GetArticle(userArticle.ArticleId, userAccountId)
+							await db.GetArticleById(userArticle.ArticleId, userAccountId)
 						)
 					);
 				} else {

@@ -12,6 +12,7 @@ using api.Analytics;
 using System.IO;
 using api.Authentication;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace api.Controllers.Analytics {
 	public class AnalyticsController: Controller {
@@ -45,7 +46,10 @@ namespace api.Controllers.Analytics {
 		public async Task<ActionResult<AuthorMetadataAssignmentQueueResponse>> AuthorMetadataAssignmentQueue() {
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				return new AuthorMetadataAssignmentQueueResponse(
-					articles: await db.GetArticlesRequiringAuthorAssignmentsAsync()
+					articles: await db.GetArticlesAsync(
+						articleIds: (await db.GetArticlesRequiringAuthorAssignmentsAsync()).ToArray(),
+						userAccountId: null
+					)
 				);
 			}
 		}

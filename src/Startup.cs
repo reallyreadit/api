@@ -340,6 +340,7 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<AuthorContactStatusAssignment>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<AuthorMetadata>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<CommentAddendum>();
+			NpgsqlConnection.GlobalTypeMapper.MapComposite<PostReference>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<Ranking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<StreakRanking>();
 			NpgsqlConnection.GlobalTypeMapper.MapComposite<SubscriptionDistributionAuthorCalculation>();

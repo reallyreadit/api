@@ -394,7 +394,7 @@ namespace api.Controllers.Extension {
 				var userAccountId = this.User.GetUserAccountId();
 				return Json(
 					verificationService.AssignProofToken(
-						await db.GetArticle(id, userAccountId),
+						await db.GetArticleById(id, userAccountId),
 						userAccountId
 					)
 				);
@@ -476,7 +476,7 @@ namespace api.Controllers.Extension {
 				// look for existing page
 				var page = db.FindPage(binder.Url);
 				if (page == null) {
-					var article = await db.FindArticle(slug, userAccountId);
+					var article = await db.GetArticleBySlug(slug, userAccountId);
 					if (article != null) {
 						page = db.FindPage(article.Url);
 					}
@@ -650,7 +650,7 @@ namespace api.Controllers.Extension {
 				}
 				return Json(new {
 					UserArticle = verificationService.AssignProofToken(
-						await db.GetArticle(page.ArticleId, userAccountId),
+						await db.GetArticleById(page.ArticleId, userAccountId),
 						userAccountId
 					),
 					// temporarily maintain compatibility with existing clients
@@ -698,7 +698,7 @@ namespace api.Controllers.Extension {
 					}
 					return Json(
 						verificationService.AssignProofToken(
-							await db.GetArticle(userArticle.ArticleId, userAccountId),
+							await db.GetArticleById(userArticle.ArticleId, userAccountId),
 							userAccountId
 						)
 					);
@@ -726,7 +726,7 @@ namespace api.Controllers.Extension {
 				}
 				return Json(
 					verificationService.AssignProofToken(
-						await db.GetArticle(binder.ArticleId, userAccountId),
+						await db.GetArticleById(binder.ArticleId, userAccountId),
 						userAccountId
 					)
 				);
@@ -762,7 +762,7 @@ namespace api.Controllers.Extension {
 						switch (notification.EventType) {
 							case NotificationEventType.Aotd:
 								title = "Article of the Day";
-								message = (await db.GetArticle(notification.ArticleIds.Single())).Title;
+								message = (await db.GetArticleById(notification.ArticleIds.Single(), userAccountId: null)).Title;
 								break;
 							case NotificationEventType.Follower:
 								var follower = await db.GetUserAccountById(
@@ -785,7 +785,7 @@ namespace api.Controllers.Extension {
 								} else if (notification.SilentPostIds.Any()) {
 									var silentPost = await db.GetSilentPost(notification.SilentPostIds.Single());
 									userName = (await db.GetUserAccountById(silentPost.UserAccountId)).Name;
-									articleTitle = (await db.GetArticle(silentPost.ArticleId)).Title;
+									articleTitle = (await db.GetArticleById(silentPost.ArticleId, userAccountId: null)).Title;
 								} else {
 									throw new ArgumentException("Post notification must reference a comment or silent post");
 								}
