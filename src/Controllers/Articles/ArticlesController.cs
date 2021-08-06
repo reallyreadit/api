@@ -559,7 +559,8 @@ namespace api.Controllers.Articles {
 					);
 				}
 				string title;
-				if (!String.IsNullOrWhiteSpace(request.PostId)) {
+				string description;
+				if (!String.IsNullOrWhiteSpace(request.PostId) && request.LinkType == LinkType.Comment) {
 					var decodedPostIdParameter = obfuscationService.Decode(request.PostId);
 					long userAccountId;
 					if (decodedPostIdParameter.Length == 1) {
@@ -580,13 +581,19 @@ namespace api.Controllers.Articles {
 					}
 					var user = await db.GetUserAccountById(userAccountId);
 					title = $"{user.Name} read “{article.Title.RemoveControlCharacters()}”";
-				} else {
+					description = "Read comments from verified readers on Readup.";
+				} else if (request.LinkType == LinkType.Comment) {
 					title = $"Comments on “{article.Title.RemoveControlCharacters()}” • Readup";
+					description = "Read comments from verified readers on Readup.";
+				} else {
+					title = article.Title.RemoveControlCharacters();
+					description = $"Article by {article.Authors.ToListString().RemoveControlCharacters()} in {article.Source.RemoveControlCharacters()}";
 				}
+
 				return Json(
 					new TwitterCardMetadata(
 						title: title,
-						description: "Read comments from verified readers on Readup.",
+						description: description,
 						imageUrl: (await db.GetArticleImage(article.Id))?.Url
 					)
 				);
