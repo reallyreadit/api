@@ -1,6 +1,6 @@
 namespace api.Controllers.Articles {
 	public enum LinkType {
-		Read,
-		Comment
+		Comment = 0, // backwards compatibility, 0 is default
+		Read = 1
 	}
 }
