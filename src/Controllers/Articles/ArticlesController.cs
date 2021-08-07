@@ -559,7 +559,17 @@ namespace api.Controllers.Articles {
 					);
 				}
 				string title;
-				if (!String.IsNullOrWhiteSpace(request.PostId)) {
+				string description;
+				if (request.LinkType == LinkType.Read) {
+					title = article.Title.RemoveControlCharacters();
+					if (!(article.ArticleAuthors == null || article.ArticleAuthors.Length == 0)) {
+						description = $"Article by {article.ArticleAuthors.Select(aa => aa.Name).ToListString().RemoveControlCharacters()} in {article.Source.RemoveControlCharacters()}";
+					} else {
+						description = $"Read the article on Readup";
+					}
+				} else if (!String.IsNullOrWhiteSpace(request.PostId)) {
+					// if PostId is set, we can assume that a comment link is intended
+					// (backwards compatibility before the introduction of LinkType)
 					var decodedPostIdParameter = obfuscationService.Decode(request.PostId);
 					long userAccountId;
 					if (decodedPostIdParameter.Length == 1) {
@@ -580,13 +590,18 @@ namespace api.Controllers.Articles {
 					}
 					var user = await db.GetUserAccountById(userAccountId);
 					title = $"{user.Name} read “{article.Title.RemoveControlCharacters()}”";
+					description = "Read comments from verified readers on Readup.";
 				} else {
+					// if no LinkType is set, or it is not LinkType.Read, we can assume a comment link
+					// (backwards compatibility before the introduction of LinkType)
 					title = $"Comments on “{article.Title.RemoveControlCharacters()}” • Readup";
+					description = "Read comments from verified readers on Readup.";
 				}
+
 				return Json(
 					new TwitterCardMetadata(
 						title: title,
-						description: "Read comments from verified readers on Readup.",
+						description: description,
 						imageUrl: (await db.GetArticleImage(article.Id))?.Url
 					)
 				);
