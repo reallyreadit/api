@@ -39,6 +39,13 @@ namespace api.Controllers.TwitterBot {
 					to: new EmailMailbox("Bill Loundy", "bill@readup.com"),
 					subject: "AOTD Tweet",
 					body: tweetText
+				),
+				new EmailMessage(
+					from: new EmailMailbox("AOTD Bot", "support@readup.com"),
+					replyTo: null,
+					to: new EmailMailbox("Thor Galle", "thor@readup.com"),
+					subject: "AOTD Tweet",
+					body: tweetText
 				)
 			);
 			return Ok();
