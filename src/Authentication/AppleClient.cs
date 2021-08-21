@@ -1,6 +1,6 @@
 namespace api.Authentication {
 	public enum AppleClient {
-		Ios,
-		Web
+		Ios = 0,
+		Web = 1
 	}
 }

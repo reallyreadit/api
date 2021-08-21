@@ -13,5 +13,6 @@ namespace api.Controllers.Auth {
 		public string User { get; set; }
 		public SignUpAnalyticsForm Analytics { get; set; }
 		public PushDeviceForm PushDevice { get; set; }
+		public AppleClient Client { get; set; }
 	}
 }

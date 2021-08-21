@@ -141,7 +141,7 @@ namespace api.Controllers.Auth {
 					client: this.GetClientAnalytics(),
 					form: form.Analytics
 				),
-				client: AppleClient.Ios
+				client: form.Client
 			);
 			if (authenticationId.HasValue) {
 				return new AuthServiceCredentialAuthResponse(
