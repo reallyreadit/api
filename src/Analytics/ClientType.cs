@@ -1,5 +1,6 @@
 namespace api.Analytics {
 	public enum ClientType {
+		DesktopApp,
 		IosApp,
 		IosExtension,
 		IosNotification,

@@ -302,6 +302,7 @@ namespace api.Controllers.Articles {
 				);
 				if (
 					this.ClientVersionIsGreaterThanOrEqualTo(new Dictionary<ClientType, SemanticVersion>() {
+						{ ClientType.DesktopApp, new SemanticVersion("1.0.0") },
 						{ ClientType.WebAppClient, new SemanticVersion("1.0.0") },
 						{ ClientType.WebExtension, new SemanticVersion("1.0.0") },
 						{ ClientType.IosApp, new SemanticVersion("3.1.1") }

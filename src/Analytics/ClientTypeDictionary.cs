@@ -5,6 +5,7 @@ using System.Linq;
 namespace api.Analytics {
 	public static class ClientTypeDictionary {
 		private static IEnumerable<Tuple<string, ClientType>> valuePairs = new Tuple<string, ClientType>[] {
+			new Tuple<string, ClientType>("desktop/app", ClientType.DesktopApp),
 			new Tuple<string, ClientType>("ios/app", ClientType.IosApp),
 			new Tuple<string, ClientType>("ios/share-extension", ClientType.IosExtension),
 			new Tuple<string, ClientType>("ios/notification", ClientType.IosNotification),
