@@ -754,7 +754,7 @@ namespace api.Controllers.Extension {
 					var created = new List<object>();
 					var newNotifications = await db.GetExtensionNotifications(
 						userAccountId: userAccountId,
-						sinceDate: DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(2)),
+						sinceDate: DateTime.UtcNow.Subtract(TimeSpan.FromMinutes(5)),
 						excludedReceiptIds: clientReceiptIds
 					);
 					foreach (var notification in newNotifications) {
