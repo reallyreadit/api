@@ -305,7 +305,10 @@ namespace api.Controllers.UserAccounts {
 						}
 					}
 					var userAccount = await db.GetUserAccountById(request.UserAccountId);
-					await authenticationService.SignIn(userAccount, form.PushDevice);
+					// Don't sign in if the request is coming from a browser.
+					if (this.GetClientAnalytics()?.Mode == "App") {
+						await authenticationService.SignIn(userAccount, form.PushDevice);
+					}
 					return Json(
 						new WebAppUserProfileClientModel(
 							await db.GetDisplayPreference(userAccount.Id),
