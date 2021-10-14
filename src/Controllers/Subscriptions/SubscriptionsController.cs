@@ -14,6 +14,7 @@ using api.Controllers.Shared;
 using api.DataAccess;
 using api.DataAccess.Models;
 using api.Encryption;
+using api.Errors;
 using api.Messaging;
 using api.Notifications;
 using api.Routing;
@@ -1000,6 +1001,29 @@ namespace api.Controllers.Subscriptions {
 				completedPeriods: completedPeriods
 			);
 		}
+
+		[HttpPost]
+		public async Task<ActionResult<FreeTrialPromoTweetIntentResponse>> FreeTrialPromoTweetIntent() {
+			var userAccountId = User.GetUserAccountId();
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					await db.CreateFreeTrialCreditAsync(
+						userAccountId: userAccountId,
+						creditTrigger: FreeTrialCreditTrigger.PromoTweetIntended,
+						creditType: FreeTrialCreditType.ArticleView,
+						creditAmount: 5
+					);
+				} catch (PostgresException ex) when (ex.ConstraintName == "free_trial_credit_user_account_credit_limit_idx") {
+					return Problem(
+						statusCode: 400,
+						type: SubscriptionsErrorType.FreeTrialCreditLimitExceeded,
+						title: "Free trial credit limit exceeded."
+					);
+				}
+			}
+			return new FreeTrialPromoTweetIntentResponse(
+				subscriptionStatus: await SubscriptionStatusClientModel.FromQuery(databaseOptions, userAccountId)
+			);
 		}
 
 		[HttpPost]

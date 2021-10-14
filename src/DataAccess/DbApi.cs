@@ -1929,6 +1929,22 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<FreeTrialCredit> CreateFreeTrialCreditAsync(
+			this NpgsqlConnection connection,
+			long userAccountId,
+			FreeTrialCreditTrigger creditTrigger,
+			FreeTrialCreditType creditType,
+			int creditAmount
+		) => await connection.QuerySingleAsync<FreeTrialCredit>(
+			sql: "subscriptions.create_free_trial_credit",
+			param: new {
+				user_account_id = userAccountId,
+				credit_trigger = PostgresSerialization.SerializeEnum(creditTrigger),
+				credit_type = PostgresSerialization.SerializeEnum(creditType),
+				credit_amount = creditAmount
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<SubscriptionAccount> CreateOrUpdateSubscriptionAccountAsync(
 			this NpgsqlConnection connection,
 			SubscriptionProvider provider,
