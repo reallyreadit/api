@@ -86,6 +86,10 @@ namespace api.Controllers.Embed {
 							markAsViewed: true,
 							analytics: this.GetClientAnalytics()
 						);
+					} else if (!userArticle.DateViewed.HasValue) {
+						userArticle = await db.MarkUserArticleAsViewedAsync(
+							userArticleId: userArticle.Id
+						);
 					}
 					return Json(
 						new InitializationActivationResponse(

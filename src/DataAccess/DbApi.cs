@@ -570,6 +570,16 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<UserArticle> MarkUserArticleAsViewedAsync(
+			this NpgsqlConnection conn,
+			long userArticleId
+		) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
+			sql: "articles.mark_user_article_as_viewed",
+			param: new {
+				user_article_id = userArticleId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static Task<Rating> RateArticle(
 			this NpgsqlConnection conn,
 			long articleId,

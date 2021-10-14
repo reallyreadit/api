@@ -527,33 +527,40 @@ namespace api.Controllers.Extension {
 							markAsViewed: markArticleAsViewed,
 							analytics: clientAnalytics
 						);
-					} else if (
-						!userArticle.DateCompleted.HasValue &&
-						userArticle.ReadableWordCount != userReadableWordCount
-					) {
-						var readClusters = userArticle.ReadState.Last() > 0 ?
-							userArticle.ReadState :
-							userArticle.ReadState.Length > 1 ?
-								userArticle.ReadState
-									.Take(userArticle.ReadState.Length - 1)
-									.ToArray() :
-								new int[0];
-						var readClustersWordCount = readClusters.Sum(cluster => Math.Abs(cluster));
-						if (userReadableWordCount >= readClustersWordCount) {
-							int[] newReadState;
-							if (!readClusters.Any()) {
-								newReadState = new[] { -userReadableWordCount };
-							} else if (userReadableWordCount > readClustersWordCount) {
-								newReadState = readClusters
-									.Append(readClustersWordCount - userReadableWordCount)
-									.ToArray();
-							} else {
-								newReadState = readClusters;
+					} else {
+						if (
+							!userArticle.DateCompleted.HasValue &&
+							userArticle.ReadableWordCount != userReadableWordCount
+						) {
+							var readClusters = userArticle.ReadState.Last() > 0 ?
+								userArticle.ReadState :
+								userArticle.ReadState.Length > 1 ?
+									userArticle.ReadState
+										.Take(userArticle.ReadState.Length - 1)
+										.ToArray() :
+									new int[0];
+							var readClustersWordCount = readClusters.Sum(cluster => Math.Abs(cluster));
+							if (userReadableWordCount >= readClustersWordCount) {
+								int[] newReadState;
+								if (!readClusters.Any()) {
+									newReadState = new[] { -userReadableWordCount };
+								} else if (userReadableWordCount > readClustersWordCount) {
+									newReadState = readClusters
+										.Append(readClustersWordCount - userReadableWordCount)
+										.ToArray();
+								} else {
+									newReadState = readClusters;
+								}
+								userArticle = db.UpdateUserArticle(
+									userArticleId: userArticle.Id,
+									readableWordCount: userReadableWordCount,
+									readState: newReadState
+								);
 							}
-							userArticle = db.UpdateUserArticle(
-								userArticleId: userArticle.Id,
-								readableWordCount: userReadableWordCount,
-								readState: newReadState
+						}
+						if (markArticleAsViewed && !userArticle.DateViewed.HasValue) {
+							userArticle = await db.MarkUserArticleAsViewedAsync(
+								userArticleId: userArticle.Id
 							);
 						}
 					}
