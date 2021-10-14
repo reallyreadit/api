@@ -12,5 +12,6 @@ namespace api.DataAccess.Models {
 		public int[] ReadState { get; set; }
 		public int WordsRead { get; set; }
 		public DateTime? DateCompleted { get; set; }
+		public long? FreeTrialCreditId { get; set; }
 	}
 }
