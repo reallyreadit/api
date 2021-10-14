@@ -322,6 +322,8 @@ namespace api {
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthServiceProvider>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthorAssignmentMethod>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<DisplayTheme>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<FreeTrialCreditTrigger>();
+			NpgsqlConnection.GlobalTypeMapper.MapEnum<FreeTrialCreditType>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<SourceRuleAction>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<UserAccountRole>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<NotificationChannel>();
