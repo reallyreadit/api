@@ -1,6 +1,6 @@
 using System;
 
-namespace api.DataAccess.Models { 
+namespace api.DataAccess.Models {
 	public class ProvisionalUserArticle {
 		public long ArticleId { get; set; }
 		public long ProvisionalUserAccountId { get; set; }
