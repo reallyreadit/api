@@ -482,6 +482,10 @@ namespace api.Controllers.Extension {
 					}
 				}
 				UserArticle userArticle;
+				var clientAnalytics = this.GetClientAnalytics();
+				// This endpoint is currently used by both the native client reader and the native client share extension.
+				// A user article should only be marked as having been viewed if this endpoint was called by a reader.
+				var markArticleAsViewed = clientAnalytics.Type == ClientType.DesktopApp || clientAnalytics.Type == ClientType.IosApp;
 				if (page != null) {
 					// update the page if either the wordCount or readableWordCount has increased.
 					// we're assuming that the article has been updated with additional text
@@ -516,11 +520,12 @@ namespace api.Controllers.Extension {
 					// as long as it won't erase any read words from the existing read state
 					userArticle = db.GetUserArticle(page.ArticleId, userAccountId);
 					if (userArticle == null) {
-						userArticle = db.CreateUserArticle(
+						userArticle = await db.CreateUserArticle(
 							articleId: page.ArticleId,
 							userAccountId: userAccountId,
 							readableWordCount: userReadableWordCount,
-							analytics: this.GetClientAnalytics()
+							markAsViewed: markArticleAsViewed,
+							analytics: clientAnalytics
 						);
 					} else if (
 						!userArticle.DateCompleted.HasValue &&
@@ -611,11 +616,12 @@ namespace api.Controllers.Extension {
 						);
 					}
 					// create user article
-					userArticle = db.CreateUserArticle(
+					userArticle = await db.CreateUserArticle(
 						articleId: page.ArticleId,
 						userAccountId: userAccountId,
 						readableWordCount: binder.ReadableWordCount,
-						analytics: this.GetClientAnalytics()
+						markAsViewed: markArticleAsViewed,
+						analytics: clientAnalytics
 					);
 				}
 				// check for existing image and set it required

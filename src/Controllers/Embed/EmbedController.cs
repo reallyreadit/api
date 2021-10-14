@@ -79,10 +79,11 @@ namespace api.Controllers.Embed {
 						userAccountId: userAccountId
 					);
 					if (userArticle == null) {
-						userArticle = db.CreateUserArticle(
+						userArticle = await db.CreateUserArticle(
 							articleId: page.ArticleId,
 							userAccountId: userAccountId,
 							readableWordCount: page.WordCount,
+							markAsViewed: true,
 							analytics: this.GetClientAnalytics()
 						);
 					}
@@ -119,6 +120,7 @@ namespace api.Controllers.Embed {
 							articleId: page.ArticleId,
 							provisionalUserAccountId: provisionalUserAccountId.Value,
 							readableWordCount: page.WordCount,
+							markAsViewed: true,
 							analytics: this.GetClientAnalytics()
 						);
 					}

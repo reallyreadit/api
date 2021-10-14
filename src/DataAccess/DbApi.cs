@@ -332,6 +332,7 @@ namespace api.DataAccess {
 			long articleId,
 			long provisionalUserAccountId,
 			int readableWordCount,
+			bool markAsViewed,
 			ClientAnalytics analytics
 		) => await conn.QuerySingleOrDefaultAsync<ProvisionalUserArticle>(
 			sql: "article_api.create_provisional_user_article",
@@ -339,6 +340,7 @@ namespace api.DataAccess {
 				article_id = articleId,
 				provisional_user_account_id = provisionalUserAccountId,
 				readable_word_count = readableWordCount,
+				mark_as_viewed = markAsViewed,
 				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
@@ -348,18 +350,20 @@ namespace api.DataAccess {
 			param: new { name, url, hostname, slug },
 			commandType: CommandType.StoredProcedure
 		);
-		public static UserArticle CreateUserArticle(
+		public static async Task<UserArticle> CreateUserArticle(
 			this NpgsqlConnection conn,
 			long articleId,
 			long userAccountId,
 			int readableWordCount,
+			bool markAsViewed,
 			ClientAnalytics analytics
-		) => conn.QuerySingleOrDefault<UserArticle>(
+		) => await conn.QuerySingleOrDefaultAsync<UserArticle>(
 			sql: "article_api.create_user_article",
 			param: new {
 				article_id = articleId,
 				user_account_id = userAccountId,
 				readable_word_count = readableWordCount,
+				mark_as_viewed = markAsViewed,
 				analytics = PostgresSerialization.SerializeJson(new { Client = analytics })
 			},
 			commandType: CommandType.StoredProcedure
