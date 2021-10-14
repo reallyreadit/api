@@ -5,6 +5,7 @@ namespace api.DataAccess.Models {
 		public long ArticleId { get; set; }
 		public long ProvisionalUserAccountId { get; set; }
 		public DateTime DateCreated { get; set; }
+		public DateTime? DateViewed { get; set; }
 		public DateTime? LastModified { get; set; }
 		public int ReadableWordCount { get; set; }
 		public int[] ReadState { get; set; }
