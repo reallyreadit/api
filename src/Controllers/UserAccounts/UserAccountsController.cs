@@ -101,7 +101,6 @@ namespace api.Controllers.UserAccounts {
 			var captchaResponse = await captchaService.Verify(form.CaptchaResponse);
 			UserAccount userAccount;
 			DisplayPreference displayPreference;
-			SubscriptionStatus subscriptionStatus;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				if (captchaResponse != null) {
 					db.CreateCaptchaResponse("createUserAccount", captchaResponse);
@@ -121,7 +120,6 @@ namespace api.Controllers.UserAccounts {
 						)
 					);
 					displayPreference = await db.GetDisplayPreference(userAccount.Id);
-					subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
 				}
@@ -129,7 +127,11 @@ namespace api.Controllers.UserAccounts {
 			await notificationService.CreateWelcomeNotification(userAccount.Id);
 			await authenticationService.SignIn(userAccount, form.PushDevice);
 			return Json(
-				new WebAppUserProfileClientModel(displayPreference, subscriptionStatus, userAccount)
+				new WebAppUserProfileClientModel(
+					displayPreference,
+					await SubscriptionStatusClientModel.FromQuery(dbOpts, userAccount),
+					userAccount
+				)
 			);
       }
 		private long ParseAuthServiceToken(string rawValue) => (
@@ -160,7 +162,6 @@ namespace api.Controllers.UserAccounts {
 		) {
 			UserAccount userAccount;
 			DisplayPreference displayPreference;
-			SubscriptionStatus subscriptionStatus;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				var authentication = await db.GetAuthServiceAuthenticationById(
 					ParseAuthServiceToken(form.Token)
@@ -208,7 +209,6 @@ namespace api.Controllers.UserAccounts {
 						userAccount.HasLinkedTwitterAccount = true;
 					}
 					displayPreference = await db.GetDisplayPreference(userAccount.Id);
-					subscriptionStatus = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id);
 				} catch (Exception ex) {
 					return BadRequest((ex as ValidationException)?.Errors);
 				}
@@ -216,7 +216,11 @@ namespace api.Controllers.UserAccounts {
 			await notificationService.CreateWelcomeNotification(userAccount.Id);
 			await authenticationService.SignIn(userAccount, form.PushDevice);
 			return Json(
-				new WebAppUserProfileClientModel(displayPreference, subscriptionStatus, userAccount)
+				new WebAppUserProfileClientModel(
+					displayPreference,
+					await SubscriptionStatusClientModel.FromQuery(dbOpts, userAccount),
+					userAccount
+				)
 			);
       }
 		// deprecated
@@ -276,16 +280,21 @@ namespace api.Controllers.UserAccounts {
 			[FromServices] AuthenticationService authenticationService,
 			[FromBody] PasswordResetForm form
 		) {
+			PasswordResetRequest request;
+			UserAccount userAccount;
+			DisplayPreference displayPreference;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				var request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(form.Token, tokenOpts.EncryptionKey)));
-				if (request == null) {
-					return BadRequest(new[] { "RequestNotFound" });
+				request = db.GetPasswordResetRequest(Int64.Parse(StringEncryption.Decrypt(form.Token, tokenOpts.EncryptionKey)));
+			}
+			if (request == null) {
+				return BadRequest(new[] { "RequestNotFound" });
+			}
+			if (IsPasswordResetRequestValid(request)) {
+				if (!IsPasswordValid(form.Password)) {
+					return BadRequest();
 				}
-				if (IsPasswordResetRequestValid(request)) {
-					if (!IsPasswordValid(form.Password)) {
-						return BadRequest();
-					}
-					var salt = GenerateSalt();
+				var salt = GenerateSalt();
+				using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 					db.ChangePassword(request.UserAccountId, HashPassword(form.Password, salt), salt);
 					db.CompletePasswordResetRequest(request.Id);
 					if (request.AuthServiceAuthenticationId.HasValue) {
@@ -304,19 +313,20 @@ namespace api.Controllers.UserAccounts {
 								// another association was completed before this password reset
 						}
 					}
-					var userAccount = await db.GetUserAccountById(request.UserAccountId);
-					// Don't sign in if the request is coming from a browser.
-					if (this.GetClientAnalytics()?.Mode == "App") {
-						await authenticationService.SignIn(userAccount, form.PushDevice);
-					}
-					return Json(
-						new WebAppUserProfileClientModel(
-							await db.GetDisplayPreference(userAccount.Id),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
-							userAccount
-						)
-					);
+					userAccount = await db.GetUserAccountById(request.UserAccountId);
+					displayPreference = await db.GetDisplayPreference(userAccount.Id);
 				}
+				// Don't sign in if the request is coming from a browser.
+				if (this.GetClientAnalytics()?.Mode == "App") {
+					await authenticationService.SignIn(userAccount, form.PushDevice);
+				}
+				return Json(
+					new WebAppUserProfileClientModel(
+						displayPreference,
+						await SubscriptionStatusClientModel.FromQuery(dbOpts, userAccount),
+						userAccount
+					)
+				);
 			}
 			return BadRequest(new[] { "RequestExpired" });
 		}
@@ -468,6 +478,7 @@ namespace api.Controllers.UserAccounts {
 			// rate limit
 			await Task.Delay(1000);
 			UserAccount userAccount;
+			DisplayPreference displayPreference;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
 				userAccount = db.GetUserAccountByEmail(form.Email);
 				if (userAccount == null) {
@@ -495,14 +506,15 @@ namespace api.Controllers.UserAccounts {
 					}
 				}
 				await authenticationService.SignIn(userAccount, form.PushDevice);
-				return Json(
-					new WebAppUserProfileClientModel(
-						await db.GetDisplayPreference(userAccount.Id),
-						await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccount.Id),
-						userAccount
-					)
-				);
+				displayPreference = await db.GetDisplayPreference(userAccount.Id);
 			}
+			return Json(
+				new WebAppUserProfileClientModel(
+					displayPreference,
+					await SubscriptionStatusClientModel.FromQuery(dbOpts, userAccount),
+					userAccount
+				)
+			);
 		}
 		[AllowAnonymous]
 		[HttpPost]
@@ -756,7 +768,7 @@ namespace api.Controllers.UserAccounts {
 						.Select(
 							account => new AuthServiceAccountAssociation(account)
 						),
-					subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(user, subscriptionStatus),
+					subscriptionStatus: await SubscriptionStatusClientModel.FromQuery(dbOpts, user, subscriptionStatus),
 					subscriptionPaymentMethod: (
 						subscriptionStatus?.Provider == SubscriptionProvider.Stripe ?
 							new SubscriptionPaymentMethodClientModel(
@@ -821,13 +833,17 @@ namespace api.Controllers.UserAccounts {
 		[HttpGet]
 		public async Task<ActionResult<WebAppUserProfileClientModel>> WebAppUserProfile() {
 			var userId = User.GetUserAccountId();
+			UserAccount user;
+			DisplayPreference displayPreference;
 			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return new WebAppUserProfileClientModel(
-					displayPreference: await db.GetDisplayPreference(userId),
-					subscriptionStatus: await db.GetCurrentSubscriptionStatusForUserAccountAsync(userId),
-					userAccount: await db.GetUserAccountById(userId)
-				);
+				user = await db.GetUserAccountById(userId);
+				displayPreference = await db.GetDisplayPreference(userId);
 			}
+			return new WebAppUserProfileClientModel(
+				displayPreference: displayPreference,
+				subscriptionStatus: await SubscriptionStatusClientModel.FromQuery(dbOpts, user),
+				userAccount: user
+			);
 		}
 		[HttpPost]
 		public async Task<JsonResult> OrientationCompletion() {

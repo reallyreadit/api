@@ -4,11 +4,11 @@ namespace api.Controllers.Shared {
 	public class WebAppUserProfileClientModel {
 		public WebAppUserProfileClientModel(
 			DisplayPreference displayPreference,
-			SubscriptionStatus subscriptionStatus,
+			SubscriptionStatusClientModel subscriptionStatus,
 			UserAccount userAccount
 		) {
 			DisplayPreference = displayPreference;
-			SubscriptionStatus = SubscriptionStatusClientModel.FromSubscriptionStatus(userAccount, subscriptionStatus);
+			SubscriptionStatus = subscriptionStatus;
 			UserAccount = userAccount;
 		}
 		public DisplayPreference DisplayPreference { get; }

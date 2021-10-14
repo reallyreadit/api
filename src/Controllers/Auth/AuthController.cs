@@ -150,16 +150,18 @@ namespace api.Controllers.Auth {
 			}
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
+				DisplayPreference displayPreference;
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-					return new AuthServiceCredentialAuthResponse(
-						displayPreference: await db.GetDisplayPreference(user.Id),
-						subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(
-							user,
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id)
-						),
-						user: user
-					);
+					displayPreference = await db.GetDisplayPreference(user.Id);
 				}
+				return new AuthServiceCredentialAuthResponse(
+					displayPreference: displayPreference,
+					subscriptionStatus: await SubscriptionStatusClientModel.FromQuery(
+						databaseOptions.Value,
+						user
+					),
+					user: user
+				);
 			}
 			return BadRequest(new [] { GetErrorMessage(AuthServiceProvider.Apple, error) });
 		}
@@ -359,15 +361,19 @@ namespace api.Controllers.Auth {
 			} else if (User.Identity.IsAuthenticated) {
 				// check if user is signed in last
 				var userAccountId = User.GetUserAccountId();
+				DisplayPreference displayPreference;
+				UserAccount user;
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-					response = new BrowserPopupResponseResponse(
-						new WebAppUserProfileClientModel(
-							await db.GetDisplayPreference(userAccountId),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId),
-							await db.GetUserAccountById(userAccountId)
-						)
-					);
+					displayPreference = await db.GetDisplayPreference(userAccountId);
+					user = await db.GetUserAccountById(userAccountId);
 				}
+				response = new BrowserPopupResponseResponse(
+					new WebAppUserProfileClientModel(
+						displayPreference,
+						await SubscriptionStatusClientModel.FromQuery(databaseOptions.Value, user),
+						user
+					)
+				);
 			} else {
 				response = new BrowserPopupResponseResponse(AuthenticationError.Unknown);
 			}
@@ -392,16 +398,18 @@ namespace api.Controllers.Auth {
 			);
 			if (user != null) {
 				await authService.SignIn(user, form.PushDevice);
+				DisplayPreference displayPreference;
 				using (var db = new NpgsqlConnection(databaseOptions.Value.ConnectionString)) {
-					return new AuthServiceCredentialAuthResponse(
-						displayPreference: await db.GetDisplayPreference(user.Id),
-						subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(
-							user,
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id)
-						),
-						user: user
-					);
+					displayPreference = await db.GetDisplayPreference(user.Id);
 				}
+				return new AuthServiceCredentialAuthResponse(
+					displayPreference: displayPreference,
+					subscriptionStatus: await SubscriptionStatusClientModel.FromQuery(
+						databaseOptions.Value,
+						user
+					),
+					user: user
+				);
 			}
 			if (authentication != null) {
 				return new AuthServiceCredentialAuthResponse(

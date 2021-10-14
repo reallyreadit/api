@@ -104,24 +104,16 @@ namespace api.Controllers.Subscriptions {
 		/// <param name="userAccount">An optional UserAccount. If null the UserAccount will be fetched from the database using the current user's id.</param>
 		private async Task<ActionResult<StripePaymentResponse>> CreateStripePaymentResponseActionResultAsync(Stripe.PaymentIntent paymentIntent, UserAccount userAccount = null) {
 			var userAccountId = User.GetUserAccountId();
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				try {
-					return StripePaymentResponse.FromPaymentIntent(
-						paymentIntent,
-						SubscriptionStatusClientModel.FromSubscriptionStatus(
-							userAccount ??
-							await db.GetUserAccountById(
-								userAccountId: userAccountId
-							),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(
-								userAccountId: userAccountId
-							)
-						)
-					);
-				} catch (Exception ex) {
-					logger.LogError(ex, "Failed to create StripePaymentResponse for payment intent with id: {PaymentIntentId} and user with id: {UserId}", paymentIntent.Id, userAccountId);
-					return Problem($"Failed to create response object.", statusCode: 500);
-				}
+			try {
+				return StripePaymentResponse.FromPaymentIntent(
+					paymentIntent,
+					userAccount != null ?
+						await SubscriptionStatusClientModel.FromQuery(databaseOptions, userAccount) :
+						await SubscriptionStatusClientModel.FromQuery(databaseOptions, userAccountId)
+				);
+			} catch (Exception ex) {
+				logger.LogError(ex, "Failed to create StripePaymentResponse for payment intent with id: {PaymentIntentId} and user with id: {UserId}", paymentIntent.Id, userAccountId);
+				return Problem($"Failed to create response object.", statusCode: 500);
 			}
 		}
 
@@ -894,26 +886,25 @@ namespace api.Controllers.Subscriptions {
 				)
 				.First();
 
+			UserAccount subscriptionUser;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				var subscriptionStatus = await db.GetSubscriptionStatusForSubscriptionAccountAsync(
 					provider: SubscriptionProvider.Apple,
 					providerAccountId: latestTransaction.OriginalTransactionId
 				);
-				var subscriptionUser = await db.GetUserAccountById(subscriptionStatus.UserAccountId);
-				if (subscriptionUser.Id == User.GetUserAccountId()) {
-					return new AppleSubscriptionAssociatedWithCurrentUserResponse(
-						SubscriptionStatusClientModel.FromSubscriptionStatus(
-							user: subscriptionUser,
-							status: await db.GetCurrentSubscriptionStatusForUserAccountAsync(
-								userAccountId: User.GetUserAccountId()
-							)
-						)
-					);
-				} else {
-					return new AppleSubscriptionAssociatedWithAnotherUserResponse(
-						subscribedUsername: subscriptionUser.Name
-					);
-				}
+				subscriptionUser = await db.GetUserAccountById(subscriptionStatus.UserAccountId);
+			}
+			if (subscriptionUser.Id == User.GetUserAccountId()) {
+				return new AppleSubscriptionAssociatedWithCurrentUserResponse(
+					await SubscriptionStatusClientModel.FromQuery(
+						databaseOptions: databaseOptions,
+						user: subscriptionUser
+					)
+				);
+			} else {
+				return new AppleSubscriptionAssociatedWithAnotherUserResponse(
+					subscribedUsername: subscriptionUser.Name
+				);
 			}
 		}
 
@@ -969,10 +960,12 @@ namespace api.Controllers.Subscriptions {
 		[HttpGet]
 		public async Task<SubscriptionDistributionSummaryResponse> DistributionSummary() {
 			var userAccountId = User.GetUserAccountId();
+			SubscriptionStatus status;
+			SubscriptionDistributionReportClientModel currentPeriod;
+			SubscriptionDistributionReportClientModel completedPeriods;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				var status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId);
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId);
 				var state = status?.GetCurrentState(DateTime.UtcNow);
-				SubscriptionDistributionReportClientModel currentPeriod;
 				if (state == SubscriptionState.Active) {
 					currentPeriod = new SubscriptionDistributionReportClientModel(
 						await db.RunDistributionReportForSubscriptionPeriodCalculationAsync(
@@ -983,7 +976,6 @@ namespace api.Controllers.Subscriptions {
 				} else {
 					currentPeriod = SubscriptionDistributionReportClientModel.Empty;
 				}
-				SubscriptionDistributionReportClientModel completedPeriods;
 				if (state != null) {
 					// make sure any lapsed periods have been distributed before running the report
 					await db.CreateDistributionsForLapsedSubscriptionPeriodsAsync(
@@ -997,25 +989,25 @@ namespace api.Controllers.Subscriptions {
 				} else {
 					completedPeriods = SubscriptionDistributionReportClientModel.Empty;
 				}
-				return new SubscriptionDistributionSummaryResponse(
-					subscriptionStatus: SubscriptionStatusClientModel.FromSubscriptionStatus(
-						await db.GetUserAccountById(userAccountId),
-						status
-					),
-					currentPeriod: currentPeriod,
-					completedPeriods: completedPeriods
-				);
 			}
+			return new SubscriptionDistributionSummaryResponse(
+				subscriptionStatus: await SubscriptionStatusClientModel.FromQuery(
+					databaseOptions,
+					userAccountId,
+					status
+				),
+				currentPeriod: currentPeriod,
+				completedPeriods: completedPeriods
+			);
+		}
 		}
 
 		[HttpPost]
 		public async Task<SubscriptionStatusResponse> AppleSubscriptionStatusUpdateRequest() {
 			SubscriptionStatus status;
-			UserAccount user;
 			var userAccountId = User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
-				user = await db.GetUserAccountById(userAccountId: userAccountId);
 			}
 			if (
 				status.Provider == SubscriptionProvider.Apple &&
@@ -1024,13 +1016,10 @@ namespace api.Controllers.Subscriptions {
 				var receiptResponse = await VerifyAppStoreReceipt(status.LatestReceipt);
 				if (receiptResponse != null) {
 					await SyncSubscriptionsFromReceiptAsync(receiptResponse, userAccountId: userAccountId);
-					using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-						status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
-					}
 				}
 			}
 			return new SubscriptionStatusResponse(
-				SubscriptionStatusClientModel.FromSubscriptionStatus(user, status)
+				await SubscriptionStatusClientModel.FromQuery(databaseOptions, userAccountId)
 			);
 		}
 
@@ -1367,15 +1356,9 @@ namespace api.Controllers.Subscriptions {
 
 		[HttpGet]
 		public async Task<ActionResult<SubscriptionStatusResponse>> Status() {
-			var userAccountId = User.GetUserAccountId();
-			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-				return new SubscriptionStatusResponse(
-					status: SubscriptionStatusClientModel.FromSubscriptionStatus(
-						user: await db.GetUserAccountById(userAccountId),
-						status: await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId)
-					)
-				);
-			}
+			return new SubscriptionStatusResponse(
+				status: await SubscriptionStatusClientModel.FromQuery(databaseOptions, User.GetUserAccountId())
+			);
 		}
 
 		[HttpPost]
@@ -1383,11 +1366,9 @@ namespace api.Controllers.Subscriptions {
 			[FromBody] StripeAutoRenewStatusRequest request
 		) {
 			SubscriptionStatus status;
-			UserAccount user;
 			var userAccountId = User.GetUserAccountId();
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
-				user = await db.GetUserAccountById(userAccountId: userAccountId);
 			}
 			if (
 				status.Provider == SubscriptionProvider.Stripe &&
@@ -1401,12 +1382,9 @@ namespace api.Controllers.Subscriptions {
 				if (statusChange == null) {
 					return Problem("Failed to update subscription.", statusCode: 500);
 				}
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId);
-				}
 			}
 			return new SubscriptionStatusResponse(
-				SubscriptionStatusClientModel.FromSubscriptionStatus(user, status)
+				await SubscriptionStatusClientModel.FromQuery(databaseOptions, userAccountId)
 			);
 		}
 
@@ -1564,14 +1542,12 @@ namespace api.Controllers.Subscriptions {
 					return Problem("Failed to update subscription.", statusCode: 500);
 				}
 				// return a payment success
-				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
-					return new StripePaymentSucceededResponse(
-						SubscriptionStatusClientModel.FromSubscriptionStatus(
-							await db.GetUserAccountById(userAccountId: userAccountId),
-							await db.GetCurrentSubscriptionStatusForUserAccountAsync(userAccountId: userAccountId)
-						)
-					);
-				}
+				return new StripePaymentSucceededResponse(
+					await SubscriptionStatusClientModel.FromQuery(
+						databaseOptions,
+						userAccountId
+					)
+				);
 			}
 		}
 

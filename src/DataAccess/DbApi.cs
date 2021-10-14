@@ -2103,6 +2103,26 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<FreeTrialArticleView>> GetFreeArticleViewsForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QueryAsync<FreeTrialArticleView>(
+			sql: "subscriptions.get_free_article_views_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
+		public static async Task<IEnumerable<FreeTrialCredit>> GetFreeTrialCreditsForUserAccountAsync(
+			this NpgsqlConnection connection,
+			long userAccountId
+		) => await connection.QueryAsync<FreeTrialCredit>(
+			sql: "subscriptions.get_free_trial_credits_for_user_account",
+			param: new {
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<PayoutAccount> GetPayoutAccountAsync(
 			this NpgsqlConnection connection,
 			string id

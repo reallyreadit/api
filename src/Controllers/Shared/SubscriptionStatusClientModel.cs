@@ -1,5 +1,11 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using api.Configuration;
+using api.DataAccess;
 using api.DataAccess.Models;
+using Npgsql;
 
 namespace api.Controllers.Shared {
 	public enum SubscriptionStatusClientModelType {
@@ -10,11 +16,54 @@ namespace api.Controllers.Shared {
 		Lapsed = 5
 	}
 	public abstract class SubscriptionStatusClientModel {
-		public static SubscriptionStatusClientModel FromSubscriptionStatus(UserAccount user, SubscriptionStatus status) {
+		public static async Task<SubscriptionStatusClientModel> FromQuery(DatabaseOptions databaseOptions, long userAccountId) {
+			UserAccount user;
+			SubscriptionStatus status;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				user = await db.GetUserAccountById(userAccountId);
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id);
+			}
+			return await SubscriptionStatusClientModel.FromQuery(databaseOptions, user, status);
+		}
+		public static async Task<SubscriptionStatusClientModel> FromQuery(DatabaseOptions databaseOptions, UserAccount user) {
+			SubscriptionStatus status;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				status = await db.GetCurrentSubscriptionStatusForUserAccountAsync(user.Id);
+			}
+			return await SubscriptionStatusClientModel.FromQuery(databaseOptions, user, status);
+		}
+		public static async Task<SubscriptionStatusClientModel> FromQuery(DatabaseOptions databaseOptions, long userAccountId, SubscriptionStatus status) {
+			UserAccount user;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				user = await db.GetUserAccountById(userAccountId);
+			}
+			return await SubscriptionStatusClientModel.FromQuery(databaseOptions, user, status);
+		}
+		public static async Task<SubscriptionStatusClientModel> FromQuery(DatabaseOptions databaseOptions, UserAccount user, SubscriptionStatus status) {
 			var isUserFreeForLife = user.DateCreated < new DateTime(2021, 5, 6, 4, 0, 0);
+			var subscriptionState = status?.GetCurrentState(DateTime.UtcNow);
+			FreeTrialClientModel freeTrial;
+			if (!isUserFreeForLife && subscriptionState != SubscriptionState.Active) {
+				using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+					var freeTrialCredits = await db.GetFreeTrialCreditsForUserAccountAsync(user.Id);
+					IEnumerable<FreeTrialArticleView> freeTrialViews;
+					if (
+						freeTrialCredits.Any(
+							credit => credit.CreditType == FreeTrialCreditType.ArticleView && credit.AmountRemaining < credit.AmountCredited
+						)
+					) {
+						freeTrialViews = await db.GetFreeArticleViewsForUserAccountAsync(user.Id);
+					} else {
+						freeTrialViews = new FreeTrialArticleView[0];
+					}
+					freeTrial = new FreeTrialClientModel(freeTrialCredits, freeTrialViews);
+				}
+			} else {
+				freeTrial = null;
+			}
 			if (status == null) {
 				return new SubscriptionStatusNeverSubscribedClientModel(
-					isUserFreeForLife: isUserFreeForLife
+					freeTrial: freeTrial
 				);
 			}
 			var provider = SubscriptionProviderClientValueExtensions.FromSubscriptionProvider(status.Provider);
@@ -23,7 +72,6 @@ namespace api.Controllers.Shared {
 				name: status.LatestPeriod.PriceLevelName,
 				amount: status.LatestPeriod.PriceAmount
 			);
-			var subscriptionState = status.GetCurrentState(DateTime.UtcNow);
 			switch (subscriptionState) {
 				case SubscriptionState.Active:
 					var autoRenewEnabled = status.IsAutoRenewEnabled();
@@ -58,7 +106,7 @@ namespace api.Controllers.Shared {
 						lastPeriodEndDate: status.LatestPeriod.EndDate,
 						lastPeriodRenewalGracePeriodEndDate: status.LatestPeriod.RenewalGracePeriodEndDate,
 						dateRefunded: status.LatestPeriod.DateRefunded,
-						isUserFreeForLife: isUserFreeForLife
+						freeTrial: freeTrial
 					);
 				case SubscriptionState.Incomplete:
 				case SubscriptionState.IncompleteExpired:
@@ -75,13 +123,13 @@ namespace api.Controllers.Shared {
 							provider: provider,
 							price: price,
 							invoiceId: status.LatestPeriod.ProviderPeriodId,
-							isUserFreeForLife: isUserFreeForLife
+							freeTrial: freeTrial
 						);
 					}
 					return new SubscriptionStatusPaymentFailedClientModel(
 						provider: provider,
 						price: price,
-						isUserFreeForLife: isUserFreeForLife
+						freeTrial: freeTrial
 					);
 				default:
 					throw new ArgumentOutOfRangeException($"Unexpected subscription state: {subscriptionState}");
@@ -97,27 +145,40 @@ namespace api.Controllers.Shared {
 		public SubscriptionStatusClientModelType Type { get; }
 		public bool IsUserFreeForLife { get; }
 	}
-	public class SubscriptionStatusNeverSubscribedClientModel : SubscriptionStatusClientModel {
+	public class SubscriptionStatusInactiveClientModel : SubscriptionStatusClientModel {
+		public SubscriptionStatusInactiveClientModel(
+			SubscriptionStatusClientModelType type,
+			FreeTrialClientModel freeTrial
+		) :
+		base (
+			type: type,
+			isUserFreeForLife: freeTrial == null
+		) {
+			FreeTrial = freeTrial;
+		}
+		public FreeTrialClientModel FreeTrial { get; }
+	}
+	public class SubscriptionStatusNeverSubscribedClientModel : SubscriptionStatusInactiveClientModel {
 		public SubscriptionStatusNeverSubscribedClientModel(
-			bool isUserFreeForLife
+			FreeTrialClientModel freeTrial
 		) :
 		base (
 			type: SubscriptionStatusClientModelType.NeverSubscribed,
-			isUserFreeForLife: isUserFreeForLife
+			freeTrial: freeTrial
 		) {
 
 		}
 	}
-	public class SubscriptionStatusPaymentConfirmationRequiredClientModel : SubscriptionStatusClientModel {
+	public class SubscriptionStatusPaymentConfirmationRequiredClientModel : SubscriptionStatusInactiveClientModel {
 		public SubscriptionStatusPaymentConfirmationRequiredClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
 			string invoiceId,
-			bool isUserFreeForLife
+			FreeTrialClientModel freeTrial
 		) :
 		base(
 			type: SubscriptionStatusClientModelType.PaymentConfirmationRequired,
-			isUserFreeForLife: isUserFreeForLife
+			freeTrial: freeTrial
 		) {
 			Provider = provider;
 			Price = price;
@@ -127,15 +188,15 @@ namespace api.Controllers.Shared {
 		public SubscriptionPriceClientModel Price { get; }
 		public string InvoiceId { get; }
 	}
-	public class SubscriptionStatusPaymentFailedClientModel : SubscriptionStatusClientModel {
+	public class SubscriptionStatusPaymentFailedClientModel : SubscriptionStatusInactiveClientModel {
 		public SubscriptionStatusPaymentFailedClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
-			bool isUserFreeForLife
+			FreeTrialClientModel freeTrial
 		) :
 		base (
 			type: SubscriptionStatusClientModelType.PaymentFailed,
-			isUserFreeForLife: isUserFreeForLife
+			freeTrial: freeTrial
 		) {
 			Provider = provider;
 			Price = price;
@@ -174,18 +235,18 @@ namespace api.Controllers.Shared {
 		public bool AutoRenewEnabled { get; }
 		public SubscriptionPriceClientModel AutoRenewPrice { get; }
 	}
-	public class SubscriptionStatusLapsedClientModel : SubscriptionStatusClientModel {
+	public class SubscriptionStatusLapsedClientModel : SubscriptionStatusInactiveClientModel {
 		public SubscriptionStatusLapsedClientModel(
 			SubscriptionProviderClientValue provider,
 			SubscriptionPriceClientModel price,
 			DateTime lastPeriodEndDate,
 			DateTime lastPeriodRenewalGracePeriodEndDate,
 			DateTime? dateRefunded,
-			bool isUserFreeForLife
+			FreeTrialClientModel freeTrial
 		) :
 		base(
 			type: SubscriptionStatusClientModelType.Lapsed,
-			isUserFreeForLife: isUserFreeForLife
+			freeTrial: freeTrial
 		) {
 			Provider = provider;
 			Price = price;
