@@ -3,16 +3,16 @@ using System;
 namespace api.Messaging.Views {
 	public class WelcomeEmailViewModel {
 		public WelcomeEmailViewModel(
+			Uri downloadUrl,
 			Uri profileUrl,
-			Uri readManifestoUrl,
 			string userName
 		) {
+			DownloadUrl = downloadUrl.ToString();
 			ProfileUrl = profileUrl.ToString();
-			ReadManifestoUrl = readManifestoUrl.ToString();
 			UserName = userName;
 		}
+		public string DownloadUrl { get; }
 		public string ProfileUrl { get; }
-		public string ReadManifestoUrl { get; }
 		public string UserName { get; }
 	}
 }

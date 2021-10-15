@@ -31,6 +31,9 @@ namespace api.Routing {
 			var slugParts = slug.Split('_');
 			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(commentId)}"));
 		}
+		public Uri CreateDownloadUrl() {
+			return new Uri(endpoints.WebServer.CreateUrl("/download"));
+		}
 		public Uri CreatePasswordResetUrl(long resetRequestId) {
 			var token = WebUtility.UrlEncode(StringEncryption.Encrypt(resetRequestId.ToString(), tokenizationOptions.EncryptionKey));
 			return new Uri(endpoints.WebServer.CreateUrl($"/resetPassword?token={token}"));

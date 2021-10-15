@@ -988,11 +988,11 @@ namespace api.Notifications {
 						name: dispatch.UserName,
 						address: dispatch.EmailAddress
 					),
-					subject: "Your account on Readup",
+					subject: "Welcome to Readup! It’s time to start reading.",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new WelcomeEmailViewModel(
+						downloadUrl: routing.CreateDownloadUrl(),
 						profileUrl: routing.CreateProfileUrl(dispatch.UserName),
-						readManifestoUrl: routing.CreateArticleUrl("blogreadupcom_the-readup-manifesto"),
 						userName: dispatch.UserName
 					)
 				)

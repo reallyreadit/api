@@ -2,30 +2,17 @@
 
 @{
 	Layout = "Layout";
-	var subscribeUrl = Model.HomeUrl + "/subscribe";
 }
 
 <div style="margin:1em 0;">Dear @Model.Content.UserName,</div>
-<div style="margin:1em 0;">Welcome! You now have an account on Readup and your reader name is <a href="@Model.Content.ProfileUrl" style="font-weight:bold;">@Model.Content.UserName</a>.</div>
-<div style="margin:1em 0;">At this point, you can poke around on Readup, browse article titles and view comments. <span style="font-weight:bold;">But you won’t be able to read any articles until you purchase a paid subscription.</span> <a href="@subscribeUrl">Pick a price</a> that feels right to you. The price you choose is totally private. Readup keeps 5% and distributes the rest to the writers you read.</div>
-<div style="margin:1em 0;text-align:center;">
-	<img src="@Model.CreateImageUrl("watch-money.png")" alt="My Impact illustration." style="width:100%;max-width:400px;" />
-</div>
-<div style="margin:1em 0;">Readup is like Spotify (for reading) but with one key difference. On Spotify, you can’t see how much of your money actually goes to the musicians.</div>
-<div style="margin:1em 0;">To see how it all works, watch this 3-minute demo video:</div>
-<div style="margin:1em 0;text-align:center;">
-	<a href="https://www.youtube.com/watch?v=JwQOsdnywUs">
-		<img src="@Model.CreateImageUrl("how-it-works-video-thumbnail.png")" alt="How It Works video thumbnail." style="width:100%;max-width:400px;" />
-	</a>
-</div>
-<div style="margin:1em 0;">This is the beginning of a much brighter future for the web. Join today.</div>
+<div style="margin:1em 0;">Welcome to Readup! You can see <a href="@Model.Content.ProfileUrl" style="font-weight:bold;">your profile</a> here.</div>
+<div style="margin:1em 0;font-weight:bold;">The internet makes it hard to <span style="font-style:italic;">actually</span> read articles. We fixed that! And we’ve seen the positive impact that deep, focused reading has on people’s lives.</div>
+<div style="margin:1em 0;">We hope that your first reading experiences are excellent. Whenever you open the Readup app, you’re always just one or two clicks away from a great article or story.</div>
+<div style="margin:1em 0;">Finally, make sure to get Readup on <a href="@Model.Content.DownloadUrl">all your devices</a>.</div>
+<div style="margin:1em 0;">Happy reading! I’ll see you in the comments!</div>
+<div style="margin:1em 0;">Sincerely,</div>
 <div style="margin:1em 0;">
-	@await Html.PartialAsync("Shared/Button", (Text: "Subscribe now", Url: subscribeUrl))
-</div>
-<div style="margin:1em 0;">
-	Sincerely,<br />
 	Bill Loundy<br />
-	CEO/co-founder of Readup
+	CEO of Readup
 </div>
-<div style="margin:1em 0;">P.S. Feel free to reply to this email. I’d love to hear from you. ✌️</div>
-<div style="margin:1em 0;">P.P.S. Check out <a href="@Model.Content.ReadManifestoUrl">The Readup Manifesto</a></div>
+<div style="margin:1em 0;">P.S. I’d love to hear from you! Don’t hesitate to hit reply to this email.</div>
