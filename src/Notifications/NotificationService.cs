@@ -433,6 +433,8 @@ namespace api.Notifications {
 			long authorId,
 			string subject,
 			string body,
+			BulkEmailSubscriptionStatusFilter? subscriptionStatusFilter,
+			bool? freeForLifeFilter,
 			string testEmailAddress
 		) {
 			var links = new Dictionary<string, (string Text, long ArticleId)>();
@@ -458,7 +460,7 @@ namespace api.Notifications {
 						}
 					};
 				} else {
-					dispatches = await db.CreateCompanyUpdateNotifications(authorId, subject, body);
+					dispatches = await db.CreateCompanyUpdateNotifications(authorId, subject, body, subscriptionStatusFilter, freeForLifeFilter);
 				}
 			}
 			if (dispatches.Any()) {

@@ -32,19 +32,6 @@ namespace api.Controllers.BulkMailings {
 				return Json(db.GetBulkMailings().OrderByDescending(m => m.DateSent).Take(7));
 			}
 		}
-		[HttpGet]
-		public JsonResult Lists() {
-			using (var db = new NpgsqlConnection(dbOpts.ConnectionString)) {
-				return Json(
-					new[] {
-						new {
-							Key = "Company Updates",
-							Value = NotificationEventType.CompanyUpdate.ToString()
-						}
-					}
-				);
-			}
-		}
 		[HttpPost]
 		public async Task<IActionResult> SendTest(
 			[FromServices] NotificationService notificationService,
@@ -55,6 +42,8 @@ namespace api.Controllers.BulkMailings {
 					authorId: User.GetUserAccountId(),
 					subject: binder.Subject,
 					body: binder.Body,
+					subscriptionStatusFilter: binder.SubscriptionStatusFilter,
+					freeForLifeFilter: binder.FreeForLifeFilter,
 					testEmailAddress: binder.EmailAddress
 				);
 				return Ok();
@@ -73,6 +62,8 @@ namespace api.Controllers.BulkMailings {
 					authorId: User.GetUserAccountId(),
 					subject: binder.Subject,
 					body: binder.Body,
+					subscriptionStatusFilter: binder.SubscriptionStatusFilter,
+					freeForLifeFilter: binder.FreeForLifeFilter,
 					testEmailAddress: null
 				);
 				return Ok();

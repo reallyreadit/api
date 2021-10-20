@@ -822,14 +822,18 @@ namespace api.DataAccess {
 			this NpgsqlConnection conn,
 			long authorId,
 			string subject,
-			string body
+			string body,
+			BulkEmailSubscriptionStatusFilter? subscriptionStatusFilter,
+			bool? freeForLifeFilter
 		) => (
 			await conn.QueryAsync<NotificationEmailDispatch>(
 				sql: "notifications.create_company_update_notifications",
 				param: new {
 					author_id = authorId,
 					subject,
-					body
+					body,
+					subscription_status_filter = PostgresSerialization.SerializeEnum(subscriptionStatusFilter),
+					free_for_life_filter = freeForLifeFilter
 				},
 				commandType: CommandType.StoredProcedure
 			)

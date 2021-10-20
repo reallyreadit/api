@@ -7,6 +7,8 @@ namespace api.DataAccess.Models {
 		public string Subject { get; set; }
 		public string Body { get; set; }
 		public string Type { get; set; }
+		public BulkEmailSubscriptionStatusFilter? SubscriptionStatusFilter { get; set; }
+		public bool? FreeForLifeFilter { get; set; }
 		public string UserAccount { get; set; }
 		public int RecipientCount { get; set; }
 	}
