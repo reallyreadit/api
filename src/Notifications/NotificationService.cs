@@ -81,6 +81,20 @@ namespace api.Notifications {
 				tokens: dispatch.PushDeviceTokens
 			)
 		);
+		private ArticleViewModel CreateArticleViewModel(Article article, INotificationDispatch dispatch) => (
+			article != null ?
+				new ArticleViewModel(
+					article: article,
+					readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
+					viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
+					viewFirstPosterProfileUrl: (
+						article.FirstPoster != null ?
+							CreateFirstPosterEmailUrl(dispatch, article.Id) :
+							null
+					)
+				) :
+				null
+		);
 		private Uri CreateArticleEmailUrl(INotificationDispatch dispatch, long articleId) => (
 			CreateEmailUrl(
 				dispatch: dispatch,
@@ -352,16 +366,7 @@ namespace api.Notifications {
 								content: articles
 									.OrderByDescending(article => article.AotdTimestamp)
 									.Select(
-										article => new ArticleViewModel(
-											article: article,
-											readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
-											viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
-											viewFirstPosterProfileUrl: (
-												article.FirstPoster != null ?
-													CreateFirstPosterEmailUrl(dispatch, article.Id) :
-													null
-											)
-										)
+										article => CreateArticleViewModel(article, dispatch)
 									)
 									.ToArray()
 							)
