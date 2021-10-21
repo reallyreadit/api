@@ -16,3 +16,24 @@
 	CEO of Readup
 </div>
 <div style="margin:1em 0;">P.S. I’d love to hear from you! Don’t hesitate to hit reply to this email.</div>
+@if (Model.Content.ShortRead != null || Model.Content.MediumRead != null || Model.Content.LongRead != null) {
+	<div style="margin:1em 0;">P.P.S. Here are some recent AOTD winners to get started with:</div>
+	@if (Model.Content.ShortRead != null) {
+		<div style="margin:1em 0;">
+			<span>Short read (under 10 min.)</span><br />
+			<a href="@Model.Content.ShortRead.ReadArticleUrl">@Model.Content.ShortRead.Title</a>
+		</div>
+	}
+	@if (Model.Content.MediumRead != null) {
+		<div style="margin:1em 0;">
+			<span>Medium read (under 20 min.)</span><br />
+			<a href="@Model.Content.MediumRead.ReadArticleUrl">@Model.Content.MediumRead.Title</a>
+		</div>
+	}
+	@if (Model.Content.LongRead != null) {
+		<div style="margin:1em 0;">
+			<span>Long read (over 20 min.)</span><br />
+			<a href="@Model.Content.LongRead.ReadArticleUrl">@Model.Content.LongRead.Title</a>
+		</div>
+	}
+}
