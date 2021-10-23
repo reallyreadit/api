@@ -9,6 +9,8 @@ namespace api.DataAccess.Models {
 		public string Type { get; set; }
 		public BulkEmailSubscriptionStatusFilter? SubscriptionStatusFilter { get; set; }
 		public bool? FreeForLifeFilter { get; set; }
+		public DateTime? UserCreatedAfterFilter { get; set; }
+		public DateTime? UserCreatedBeforeFilter { get; set; }
 		public string UserAccount { get; set; }
 		public int RecipientCount { get; set; }
 	}

@@ -824,7 +824,9 @@ namespace api.DataAccess {
 			string subject,
 			string body,
 			BulkEmailSubscriptionStatusFilter? subscriptionStatusFilter,
-			bool? freeForLifeFilter
+			bool? freeForLifeFilter,
+			DateTime? userCreatedAfterFilter,
+			DateTime? userCreatedBeforeFilter
 		) => (
 			await conn.QueryAsync<NotificationEmailDispatch>(
 				sql: "notifications.create_company_update_notifications",
@@ -833,7 +835,9 @@ namespace api.DataAccess {
 					subject,
 					body,
 					subscription_status_filter = PostgresSerialization.SerializeEnum(subscriptionStatusFilter),
-					free_for_life_filter = freeForLifeFilter
+					free_for_life_filter = freeForLifeFilter,
+					user_created_after_filter = userCreatedAfterFilter,
+					user_created_before_filter = userCreatedBeforeFilter
 				},
 				commandType: CommandType.StoredProcedure
 			)

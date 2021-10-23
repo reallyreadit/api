@@ -435,6 +435,8 @@ namespace api.Notifications {
 			string body,
 			BulkEmailSubscriptionStatusFilter? subscriptionStatusFilter,
 			bool? freeForLifeFilter,
+			DateTime? userCreatedAfterFilter,
+			DateTime? userCreatedBeforeFilter,
 			string testEmailAddress
 		) {
 			var links = new Dictionary<string, (string Text, long ArticleId)>();
@@ -460,7 +462,15 @@ namespace api.Notifications {
 						}
 					};
 				} else {
-					dispatches = await db.CreateCompanyUpdateNotifications(authorId, subject, body, subscriptionStatusFilter, freeForLifeFilter);
+					dispatches = await db.CreateCompanyUpdateNotifications(
+						authorId: authorId,
+						subject: subject,
+						body: body,
+						subscriptionStatusFilter: subscriptionStatusFilter,
+						freeForLifeFilter: freeForLifeFilter,
+						userCreatedAfterFilter: userCreatedAfterFilter,
+						userCreatedBeforeFilter: userCreatedBeforeFilter
+					);
 				}
 			}
 			if (dispatches.Any()) {

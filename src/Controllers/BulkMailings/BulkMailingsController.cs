@@ -44,6 +44,8 @@ namespace api.Controllers.BulkMailings {
 					body: binder.Body,
 					subscriptionStatusFilter: binder.SubscriptionStatusFilter,
 					freeForLifeFilter: binder.FreeForLifeFilter,
+					userCreatedAfterFilter: binder.UserCreatedAfterFilter,
+					userCreatedBeforeFilter: binder.UserCreatedBeforeFilter,
 					testEmailAddress: binder.EmailAddress
 				);
 				return Ok();
@@ -64,6 +66,8 @@ namespace api.Controllers.BulkMailings {
 					body: binder.Body,
 					subscriptionStatusFilter: binder.SubscriptionStatusFilter,
 					freeForLifeFilter: binder.FreeForLifeFilter,
+					userCreatedAfterFilter: binder.UserCreatedAfterFilter,
+					userCreatedBeforeFilter: binder.UserCreatedBeforeFilter,
 					testEmailAddress: null
 				);
 				return Ok();
