@@ -119,6 +119,9 @@ namespace api.Messaging {
 		public async Task SendFollowerNotification(EmailNotification<FollowerViewModel> notifications) {
 			await Send("FollowerEmail", "new follower notifications", notifications);
 		}
+		public async Task SendFreeTrialCompletionNotification(EmailNotification<FreeTrialCompletionEmailViewModel> notification) {
+			await Send("FreeTrialCompletionEmail", null, notification);
+		}
 		public async Task SendInitialSubscriptionNotification(EmailNotification<InitialSubscriptionEmailViewModel> notification) {
 			await Send("InitialSubscriptionEmail", null, notification);
 		}

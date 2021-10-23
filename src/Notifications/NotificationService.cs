@@ -605,6 +605,42 @@ namespace api.Notifications {
 				);
 			}
 		}
+		public async Task CreateFreeTrialCompletionNotification(
+			long userAccountId
+		) {
+			NotificationEmailDispatch dispatch;
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				try {
+					dispatch = await db.CreateTransactionalNotification(
+						userAccountId: userAccountId,
+						eventType: NotificationEventType.FreeTrialCompletion,
+						emailConfirmationId: null,
+						passwordResetRequestId: null
+					);
+				} catch (PostgresException ex) when (
+					ex.ConstraintName == "notification_event_duplicate_user_account_event_idx"
+				) {
+					// Ignore duplicate notification errors.
+					return;
+				}
+			}
+			await emailService.SendFreeTrialCompletionNotification(
+				new EmailNotification<FreeTrialCompletionEmailViewModel>(
+					userId: dispatch.UserAccountId,
+					to: new EmailMailbox(
+						name: dispatch.UserName,
+						address: dispatch.EmailAddress
+					),
+					subject: "Continue reading the best of the web",
+					openUrl: CreateEmailOpenUrl(dispatch),
+					content: new FreeTrialCompletionEmailViewModel(
+						userName: dispatch.UserName,
+						subscribeUrl: routing.CreateSubscribeUrl(),
+						writerLeaderboardUrl: routing.CreateWriterLeaderboardUrl()
+					)
+				)
+			);
+		}
 		public async Task CreateInitialSubscriptionNotification(
 			long userAccountId
 		) {

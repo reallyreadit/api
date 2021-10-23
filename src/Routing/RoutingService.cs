@@ -60,5 +60,11 @@ namespace api.Routing {
 			var slugParts = slug.Split('_');
 			return new Uri(endpoints.WebServer.CreateUrl($"/comments/{slugParts[0]}/{slugParts[1]}/{obfuscation.Encode(RoutingService.CommentsUrlSilentPostIdKey, silentPostId)}"));
 		}
+		public Uri CreateSubscribeUrl() {
+			return new Uri(endpoints.WebServer.CreateUrl("/subscribe"));
+		}
+		public Uri CreateWriterLeaderboardUrl() {
+			return new Uri(endpoints.WebServer.CreateUrl("/leaderboards/writers"));
+		}
 	}
 }
