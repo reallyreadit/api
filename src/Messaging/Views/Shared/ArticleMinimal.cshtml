@@ -1,16 +1,16 @@
 @model api.Messaging.Views.Shared.ArticleViewModel
 
-<div style="margin:1em 0;">
+<div style="margin: 1.5em 0;padding: 0 0.95em;border-radius:2px;display: block;">
 	@if (!String.IsNullOrWhiteSpace(Model.Authors) || !String.IsNullOrWhiteSpace(Model.Source)) {
 		<div style="margin-bottom:0.10em;">
 			@if (!String.IsNullOrWhiteSpace(Model.Authors)) {
-				<span style="text-transform:uppercase;font-size:10pt;">@Model.Authors</span>
+				<span style="text-transform:uppercase;font-size:9pt;">@Model.Authors</span>
 			}
 			@if (!String.IsNullOrWhiteSpace(Model.Authors) && !String.IsNullOrWhiteSpace(Model.Source)) {
-				<span style="font-size:10pt;"> in </span
+				<span style="font-size:9pt;"> in </span>
 			}
 			@if (!String.IsNullOrWhiteSpace(Model.Source)) {
-				<span style="text-transform:uppercase;font-size:10pt;font-style:italic;">@Model.Source</span>
+				<span style="text-transform:uppercase;font-size:9pt;font-style:italic;">@Model.Source</span>
 			}
 		</div>
 	}
