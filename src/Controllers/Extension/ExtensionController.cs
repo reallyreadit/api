@@ -34,94 +34,145 @@ namespace api.Controllers.Extension {
 			this.dbOpts = dbOpts.Value;
 			this.logger = logger;
 		}
-		private static PageInfoBinder.ArticleBinder.AuthorBinder[] AssignMissingAuthors(PageInfoBinder.ArticleBinder.AuthorBinder[] authors, string sourceHost) {
-			if (authors.Any()) {
-				return authors;
+		private enum AuthorMetadataAction {
+			Add,
+			Remove
+		}
+		private class AuthorMetadataRule {
+			public AuthorMetadataRule(AuthorMetadataAction action, string authorName) {
+				Action = action;
+				AuthorName = authorName;
 			}
-			var assignments = new Dictionary<string, string>() {
+			public AuthorMetadataAction Action { get; }
+			public string AuthorName { get; }
+		}
+		private static PageInfoBinder.ArticleBinder.AuthorBinder[] ApplyAuthorMetadataRules(PageInfoBinder.ArticleBinder.AuthorBinder[] authors, string sourceHost) {
+			var assignments = new Dictionary<string, AuthorMetadataRule[]>() {
 				{
 					"aaronzlewis.com",
-					"Aaron Z. Lewis"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Aaron Z. Lewis")
+					}
 				},
 				{
 					"alexarohn.com",
-					"Alexa Rohn"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Alexa Rohn")
+					}
 				},
 				{
 					"attentionactivist.com",
-					"Jay Vidyarthi"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Jay Vidyarthi")
+					}
 				},
 				{
 					"blog.viktomas.com",
-					"Tomas Vik"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Tomas Vik")
+					}
 				},
 				{
 					"contrapoints.com",
-					"Natalie Wynn"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Natalie Wynn")
+					}
 				},
 				{
 					"franklywrite.com",
-					"Cynthia Franks"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Cynthia Franks")
+					}
 				},
 				{
 					"kevin-indig.com",
-					"Kevin Indig"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Kevin Indig")
+					}
 				},
 				{
 					"stratechery.com",
-					"Ben Thompson"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Ben Thompson")
+					}
 				},
 				{
 					"waitbutwhy.com",
-					"Tim Urban"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Tim Urban")
+					}
 				},
 				{
 					"seths.blog",
-					"Seth Godin"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Seth Godin")
+					}
 				},
 				{
 					"paulgraham.com",
-					"Paul Graham"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Paul Graham")
+					}
 				},
 				{
 					"raptitude.com",
-					"David Cain"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "David Cain")
+					}
 				},
 				{
 					"manassaloi.com",
-					"Manas J. Saloi"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Manas J. Saloi")
+					}
 				},
 				{
 					"calnewport.com",
-					"Cal Newport"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Cal Newport")
+					}
 				},
 				{
 					"jamesclear.com",
-					"James Clear"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "James Clear")
+					}
 				},
 				{
 					"dreamtimehealings.com",
-					"Helen Knight"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Helen Knight")
+					}
 				},
 				{
 					"nav.al",
-					"Naval Ravikant"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Naval Ravikant")
+					}
 				},
 				{
 					"craigmod.com",
-					"Craig Mod"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Craig Mod")
+					}
 				},
 				{
 					"dougantin.com",
-					"Doug Antin"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Doug Antin")
+					}
 				},
 				{
 					"lisarichardsonbylines.com",
-					"Lisa Richardson"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Lisa Richardson")
+					}
 				},
 				{
 					"perell.com",
-					"David Perell"
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "David Perell")
+					}
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
@@ -130,11 +181,26 @@ namespace api.Controllers.Extension {
 			if (matchingKey == null) {
 				return authors;
 			}
-			return new PageInfoBinder.ArticleBinder.AuthorBinder[] {
-				new PageInfoBinder.ArticleBinder.AuthorBinder() {
-					Name = assignments[matchingKey]
+			var result = authors.ToList();
+			foreach (var rule in assignments[matchingKey]) {
+				switch (rule.Action) {
+					case AuthorMetadataAction.Add:
+						result.Add(
+							new PageInfoBinder.ArticleBinder.AuthorBinder() {
+								Name = rule.AuthorName
+							}
+						);
+						break;
+					case AuthorMetadataAction.Remove:
+						result = result
+							.Where(
+								item => item.Name?.Trim().ToLower() != rule.AuthorName.ToLower()
+							)
+							.ToList();
+						break;
 				}
-			};
+			}
+			return result.ToArray();
 		}
 		private static string CreateSlug(string value) {
 			var slug = Regex.Replace(Regex.Replace(value, @"[^a-zA-Z0-9-\s]", ""), @"\s", "-").ToLower();
@@ -577,7 +643,7 @@ namespace api.Controllers.Extension {
 							section: PrepareArticleSection(Decode(binder.Article.Section)),
 							description: Decode(binder.Article.Description),
 							authors: PrepareAuthors(
-								AssignMissingAuthors(binder.Article.Authors, sourceHost)
+								ApplyAuthorMetadataRules(binder.Article.Authors, sourceHost)
 							),
 							tags: PrepareTags(binder.Article.Tags)
 						);
