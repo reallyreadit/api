@@ -7,7 +7,28 @@
 <div style="margin:1em 0;">Dear @Model.Content.UserName,</div>
 <div style="margin:1em 0;">Welcome to Readup! You can see <a href="@Model.Content.ProfileUrl" style="font-weight:bold;">your profile</a> here.</div>
 <div style="margin:1em 0;font-weight:bold;">The internet makes it hard to <span style="font-style:italic;">actually</span> read articles. We fixed that! And we’ve seen the positive impact that deep, focused reading has on people’s lives.</div>
-<div style="margin:1em 0;">We hope that your first reading experiences are excellent. Whenever you open the Readup app, you’re always just one or two clicks away from a great article or story.</div>
+<div style="margin:1em 0;">We want your first reading experiences to be excellent. So, here are some recent Article of the Day (AOTD) winners that we think you might enjoy:</div>
+@if (Model.Content.ShortRead != null || Model.Content.MediumRead != null || Model.Content.LongRead != null) {
+	@if (Model.Content.ShortRead != null) {
+		<div style="margin:1em 0;">
+			@await Html.PartialAsync("Shared/ArticleMinimal", @Model.Content.ShortRead)
+			<!-- Short read (under 10 min.) -->
+		</div>
+	}
+	@if (Model.Content.MediumRead != null) {
+		<div style="margin:1em 0;">
+			<!-- Medium read (under 20 min.) -->
+			@await Html.PartialAsync("Shared/ArticleMinimal", @Model.Content.MediumRead)
+		</div>
+	}
+	@if (Model.Content.LongRead != null) {
+		<div style="margin:1em 0;">
+			<!-- Long read (over 20 min.) -->
+			@await Html.PartialAsync("Shared/ArticleMinimal", @Model.Content.LongRead)
+		</div>
+	}
+}
+<div style="margin:1em 0;">Whenever you open the Readup app, you’re always just one or two clicks away from a great article or story.</div>
 <div style="margin:1em 0;">Finally, make sure to get Readup on <a href="@Model.Content.DownloadUrl">all your devices</a>.</div>
 <div style="margin:1em 0;">Happy reading! I’ll see you in the comments!</div>
 <div style="margin:1em 0;">Sincerely,</div>
@@ -16,24 +37,3 @@
 	CEO of Readup
 </div>
 <div style="margin:1em 0;">P.S. I’d love to hear from you! Don’t hesitate to hit reply to this email.</div>
-@if (Model.Content.ShortRead != null || Model.Content.MediumRead != null || Model.Content.LongRead != null) {
-	<div style="margin:1em 0;">P.P.S. Here are some recent AOTD winners to get started with:</div>
-	@if (Model.Content.ShortRead != null) {
-		<div style="margin:1em 0;">
-			<span>Short read (under 10 min.)</span><br />
-			<a href="@Model.Content.ShortRead.ReadArticleUrl">@Model.Content.ShortRead.Title</a>
-		</div>
-	}
-	@if (Model.Content.MediumRead != null) {
-		<div style="margin:1em 0;">
-			<span>Medium read (under 20 min.)</span><br />
-			<a href="@Model.Content.MediumRead.ReadArticleUrl">@Model.Content.MediumRead.Title</a>
-		</div>
-	}
-	@if (Model.Content.LongRead != null) {
-		<div style="margin:1em 0;">
-			<span>Long read (over 20 min.)</span><br />
-			<a href="@Model.Content.LongRead.ReadArticleUrl">@Model.Content.LongRead.Title</a>
-		</div>
-	}
-}
