@@ -173,6 +173,13 @@ namespace api.Controllers.Extension {
 					new [] {
 						new AuthorMetadataRule(AuthorMetadataAction.Add, "David Perell")
 					}
+				},
+				{
+					"greenstocks.substack.com",
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "Saul Bowden"),
+						new AuthorMetadataRule(AuthorMetadataAction.Remove, "Saul")
+					}
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
