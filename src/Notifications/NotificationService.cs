@@ -81,6 +81,20 @@ namespace api.Notifications {
 				tokens: dispatch.PushDeviceTokens
 			)
 		);
+		private ArticleViewModel CreateArticleViewModel(Article article, INotificationDispatch dispatch) => (
+			article != null ?
+				new ArticleViewModel(
+					article: article,
+					readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
+					viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
+					viewFirstPosterProfileUrl: (
+						article.FirstPoster != null ?
+							CreateFirstPosterEmailUrl(dispatch, article.Id) :
+							null
+					)
+				) :
+				null
+		);
 		private Uri CreateArticleEmailUrl(INotificationDispatch dispatch, long articleId) => (
 			CreateEmailUrl(
 				dispatch: dispatch,
@@ -352,16 +366,7 @@ namespace api.Notifications {
 								content: articles
 									.OrderByDescending(article => article.AotdTimestamp)
 									.Select(
-										article => new ArticleViewModel(
-											article: article,
-											readArticleUrl: CreateArticleEmailUrl(dispatch, article.Id),
-											viewCommentsUrl: CreateCommentsEmailUrl(dispatch, article.Id),
-											viewFirstPosterProfileUrl: (
-												article.FirstPoster != null ?
-													CreateFirstPosterEmailUrl(dispatch, article.Id) :
-													null
-											)
-										)
+										article => CreateArticleViewModel(article, dispatch)
 									)
 									.ToArray()
 							)
@@ -984,6 +989,10 @@ namespace api.Notifications {
 		) {
 			EmailConfirmation emailConfirmation;
 			NotificationEmailDispatch dispatch;
+			Article
+				shortArticle,
+				mediumArticle,
+				longArticle;
 			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 				emailConfirmation = db.CreateEmailConfirmation(userAccountId);
 				dispatch = await db.CreateTransactionalNotification(
@@ -992,6 +1001,23 @@ namespace api.Notifications {
 					emailConfirmationId: emailConfirmation.Id,
 					passwordResetRequestId: null
 				);
+				Func<int?, int?, Task<Article>> findAotd = async (int? minLength, int? maxLength) => {
+					var pageResult = await db.GetAotdHistory(
+						pageNumber: 1,
+						pageSize: 1,
+						minLength: minLength,
+						maxLength: maxLength
+					);
+					return pageResult.Items.Any() ?
+						await db.GetArticleById(
+							articleId: pageResult.Items.First(),
+							userAccountId: userAccountId
+						) :
+						null;
+				};
+				shortArticle = await findAotd(null, 9);
+				mediumArticle = await findAotd(10, 19);
+				longArticle = await findAotd(20, null);
 			}
 			await emailService.SendWelcomeNotification(
 				new EmailNotification<WelcomeEmailViewModel>(
@@ -1005,7 +1031,10 @@ namespace api.Notifications {
 					content: new WelcomeEmailViewModel(
 						downloadUrl: routing.CreateDownloadUrl(),
 						profileUrl: routing.CreateProfileUrl(dispatch.UserName),
-						userName: dispatch.UserName
+						userName: dispatch.UserName,
+						shortRead: CreateArticleViewModel(shortArticle, dispatch),
+						mediumRead: CreateArticleViewModel(mediumArticle, dispatch),
+						longRead: CreateArticleViewModel(longArticle, dispatch)
 					)
 				)
 			);
