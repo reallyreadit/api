@@ -34,6 +34,60 @@ namespace api.Controllers.Extension {
 			this.dbOpts = dbOpts.Value;
 			this.logger = logger;
 		}
+		private class AuthorAliasRule {
+			public AuthorAliasRule(
+				string aliasSlug,
+				AuthorMetadata canonicalMetadata,
+				string[] sourceHosts
+			) {
+				AliasSlug = aliasSlug;
+				CanonicalMetadata = canonicalMetadata;
+				SourceHosts = sourceHosts;
+			}
+			public string AliasSlug { get; }
+			public AuthorMetadata CanonicalMetadata { get; }
+			public string[] SourceHosts { get; }
+		}
+		private static AuthorMetadata[] ApplyAuthorSlugRules(AuthorMetadata[] authors, string sourceHost) {
+			var aliasRules = new[] {
+				new AuthorAliasRule(
+					aliasSlug: "mogwai",
+					canonicalMetadata: new AuthorMetadata(
+						name: "Justin Irabor",
+						url: "https://thevunderkind.com/",
+						slug: "justin-irabor"
+					),
+					sourceHosts: new[] {
+						"medium.com",
+						"dev.to",
+						"thevunderkind.com",
+						"dowhile.substack.com",
+						"craftoverflow.substack.com"
+					}
+				)
+			};
+			var matchingAliasRules = aliasRules
+				.Where(
+					rule => rule.SourceHosts.Contains(sourceHost)
+				)
+				.ToArray();
+			if (
+				!matchingAliasRules.Any()
+			) {
+				return authors;
+			}
+			var result = authors.ToList();
+			foreach (var aliasRule in matchingAliasRules) {
+				var aliasMetadata = result.SingleOrDefault(
+					author => author.Slug == aliasRule.AliasSlug
+				);
+				if (aliasMetadata != null) {
+					result.Remove(aliasMetadata);
+					result.Add(aliasRule.CanonicalMetadata);
+				}
+			}
+			return result.ToArray();
+		}
 		private enum AuthorMetadataAction {
 			Add,
 			Remove
@@ -649,8 +703,11 @@ namespace api.Controllers.Extension {
 							dateModified: ParseArticleDate(binder.Article.DateModified),
 							section: PrepareArticleSection(Decode(binder.Article.Section)),
 							description: Decode(binder.Article.Description),
-							authors: PrepareAuthors(
-								ApplyAuthorMetadataRules(binder.Article.Authors, sourceHost)
+							authors: ApplyAuthorSlugRules(
+								PrepareAuthors(
+									ApplyAuthorMetadataRules(binder.Article.Authors, sourceHost)
+								),
+								sourceHost
 							),
 							tags: PrepareTags(binder.Article.Tags)
 						);
