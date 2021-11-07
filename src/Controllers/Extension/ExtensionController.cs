@@ -234,6 +234,12 @@ namespace api.Controllers.Extension {
 						new AuthorMetadataRule(AuthorMetadataAction.Add, "Saul Bowden"),
 						new AuthorMetadataRule(AuthorMetadataAction.Remove, "Saul")
 					}
+				},
+				{
+					"makingsofaminimaniac.wordpress.com",
+					new [] {
+						new AuthorMetadataRule(AuthorMetadataAction.Add, "St Gothica")
+					}
 				}
 			};
 			var matchingKey = assignments.Keys.SingleOrDefault(
