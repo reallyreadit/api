@@ -631,7 +631,7 @@ namespace api.Notifications {
 						name: dispatch.UserName,
 						address: dispatch.EmailAddress
 					),
-					subject: "Continue reading the best of the web",
+					subject: "You have no more free articles. It’s time to subscribe!",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new FreeTrialCompletionEmailViewModel(
 						userName: dispatch.UserName,

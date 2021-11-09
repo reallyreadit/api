@@ -3,18 +3,10 @@
 @{ Layout = "Layout"; }
 
 <div style="margin:1em 0;">Dear @Model.Content.UserName,</div>
-<div style="margin:1em 0;">You’ve checked out all your free articles on Readup, we hope you enjoyed them!</div>
-<div style="margin:1em 0;">At this point, you can still poke around on Readup, browse article titles and follow web links. <span style="font-weight:bold;">But you won’t be able to read any new articles until you purchase a paid subscription.</span> <a href="@Model.Content.SubscribeUrl">Pick a price</a> that feels right to you. The minimum is $4.99/mo. The price you choose is totally private.</div>
-<div style="margin:1em 0;">
-	@await Html.PartialAsync("Shared/Button", (Text: "Subscribe now", Url: @Model.Content.SubscribeUrl))
-</div>
-<div style="margin:1em 0;">Subscribing to Readup is joining an internet compensation revolution. Readup keeps 5% of your subscription and saves the rest for the writers and publishers you read. They can come and <a href="@Model.Content.WriterLeaderboardUrl">get payed out at any time</a>. Readup is like Spotify (for reading) but with one key difference. On Spotify, you can’t see how much of your money actually goes to the musicians. On Readup, that’s entirely transparent. To see how it all works, watch this 3-minute demo video:</div>
-<div style="margin:1em 0;text-align:center;">
-	<a href="https://www.youtube.com/watch?v=JwQOsdnywUs">
-		<img src="@Model.CreateImageUrl("how-it-works-video-thumbnail.png")" alt="How It Works video thumbnail." style="width:100%;max-width:400px;" />
-	</a>
-</div>
-<div style="margin:1em 0;">Reading matters. Paying for good writing matters. This is the beginning of a much brighter future for the web. Join today!</div>
+<div style="margin:1em 0;">We hope you are enjoying Readup so far. <span style="font-weight:bold;">Unfortunately, you have run out of free articles.</span></div>
+<div style="margin:1em 0;">You can still poke around on Readup. And you can even click on links to view the articles on the web, but you’ll have to deal with distractions and you won’t be able to comment.</div>
+<div style="margin:1em 0;"><span style="font-weight:bold;">For unlimited ad-free reading on Readup, <a href="https://readup.com/subscribe">buy a subscription</a>. Once you start paying, you get to watch your money go directly to the writers you read!</span> The minimum is $4.99/mo, but you can pick any price that feels right to you.</div>
+<div style="margin:1em 0;">Reading matters. Supporting writers (with real money!) also matters. This is the beginning of a much brighter future for the web.</div>
 <div style="margin:1em 0;">
 	@await Html.PartialAsync("Shared/Button", (Text: "Subscribe now", Url: @Model.Content.SubscribeUrl))
 </div>
@@ -23,4 +15,9 @@
 	Bill Loundy<br />
 	CEO of Readup
 </div>
-<div style="margin:1em 0;">PS: want to squeeze out some more free reads? If you haven’t already, go to the Free Trial screen in the app and Tweet about Readup. You’ll get 5 more free views.</div>
+<div style="margin:1em 0;">PS Want to learn more? In <a href="https://www.youtube.com/watch?v=JwQOsdnywUs">this video</a>, I explain how Readup plans to save the future of journalism. To contact me directly, just reply to this email.</div>
+<div style="margin:1em 0;text-align:center;">
+	<a href="https://www.youtube.com/watch?v=JwQOsdnywUs">
+		<img src="@Model.CreateImageUrl("how-it-works-video-thumbnail.png")" alt="How It Works video thumbnail." style="width:100%;max-width:400px;" />
+	</a>
+</div>
