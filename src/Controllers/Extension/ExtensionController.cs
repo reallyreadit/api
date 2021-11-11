@@ -540,6 +540,7 @@ namespace api.Controllers.Extension {
 		}
 		[HttpPost]
 		public async Task<IActionResult> GetUserArticle(
+			[FromServices] NotificationService notificationService,
 			[FromServices] ReadingVerificationService verificationService,
 			[FromBody] PageInfoBinder binder
 		) {
@@ -790,6 +791,22 @@ namespace api.Controllers.Extension {
 				}
 				if (binder.Star) {
 					db.StarArticle(userAccountId, page.ArticleId);
+				}
+				// check if this view could have depleted the user's free trial credits
+				if (markArticleAsViewed && userArticle.FreeTrialCreditId.HasValue) {
+					// check the balance to see if the user is out of credits
+					var freeTrialCredits = await db.GetFreeTrialCreditsForUserAccountAsync(
+						userAccountId: userAccountId
+					);
+					if (
+						freeTrialCredits.All(
+							credit => credit.AmountRemaining == 0
+						)
+					) {
+						await notificationService.CreateFreeTrialCompletionNotification(
+							userAccountId: userAccountId
+						);
+					}
 				}
 				return Json(new {
 					UserArticle = verificationService.AssignProofToken(
