@@ -685,9 +685,7 @@ namespace api.Notifications {
 					subject: "Thank you for purchasing a Readup subscription!",
 					openUrl: CreateEmailOpenUrl(dispatch),
 					content: new InitialSubscriptionEmailViewModel(
-						userName: dispatch.UserName,
-						billProfileUrl: routing.CreateProfileUrl("bill"),
-						jeffProfileUrl: routing.CreateProfileUrl("jeff")
+						userName: dispatch.UserName
 					)
 				)
 			);
