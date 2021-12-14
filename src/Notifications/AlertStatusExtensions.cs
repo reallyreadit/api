@@ -3,8 +3,6 @@ namespace api.Notifications {
 		public static int GetTotalBadgeCount(this IAlertStatus status) => (
 			(status.AotdAlert ? 1 : 0) +
 			status.FollowerAlertCount +
-			status.LoopbackAlertCount +
-			status.PostAlertCount +
 			status.ReplyAlertCount
 		);
 	}
