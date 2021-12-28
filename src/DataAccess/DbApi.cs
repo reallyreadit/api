@@ -2289,6 +2289,12 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<IEnumerable<PayoutReportLineItem>> RunPayoutReportAsync(
+			this NpgsqlConnection connection
+		) => await connection.QueryAsync<PayoutReportLineItem>(
+			sql: "subscriptions.run_payout_report",
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<PayoutTotalsReport> RunPayoutTotalsReportAsync(
 			this NpgsqlConnection connection
 		) => await connection.QuerySingleOrDefaultAsync<PayoutTotalsReport>(

@@ -25,6 +25,7 @@ using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using api.Authorization;
 
 namespace api.Controllers.Subscriptions {
 	public class SubscriptionsController : Controller {
@@ -1294,6 +1295,15 @@ namespace api.Controllers.Subscriptions {
 					payoutsEnabled: payoutAccount.DatePayoutsEnabled.HasValue
 				)
 			);
+		}
+
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		public async Task<ActionResult<PayoutReportResponse>> PayoutReport() {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				return new PayoutReportResponse(
+					await db.RunPayoutReportAsync()
+				);
+			}
 		}
 
 		[HttpGet]
