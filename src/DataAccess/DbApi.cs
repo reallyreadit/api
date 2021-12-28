@@ -713,6 +713,18 @@ namespace api.DataAccess {
 			},
 			commandType: CommandType.StoredProcedure
 		);
+		public static async Task<Author> AssignUserAccountToAuthor(
+			this NpgsqlConnection conn,
+			long authorId,
+			long userAccountId
+		) => await conn.QuerySingleOrDefaultAsync<Author>(
+			sql: "authors.assign_user_account_to_author",
+			param: new {
+				author_id = authorId,
+				user_account_id = userAccountId
+			},
+			commandType: CommandType.StoredProcedure
+		);
 		public static async Task<Author> CreateAuthorAsync(
 			this NpgsqlConnection conn,
 			string name,

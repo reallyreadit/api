@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using Npgsql;
+using api.Authorization;
+using System;
 
 namespace api.Controllers.AuthorsController {
 	public class AuthorsController : Controller {
@@ -83,6 +85,39 @@ namespace api.Controllers.AuthorsController {
 						donationRecipient: donationRecipient
 					)
 				);
+			}
+		}
+		[AuthorizeUserAccountRole(UserAccountRole.Admin)]
+		[HttpPost]
+		public async Task<IActionResult> UserAccountAssignment(
+			[FromBody] AuthorUserAccountAssignmentRequest request
+		) {
+			using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+				// Look up the author first.
+				var author = await db.GetAuthor(slug: request.AuthorSlug);
+				if (author == null) {
+					return Problem("Author not found.", statusCode: 404);
+				}
+				// Look up the user account.
+				var user = await db.GetUserAccountByName(userName: request.UserAccountName);
+				if (user == null) {
+					return Problem("User not found.", statusCode: 404);
+				}
+				// Verify that the author isn't already associated with another user account.
+				if (author.UserAccountId.HasValue) {
+					return Problem("Author has already been verified.", statusCode: 400);
+				}
+				// Attempt the assignment.
+				try {
+					author = await db.AssignUserAccountToAuthor(
+						authorId: author.Id,
+						userAccountId: user.Id
+					);
+					return Ok();
+				} catch (Exception ex) {
+					log.LogError(ex, "Failed to assign user with ID {UserId} to author with ID {AuthorId}.", user.Id, author.Id);
+					return Problem("Assignment failed.", statusCode: 500);
+				}
 			}
 		}
 	}
