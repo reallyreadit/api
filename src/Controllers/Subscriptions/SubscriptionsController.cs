@@ -1960,6 +1960,22 @@ namespace api.Controllers.Subscriptions {
 						case Stripe.Events.PaymentMethodAutomaticallyUpdated:
 							await UpdatePaymentMethodFromStripeAsync(stripeEvent.Data.Object as Stripe.PaymentMethod, SubscriptionEventSource.ProviderNotification);
 							break;
+						// Record author payouts as soon as the transfer is created.
+						case Stripe.Events.TransferCreated:
+							var transfer = stripeEvent.Data.Object as Stripe.Transfer;
+							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
+								try {
+									await db.CreateAuthorPayoutAsync(
+										id: transfer.Id,
+										dateCreated: transfer.Created,
+										payoutAccountId: transfer.DestinationId,
+										amount: (int)transfer.Amount
+									);
+								} catch (Exception ex) {
+									logger.LogError(ex, "Failed to create author payout for Transfer with Id: {TransferId}.", transfer.Id);
+								}
+							}
+							break;
 					}
 				}
 			);
