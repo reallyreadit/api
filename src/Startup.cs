@@ -317,6 +317,7 @@ namespace api {
 				}
 			);
 			// configure Npgsql
+			AppContext.SetSwitch("Npgsql.EnableLegacyTimestampBehavior", true);
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<ArticleFlair>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthorContactStatus>();
 			NpgsqlConnection.GlobalTypeMapper.MapEnum<AuthServiceProvider>();
