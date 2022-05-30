@@ -5,7 +5,7 @@
 With Docker:
 ```
 docker build -t readup-api .
-docker run --name readup-api --rm -e ASPNETCORE_ENVIRONMENT=Development -v /Users/thor/Code/readup/api:/api readup-api
+docker run -d --name readup-api -e ASPNETCORE_ENVIRONMENT=Development -p 5000:5000 -v /Users/thor/Code/readup/api:/api readup-api
 ```
 ## Setup Guide
 1. Install the .NET Core 3.1 SDK: https://dotnet.microsoft.com/download
