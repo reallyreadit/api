@@ -1,13 +1,10 @@
 # reallyread.it api
 
-###
+### Setup with Docker
 
-With Docker:
-```
-docker build -t readup-api .
-docker run -d --name readup-api -e ASPNETCORE_ENVIRONMENT=Development -p 5000:5000 -v /Users/thor/Code/readup/api:/api readup-api
-```
-## Setup Guide
+See the [dev-env](https://github.com/reallyreadit/dev-env) instructions to set up this API server as part of the Docker Compose project.
+
+## Manual Setup
 1. Install the .NET Core 3.1 SDK: https://dotnet.microsoft.com/download
 2. Configure the ASP.NET core environment for development: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/environments?view=aspnetcore-3.1#set-the-environment
 
@@ -15,7 +12,7 @@ docker run -d --name readup-api -e ASPNETCORE_ENVIRONMENT=Development -p 5000:50
 3. Create the following configuration files, making these changes:
 
     - Replace `PG_USER`, `PG_PASS` and `DB_NAME` under the `Database` section with the values you chose during the database setup.
-    - Set the value for `SystemEmojiFontName` under the `TwitterImageRendering` section. The default values are `Apple Color Emoji` or `Segoe UI Emoji` for macOS and Windows respectively. When running with Docker (which uses Debian Buster under the hood), fill in `Noto Color Emoji`.
+    - Set the value for `SystemEmojiFontName` under the `TwitterImageRendering` section. The default values are `Apple Color Emoji` or `Segoe UI Emoji` for macOS and Windows respectively. When running with Linux, find, install and enter `Noto Color Emoji`.
 	 - Optionally set values for `Host` and `Port` under the `Email.SmtpServer` section if you want to capture email messages that would be sent by the server.
 	 - Optionally set the value for `StripeApiSecretKey` under the `Subscriptions` section if you want to perform test purchases through Stripe.
 	 - Optionally set the value for `StripeWebhookSigningSecret` under the `Subscriptions` section if you want to receive and process Stripe webhook events.
