@@ -136,3 +136,6 @@ See the [dev-env](https://github.com/reallyreadit/dev-env) instructions to set u
 4. Build and run the server
 
         dotnet watch run
+
+
+To use development tools with the C# extension in VSCode (via OmniSharp), the .NET SDK 6 also needs to be installed on your machine.
