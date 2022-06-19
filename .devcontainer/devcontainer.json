@@ -1,0 +1,12 @@
+{
+	"name": "Readup API",
+	"dockerComposeFile": "../../dev-env/docker-compose.yml",
+	"service": "api",
+	"workspaceFolder": "/api",
+	"shutdownAction": "stopCompose",
+	"customizations": {
+		"vscode": {
+			"extensions": ["ms-dotnettools.csharp"]
+		}
+	}
+  }
