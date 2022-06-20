@@ -18,7 +18,7 @@ The `.devcontainer/devcontainer.json` and `Dockerfile` have already been set up 
 
 Learn more about how to load this folder into a VSCode instance within the container here: [Developing inside a Container](https://code.visualstudio.com/docs/remote/containers#_create-a-devcontainerjson-file).
 
-
+To debug the watcher started by default by the container, attach VSCode to the `/api/bin/Debug/netcoreapp3.1/api` process.
 
 ## Manual Setup
 1. Install the .NET Core 3.1 SDK: https://dotnet.microsoft.com/download

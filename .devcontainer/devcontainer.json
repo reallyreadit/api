@@ -6,7 +6,7 @@
 	"shutdownAction": "stopCompose",
 	"customizations": {
 		"vscode": {
-			"extensions": ["ms-dotnettools.csharp"]
+			"extensions": ["ms-dotnettools.csharp", "eamodio.gitlens"]
 		}
 	}
   }
