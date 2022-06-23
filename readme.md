@@ -1,5 +1,26 @@
 # reallyread.it api
-## Setup Guide
+
+The Readup API server is written in ASP.NET 3.1. Its main functions are:
+- Serving as an interface between the Postgres database and any front-end applications for user data.
+- Handling authentication with Apple and Twitter.
+- Sending transactional emails, and offers endpoints to send marketing email.
+- Generating images from comments, and posting these to connected Twitter accounts via the Twitter API
+
+## Setup with Docker
+
+See the [dev-env](https://github.com/reallyreadit/dev-env) instructions to set up this API server as a service within a Docker Compose project. This is the easiest way to get started.
+
+### Developing with VSCode Remote - Container 
+
+By using the container of the Docker Compose service as a VSCode Remote, you can leverage the OmniSharp .NET language tools and IntelliSense while developing without having to install them on your host system. 
+
+The `.devcontainer/devcontainer.json` and `Dockerfile` have already been set up with the right OmniSharp configuration for this .NET 3.1 project, as long as you installed the Docker Compose project as suggested above.
+
+Learn more about how to load this folder into a VSCode instance within the container here: [Developing inside a Container](https://code.visualstudio.com/docs/remote/containers#_create-a-devcontainerjson-file).
+
+To debug the watcher started by default by the container, attach VSCode to the `/api/bin/Debug/netcoreapp3.1/api` process.
+
+## Manual Setup
 1. Install the .NET Core 3.1 SDK: https://dotnet.microsoft.com/download
 2. Configure the ASP.NET core environment for development: https://docs.microsoft.com/en-us/aspnet/core/fundamentals/environments?view=aspnetcore-3.1#set-the-environment
 
@@ -7,7 +28,7 @@
 3. Create the following configuration files, making these changes:
 
     - Replace `PG_USER`, `PG_PASS` and `DB_NAME` under the `Database` section with the values you chose during the database setup.
-    - Set the value for `SystemEmojiFontName` under the `TwitterImageRendering` section. The default values are `Apple Color Emoji` or `Segoe UI Emoji` for macOS and Windows respectively.
+    - Set the value for `SystemEmojiFontName` under the `TwitterImageRendering` section. The default values are `Apple Color Emoji` or `Segoe UI Emoji` for macOS and Windows respectively. When running with Linux, find, install and enter `Noto Color Emoji`.
 	 - Optionally set values for `Host` and `Port` under the `Email.SmtpServer` section if you want to capture email messages that would be sent by the server.
 	 - Optionally set the value for `StripeApiSecretKey` under the `Subscriptions` section if you want to perform test purchases through Stripe.
 	 - Optionally set the value for `StripeWebhookSigningSecret` under the `Subscriptions` section if you want to receive and process Stripe webhook events.

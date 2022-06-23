@@ -2,6 +2,7 @@
 /obj
 /appsettings.json
 /appsettings.*.json
+!/appsettings.docker.json
 /hostsettings.json
 /keys
 /logs
