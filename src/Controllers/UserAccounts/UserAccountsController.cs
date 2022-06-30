@@ -1,11 +1,11 @@
 // Copyright (C) 2022 reallyread.it, inc.
-// 
+//
 // This file is part of Readup.
-// 
+//
 // Readup is free software: you can redistribute it and/or modify it under the terms of the GNU Affero General Public License version 3 as published by the Free Software Foundation.
-// 
+//
 // Readup is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more details.
-// 
+//
 // You should have received a copy of the GNU Affero General Public License version 3 along with Foobar. If not, see <https://www.gnu.org/licenses/>.
 
 using Microsoft.AspNetCore.Mvc;
@@ -929,9 +929,9 @@ namespace api.Controllers.UserAccounts {
 			}
 			await emailService.Send(
 				new EmailMessage(
-					from: new EmailMailbox("Writer Email Verification Bot", "support@readup.com"),
+					from: new EmailMailbox("Writer Email Verification Bot", "no-reply@readup.org"),
 					replyTo: null,
-					to: new EmailMailbox("Support", "support@readup.com"),
+					to: new EmailMailbox("Thor Galle", "thorgalle+readup@gmail.com"),
 					subject: "Writer Email Verification Request",
 					body: String.Join(
 						"<br />",

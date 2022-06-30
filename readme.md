@@ -10,9 +10,9 @@ The Readup API server is written in ASP.NET 3.1. Its main functions are:
 
 See the [dev-env](https://github.com/reallyreadit/dev-env) instructions to set up this API server as a service within a Docker Compose project. This is the easiest way to get started.
 
-### Developing with VSCode Remote - Container 
+### Developing with VSCode Remote - Container
 
-By using the container of the Docker Compose service as a VSCode Remote, you can leverage the OmniSharp .NET language tools and IntelliSense while developing without having to install them on your host system. 
+By using the container of the Docker Compose service as a VSCode Remote, you can leverage the OmniSharp .NET language tools and IntelliSense while developing without having to install them on your host system.
 
 The `.devcontainer/devcontainer.json` and `Dockerfile` have already been set up with the right OmniSharp configuration for this .NET 3.1 project, as long as you installed the Docker Compose project as suggested above.
 
@@ -96,7 +96,7 @@ To debug the watcher started by default by the container, attach VSCode to the `
     		"DeliveryMethod": "Smtp",
     		"From": {
     			"Name": "Readup",
-    			"Address": "support@readup.com"
+    			"Address": "no-reply@readup.org"
     		},
     		"SmtpServer": {
     			"Host": "",
