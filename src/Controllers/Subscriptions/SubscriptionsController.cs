@@ -1248,7 +1248,7 @@ namespace api.Controllers.Subscriptions {
 							new EmailMessage(
 								from: new EmailMailbox("Payout Account Bot", "no-reply@readup.org"),
 								replyTo: null,
-								to: new EmailMailbox("Support", "support@readup.com"),
+								to: new EmailMailbox("Thor Galle", "thorgalle+readup@gmail.com"),
 								subject: "New Payout Account Created",
 								body: String.Join(
 									"<br />",

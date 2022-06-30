@@ -931,7 +931,7 @@ namespace api.Controllers.UserAccounts {
 				new EmailMessage(
 					from: new EmailMailbox("Writer Email Verification Bot", "no-reply@readup.org"),
 					replyTo: null,
-					to: new EmailMailbox("Support", "support@readup.com"),
+					to: new EmailMailbox("Thor Galle", "thorgalle+readup@gmail.com"),
 					subject: "Writer Email Verification Request",
 					body: String.Join(
 						"<br />",
