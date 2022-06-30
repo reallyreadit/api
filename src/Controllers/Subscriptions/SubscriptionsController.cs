@@ -1246,7 +1246,7 @@ namespace api.Controllers.Subscriptions {
 					async cancellationToken => {
 						await emailService.Send(
 							new EmailMessage(
-								from: new EmailMailbox("Payout Account Bot", "support@readup.com"),
+								from: new EmailMailbox("Payout Account Bot", "no-reply@readup.org"),
 								replyTo: null,
 								to: new EmailMailbox("Support", "support@readup.com"),
 								subject: "New Payout Account Created",

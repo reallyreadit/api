@@ -929,7 +929,7 @@ namespace api.Controllers.UserAccounts {
 			}
 			await emailService.Send(
 				new EmailMessage(
-					from: new EmailMailbox("Writer Email Verification Bot", "support@readup.com"),
+					from: new EmailMailbox("Writer Email Verification Bot", "no-reply@readup.org"),
 					replyTo: null,
 					to: new EmailMailbox("Support", "support@readup.com"),
 					subject: "Writer Email Verification Request",

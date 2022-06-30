@@ -96,7 +96,7 @@ To debug the watcher started by default by the container, attach VSCode to the `
     		"DeliveryMethod": "Smtp",
     		"From": {
     			"Name": "Readup",
-    			"Address": "support@readup.com"
+    			"Address": "no-reply@readup.org"
     		},
     		"SmtpServer": {
     			"Host": "",
