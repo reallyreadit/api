@@ -1,0 +1,2 @@
+This file exists only so that the wwwroot directory will be included in the publish output. Certbot uses this directory for SSL certificate authentication and will fail if the directory doesn't exist.
+https://github.com/dotnet/sdk/issues/12475
