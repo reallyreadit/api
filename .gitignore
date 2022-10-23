@@ -7,3 +7,6 @@
 /keys
 /logs
 /pkg
+
+# Ignore .NET core dumps in case of errors
+core
