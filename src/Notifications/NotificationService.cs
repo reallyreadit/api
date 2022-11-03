@@ -414,7 +414,7 @@ namespace api.Notifications {
 				);
 			}
 			if (dispatches.Any(dispatch => dispatch.ViaEmail)) {
-				var learnMoreUrl = new Uri("https://blog.readup.com/?");
+				var learnMoreUrl = new Uri("https://blog.readup.org/?");
 				await emailService.SendAotdNotifications(
 					dispatches
 						.Where(dispatch => dispatch.ViaEmail)

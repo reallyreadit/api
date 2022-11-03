@@ -54,9 +54,9 @@ To debug the watcher started by default by the container, attach VSCode to the `
     		"CookieSecure": "Always",
     		"Scheme": "rrit-auth-scheme",
     		"TwitterAuth": {
-    			"BrowserAuthCallback": "https://api.dev.readup.com/Auth/TwitterAuthenticationCallback",
-    			"BrowserLinkCallback": "https://api.dev.readup.com/Auth/TwitterLinkCallback",
-    			"BrowserPopupCallback": "https://api.dev.readup.com/Auth/TwitterPopupCallback",
+    			"BrowserAuthCallback": "https://api.dev.readup.org/Auth/TwitterAuthenticationCallback",
+    			"BrowserLinkCallback": "https://api.dev.readup.org/Auth/TwitterLinkCallback",
+    			"BrowserPopupCallback": "https://api.dev.readup.org/Auth/TwitterPopupCallback",
     			"ConsumerKey": "",
     			"ConsumerSecret": "",
     			"SearchAccount": {
@@ -64,8 +64,8 @@ To debug the watcher started by default by the container, attach VSCode to the `
     				"OAuthToken": "",
     				"OAuthTokenSecret": ""
     			},
-    			"TwitterApiServerUrl": "https://twitter-test.dev.readup.com",
-    			"TwitterUploadServerUrl": "https://twitter-test.dev.readup.com",
+    			"TwitterApiServerUrl": "https://twitter-test.dev.readup.org",
+    			"TwitterUploadServerUrl": "https://twitter-test.dev.readup.org",
     			"WebViewCallback": "readup://"
     		}
     	},
@@ -73,13 +73,13 @@ To debug the watcher started by default by the container, attach VSCode to the `
     		"VerifyCaptcha": false
     	},
     	"Cookies": {
-    		"Domain": ".dev.readup.com"
+    		"Domain": ".dev.readup.org"
     	},
     	"Cors": {
     		"AllowedOrigins": [
     			"chrome-extension://",
-    			"https://blog.dev.readup.com",
-    			"https://dev.readup.com",
+    			"https://blog.dev.readup.org",
+    			"https://dev.readup.org",
     			"moz-extension://",
     			"safari-web-extension://"
     		]
@@ -89,7 +89,7 @@ To debug the watcher started by default by the container, attach VSCode to the `
     	},
     	"Embed": {
     		"AllowedHosts": [
-    			"blog.dev.readup.com"
+    			"blog.dev.readup.org"
     		]
     	},
     	"Email": {
@@ -119,15 +119,15 @@ To debug the watcher started by default by the container, attach VSCode to the `
     	"ServiceEndpoints": {
     		"ApiServer": {
     			"Protocol": "https",
-    			"Host": "api.dev.readup.com"
+    			"Host": "api.dev.readup.org"
     		},
     		"StaticContentServer": {
     			"Protocol": "https",
-    			"Host": "static.dev.readup.com"
+    			"Host": "static.dev.readup.org"
     		},
     		"WebServer": {
     			"Protocol": "https",
-    			"Host": "dev.readup.com"
+    			"Host": "dev.readup.org"
     		}
     	},
     	"Subscriptions": {
