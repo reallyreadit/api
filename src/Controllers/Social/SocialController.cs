@@ -200,7 +200,7 @@ namespace api.Controllers.Social {
 				}
 				if (article == null) {
 					logger.LogError("Article lookup failed. Slug: {Slug} Url: {Url}", query.Slug, query.Url);
-					return BadRequest(
+					return NotFound(
 						new[] { "Article not found." }
 					);
 				}
