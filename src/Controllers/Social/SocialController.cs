@@ -200,9 +200,7 @@ namespace api.Controllers.Social {
 				}
 				if (article == null) {
 					logger.LogError("Article lookup failed. Slug: {Slug} Url: {Url}", query.Slug, query.Url);
-					return NotFound(
-						new[] { "Article not found." }
-					);
+					return Problem("Article not found.", statusCode: 404);
 				}
 				var articleAuthors = await db.GetAuthorsOfArticle(
 					articleId: article.Id
