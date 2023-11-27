@@ -190,6 +190,9 @@ namespace api.Controllers.Social {
 				Article article;
 				if (!String.IsNullOrWhiteSpace(query.Slug)) {
 					article = await db.GetArticleBySlug(query.Slug, userAccountId);
+					if (article == null) {
+						logger.LogError("Article lookup failed. Slug: {Slug} Url: {Url}", query.Slug, query.Url);
+					}
 				} else {
 					var page = db.FindPage(query.Url);
 					if (page == null) {
@@ -199,7 +202,6 @@ namespace api.Controllers.Social {
 					}
 				}
 				if (article == null) {
-					logger.LogError("Article lookup failed. Slug: {Slug} Url: {Url}", query.Slug, query.Url);
 					return Problem("Article not found.", statusCode: 404);
 				}
 				var articleAuthors = await db.GetAuthorsOfArticle(
