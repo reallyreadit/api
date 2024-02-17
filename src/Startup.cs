@@ -91,7 +91,7 @@ namespace api {
 			// configure services
 			Stripe.StripeConfiguration.ApiKey = subscriptionsOpts.StripeApiSecretKey;
 			SigningCredentials appleAuthClientSecretSigningKey;
-			if (env.IsProduction()) {
+			if (env.IsProduction() && authOpts.AppleAuth != null) {
 				appleAuthClientSecretSigningKey = new SigningCredentials(
 					new ECDsaSecurityKey(
 						new ECDsaCng(
@@ -188,7 +188,10 @@ namespace api {
 			);
 			// configure http clients
 			X509Certificate2 apnsClientCert;
-			if (env.IsProduction()) {
+			if (
+				env.IsProduction() &&
+				pushOpts.Enable != false
+			) {
 				using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
 					apnsClientCert = store.Certificates.Find(
 						findType: X509FindType.FindByThumbprint,
@@ -233,7 +236,7 @@ namespace api {
 			// configure MVC
 			services.AddControllersWithViews(
 				options => {
-					// configure delay in production to simulate network delay
+					// configure delay in development to simulate network delay
 					if (env.IsDevelopment()) {
 						options.Filters.Add(new DelayActionFilter(500));
 					}
