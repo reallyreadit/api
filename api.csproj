@@ -1,32 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>netcoreapp3.1</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <Version>1.57.0</Version>
+    <Nullable>disable</Nullable>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="AWSSDK.SimpleEmail" Version="3.3.101.53" />
-    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.3.101.71" />
-    <PackageReference Include="Dapper" Version="2.0.123" />
-    <PackageReference Include="Hashids.net" Version="1.2.2" />
-    <PackageReference Include="MailKit" Version="2.3.1.6" />
-    <PackageReference Include="Markdig" Version="0.18.0" />
-    <PackageReference Include="Newtonsoft.Json" Version="12.0.2" />
-    <PackageReference Include="NodaTime" Version="2.4.8" />
-    <PackageReference Include="Npgsql" Version="6.0.4" />
+    <PackageReference Include="AWSSDK.SimpleEmail" Version="3.7.410.15" />
+    <PackageReference Include="AWSSDK.SimpleNotificationService" Version="3.7.410.15" />
+    <PackageReference Include="Dapper" Version="2.1.35" />
+    <PackageReference Include="Hashids.net" Version="1.4.0" />
+    <PackageReference Include="MailKit" Version="4.9.0" />
+    <PackageReference Include="Markdig" Version="0.40.0" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="NodaTime" Version="3.2.1" />
+    <PackageReference Include="Npgsql" Version="6.0.11" />
     <PackageReference Include="QuoteParserLite" Version="1.1.0" />
-    <PackageReference Include="Serilog.Extensions.Logging" Version="3.0.1" />
-    <PackageReference Include="Serilog.Sinks.Console" Version="3.1.1" />
-    <PackageReference Include="Serilog.Sinks.File" Version="4.0.0" />
-    <PackageReference Include="SixLabors.Fonts" Version="1.0.0-beta0013" />
-    <PackageReference Include="SixLabors.ImageSharp" Version="1.0.2" />
-    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="1.0.0-beta11" />
-    <PackageReference Include="Stripe.net" Version="39.31.0" />
-    <PackageReference Include="System.Data.Common" Version="4.3.0" />
-    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="5.6.0" />
-    <PackageReference Include="System.Runtime.Extensions" Version="4.3.1" />
-    <PackageReference Include="System.Security.Cryptography.Algorithms" Version="4.3.1" />
+    <PackageReference Include="Serilog.Extensions.Logging" Version="8.0.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageReference Include="SixLabors.Fonts" Version="2.1.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="3.1.5" />
+    <PackageReference Include="SixLabors.ImageSharp.Drawing" Version="2.1.4" />
+    <PackageReference Include="Stripe.net" Version="47.0.0" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.3.2" />
   </ItemGroup>
 
   <ItemGroup>

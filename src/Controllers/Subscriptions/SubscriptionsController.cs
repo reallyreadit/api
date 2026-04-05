@@ -421,12 +421,8 @@ namespace api.Controllers.Subscriptions {
 						providerPeriodId: invoice.Id,
 						providerPriceId: subscriptionLineItem.Price.Id,
 						providerPaymentMethodId: invoice.PaymentIntent.PaymentMethodId,
-						beginDate: DateTimeOffset
-							.FromUnixTimeSeconds(subscriptionLineItem.Period.Start)
-							.UtcDateTime,
-						endDate: DateTimeOffset
-							.FromUnixTimeSeconds(subscriptionLineItem.Period.End)
-							.UtcDateTime,
+						beginDate: subscriptionLineItem.Period.Start,
+						endDate: subscriptionLineItem.Period.End,
 						dateCreated: invoice.Created,
 						paymentStatus: SubscriptionPaymentStatusExtensions.FromStripePaymentIntentStatusString(invoice.PaymentIntent.Status),
 						datePaid: invoice.StatusTransitions.PaidAt,
@@ -1127,11 +1123,11 @@ namespace api.Controllers.Subscriptions {
 			if (payoutAccount == null) {
 				return Problem("Payout account not found.", statusCode: 400);
 			}
-			var linkService = new Stripe.LoginLinkService();
 			Stripe.LoginLink link;
 			try {
-				link = await linkService.CreateAsync(
-					parentId: payoutAccount.Id
+				link = await new Stripe.AccountService().LoginLinks.CreateAsync(
+					parentId: payoutAccount.Id,
+					options: null
 				);
 			} catch (Exception ex) {
 				logger.LogError(ex, "Failed to create Stripe login link for Connect account with id: {Id}.", payoutAccount.Id);
@@ -1856,7 +1852,7 @@ namespace api.Controllers.Subscriptions {
 				async cancellationToken => {
 					switch (stripeEvent.Type) {
 						// finalize and pay renewal invoices immediately in order to avoid 1-hour delay
-						case Stripe.Events.InvoiceCreated:
+						case Stripe.EventTypes.InvoiceCreated:
 							var newInvoice = stripeEvent.Data.Object as Stripe.Invoice;
 							if (newInvoice.BillingReason == StripeInvoiceBillingReason.SubscriptionCycle) {
 								// the invoice must be finalized first
@@ -1877,9 +1873,9 @@ namespace api.Controllers.Subscriptions {
 						// The following three payment events should generally be handled during the normal initial and renewal payment processing flows but there are
 						// situations where the client may have failed to complete a request after payment confirmation or some other unexpected server error occurred
 						// so we should handle them here as well as a backup. The invoice update database function is designed to be called any number of times in any order.
-						case Stripe.Events.InvoicePaid:
-						case Stripe.Events.InvoicePaymentActionRequired:
-						case Stripe.Events.InvoicePaymentFailed:
+						case Stripe.EventTypes.InvoicePaid:
+						case Stripe.EventTypes.InvoicePaymentActionRequired:
+						case Stripe.EventTypes.InvoicePaymentFailed:
 							var updatedInvoice = stripeEvent.Data.Object as Stripe.Invoice;
 							// The PaymentIntent is required to update the payment status and is not included with the webhook object so we need to fetch a new invoice.
 							await ProcessInvoicePaymentAttemptAsync(
@@ -1888,15 +1884,15 @@ namespace api.Controllers.Subscriptions {
 							);
 							break;
 						// If a charge is disputed or refunded we need to cancel the subscription and update the associated subscription period.
-						case Stripe.Events.ChargeDisputeCreated:
-						case Stripe.Events.ChargeRefunded:
+						case Stripe.EventTypes.ChargeDisputeCreated:
+						case Stripe.EventTypes.ChargeRefunded:
 							// Get the invoiceId and refund params.
 							Nullable<DateTime> dateRefunded;
 							string
 								refundReason,
 								invoiceId;
 							switch (stripeEvent.Type) {
-								case Stripe.Events.ChargeDisputeCreated:
+								case Stripe.EventTypes.ChargeDisputeCreated:
 									var dispute = stripeEvent.Data.Object as Stripe.Dispute;
 									dateRefunded = dispute.Created;
 									refundReason = dispute.Reason ?? "charge.dispute.created";
@@ -1911,7 +1907,7 @@ namespace api.Controllers.Subscriptions {
 										invoiceId = null;
 									}
 									break;
-								case Stripe.Events.ChargeRefunded:
+								case Stripe.EventTypes.ChargeRefunded:
 									var refundedCharge = stripeEvent.Data.Object as Stripe.Charge;
 									var refund = refundedCharge.Refunds
 										.OrderBy(
@@ -1977,11 +1973,11 @@ namespace api.Controllers.Subscriptions {
 							);
 							break;
 						// Update payment method if we get a notification from the network via Stripe.
-						case Stripe.Events.PaymentMethodAutomaticallyUpdated:
+						case Stripe.EventTypes.PaymentMethodAutomaticallyUpdated:
 							await UpdatePaymentMethodFromStripeAsync(stripeEvent.Data.Object as Stripe.PaymentMethod, SubscriptionEventSource.ProviderNotification);
 							break;
 						// Record author payouts as soon as the transfer is created.
-						case Stripe.Events.TransferCreated:
+						case Stripe.EventTypes.TransferCreated:
 							var transfer = stripeEvent.Data.Object as Stripe.Transfer;
 							using (var db = new NpgsqlConnection(databaseOptions.ConnectionString)) {
 								try {

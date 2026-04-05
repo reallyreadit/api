@@ -119,13 +119,14 @@ namespace api {
 				);
 			}
 			// setup fonts
-			var textFontFamily = new FontCollection()
-				.Install("fonts/museo-sans-300.ttf");
-			var emojiFontFamily = SystemFonts.Find(
+			var fontCollection = new FontCollection();
+			var textFontFamily = fontCollection.Add("fonts/museo-sans-300.ttf");
+			SystemFonts.TryGet(
 				config
 					.GetSection("TwitterImageRendering")
 					.Get<TwitterImageRenderingOptions>()
-					.SystemEmojiFontName
+					.SystemEmojiFontName,
+				out var emojiFontFamily
 			);
 			services
 				.AddHostedService<QueuedHostedService>()
@@ -261,13 +262,13 @@ namespace api {
 				new ForwardedHeadersOptions() {
 					ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto,
 					KnownNetworks = {
-						new IPNetwork(
+						new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
 							prefix: new IPAddress(
 								new byte[] { 172, 31, 10, 0 }
 							),
 							prefixLength: 24
 						),
-						new IPNetwork(
+						new Microsoft.AspNetCore.HttpOverrides.IPNetwork(
 							prefix: new IPAddress(
 								new byte[] { 172, 31, 11, 0 }
 							),

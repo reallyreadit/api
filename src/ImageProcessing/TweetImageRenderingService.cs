@@ -62,16 +62,11 @@ namespace api.ImageProcessing {
 
 			// first measure the text without wrapping
 			var fontSize = defaultFontSize;
-			var textRect = TextMeasurer.Measure(
-				text,
-				new RendererOptions(
-					textFontFamily.CreateFont(defaultFontSize)
-				) {
-					FallbackFontFamilies = new[] {
-						emojiFontFamily
-					}
-				}
-			);
+			var textOptions = new TextOptions(textFontFamily.CreateFont(defaultFontSize)) {
+				FallbackFontFamilies = new[] { emojiFontFamily }
+			};
+			var textRect = TextMeasurer.MeasureBounds(text, textOptions);
+
 			HorizontalAlignment horizontalAlignment;
 			if (textRect.Width <= maxTextWidth) {
 				var widthRatio = textRect.Width / maxTextWidth;
@@ -83,17 +78,11 @@ namespace api.ImageProcessing {
 				}
 			} else {
 				// measure the text with wrapping
-				textRect = TextMeasurer.Measure(
-					text,
-					new RendererOptions(
-						textFontFamily.CreateFont(fontSize)
-					) {
-						FallbackFontFamilies = new[] {
-							emojiFontFamily
-						},
-						WrappingWidth = maxTextWidth
-					}
-				);
+				var wrappingOptions = new TextOptions(textFontFamily.CreateFont(fontSize)) {
+					FallbackFontFamilies = new[] { emojiFontFamily },
+					WrappingLength = maxTextWidth
+				};
+				textRect = TextMeasurer.MeasureBounds(text, wrappingOptions);
 				var heightRatio = textRect.Height / maxTextHeight;
 				fontSize = fontSize / (float)Math.Sqrt(heightRatio * 1.1);
 				horizontalAlignment = HorizontalAlignment.Left;
@@ -107,33 +96,25 @@ namespace api.ImageProcessing {
 						ctx.BackgroundColor(Color.White);
 
 						ctx.DrawText(
-							new TextGraphicsOptions() {
-								TextOptions = new TextOptions() {
-									FallbackFonts = {
-										emojiFontFamily
-									},
-									HorizontalAlignment = horizontalAlignment,
-									VerticalAlignment = VerticalAlignment.Center,
-									WrapTextWidth = maxTextWidth
-								}
+							new RichTextOptions(textFontFamily.CreateFont(fontSize)) {
+								FallbackFontFamilies = new[] { emojiFontFamily },
+								HorizontalAlignment = horizontalAlignment,
+								VerticalAlignment = VerticalAlignment.Center,
+								WrappingLength = maxTextWidth,
+								Origin = new PointF(paddingLeft, height / 2 + (paddingTop - paddingBottom))
 							},
 							text,
-							textFontFamily.CreateFont(fontSize),
-							Color.Black,
-							new PointF(paddingLeft, height / 2 + (paddingTop - paddingBottom))
+							Color.Black
 						);
 
 						ctx.DrawText(
-							new TextGraphicsOptions() {
-								TextOptions = new TextOptions() {
-									HorizontalAlignment = HorizontalAlignment.Center,
-									VerticalAlignment = VerticalAlignment.Bottom
-								}
+							new RichTextOptions(textFontFamily.CreateFont(footerFontSize)) {
+								HorizontalAlignment = HorizontalAlignment.Center,
+								VerticalAlignment = VerticalAlignment.Bottom,
+								Origin = new PointF(width / 2, height - (int)(width * 0.02))
 							},
 							$"Posted on {datePosted.ToString("MMM d, yyyy")} • readup.org/@{userName}",
-							textFontFamily.CreateFont(footerFontSize),
-							Color.Gray,
-							new PointF(width / 2, height - (int)(width * 0.02))
+							Color.Gray
 						);
 					}
 				);
