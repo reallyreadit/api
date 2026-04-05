@@ -17,4 +17,6 @@ $version = $versionXmlResult.Node.InnerText
 Write-Output "Version: $version"
 
 Write-Host 'Creating archive...'
+# Create the pkg directory if it doesn't exist yet. Should be safe https://stackoverflow.com/questions/16906170/create-directory-if-it-does-not-exist#comment90975264_16911470
+New-Item -ItemType Directory -Force -Path pkg
 Compress-Archive -Path bin/Release/netcoreapp3.1/publish/* -DestinationPath pkg/"api-$version.zip"
