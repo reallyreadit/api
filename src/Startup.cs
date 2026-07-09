@@ -96,14 +96,14 @@ namespace api {
 				int ecdsaKeyBytesRead;
 
 				ecdsa.ImportPkcs8PrivateKey(
-								Convert.FromBase64String(
-									PemParser
-										.Parse(
-											File.ReadAllText(authOpts.AppleAuth.ClientSecretSigningKeyPath)
-										)
-										.Single()
-										.EncodedBody
-								),
+					Convert.FromBase64String(
+						PemParser
+							.Parse(
+								File.ReadAllText(authOpts.AppleAuth.ClientSecretSigningKeyPath)
+							)
+							.Single()
+							.EncodedBody
+					),
 					out ecdsaKeyBytesRead
 				);
 
@@ -190,13 +190,7 @@ namespace api {
 			// configure http clients
 			X509Certificate2 apnsClientCert;
 			if (env.IsProduction()) {
-				using (var store = new X509Store(StoreName.My, StoreLocation.LocalMachine, OpenFlags.ReadOnly)) {
-					apnsClientCert = store.Certificates.Find(
-						findType: X509FindType.FindByThumbprint,
-						findValue: pushOpts.ClientCertThumbprint,
-						validOnly: false
-					)[0];
-				}
+				apnsClientCert = new X509Certificate2(pushOpts.ClientCertKeyPath, string.Empty);
 			} else {
 				apnsClientCert = new X509Certificate2();
 			}
