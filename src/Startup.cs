@@ -92,10 +92,10 @@ namespace api {
 			Stripe.StripeConfiguration.ApiKey = subscriptionsOpts.StripeApiSecretKey;
 			SigningCredentials appleAuthClientSecretSigningKey;
 			if (env.IsProduction()) {
-				appleAuthClientSecretSigningKey = new SigningCredentials(
-					new ECDsaSecurityKey(
-						new ECDsaCng(
-							CngKey.Import(
+				using ECDsa ecdsa = ECDsa.Create();
+				int ecdsaKeyBytesRead;
+
+				ecdsa.ImportPkcs8PrivateKey(
 								Convert.FromBase64String(
 									PemParser
 										.Parse(
@@ -104,10 +104,11 @@ namespace api {
 										.Single()
 										.EncodedBody
 								),
-								CngKeyBlobFormat.Pkcs8PrivateBlob
-							)
-						)
-					),
+					out ecdsaKeyBytesRead
+				);
+
+				appleAuthClientSecretSigningKey = new SigningCredentials(
+					new ECDsaSecurityKey(ecdsa),
 					SecurityAlgorithms.EcdsaSha256
 				);
 			} else {
