@@ -92,7 +92,7 @@ namespace api {
 			Stripe.StripeConfiguration.ApiKey = subscriptionsOpts.StripeApiSecretKey;
 			SigningCredentials appleAuthClientSecretSigningKey;
 			if (env.IsProduction()) {
-				using ECDsa ecdsa = ECDsa.Create();
+				var ecdsa = ECDsa.Create();
 				int ecdsaKeyBytesRead;
 
 				ecdsa.ImportPkcs8PrivateKey(
